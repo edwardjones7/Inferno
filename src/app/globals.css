@@ -1,0 +1,167 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ash-950: #0a0705;
+  --color-ash-900: #110c09;
+  --color-ash-850: #17110d;
+  --color-ash-800: #1e1611;
+  --color-ash-700: #2b2019;
+  --color-ash-600: #3d2e24;
+  --color-ash-500: #5c4a3d;
+  --color-ash-400: #8f7b6c;
+  --color-ash-300: #b9a797;
+  --color-ash-200: #ddd0c3;
+  --color-bone: #f6ede3;
+
+  --color-ember-200: #ffe1a1;
+  --color-ember-300: #ffc24b;
+  --color-ember-400: #ff9a2e;
+  --color-ember-500: #ff5a1f;
+  --color-ember-600: #e5360f;
+  --color-ember-700: #b3200c;
+  --color-ember-800: #7a0f0a;
+  --color-ember-900: #3d0805;
+
+  --font-display: var(--font-unbounded), ui-sans-serif, system-ui;
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+
+  --animate-flicker: flicker 4s ease-in-out infinite;
+  --animate-glow: glow 2.4s ease-in-out infinite;
+  --animate-rise: rise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+
+  @keyframes flicker {
+    0%, 100% { opacity: 1; filter: brightness(1); }
+    41% { opacity: 1; filter: brightness(1.15); }
+    42% { opacity: 0.86; filter: brightness(0.9); }
+    44% { opacity: 1; filter: brightness(1.2); }
+    70% { filter: brightness(1.05); }
+  }
+  @keyframes glow {
+    0%, 100% { box-shadow: 0 0 0 1px rgb(255 154 46 / 0.55), 0 0 28px -6px rgb(255 90 31 / 0.55); }
+    50% { box-shadow: 0 0 0 1px rgb(255 194 75 / 0.8), 0 0 42px -4px rgb(255 90 31 / 0.8); }
+  }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+  }
+}
+
+:root {
+  color-scheme: dark;
+  --molten: linear-gradient(180deg, #ffe9b8 0%, #ffc24b 28%, #ff7a1f 62%, #c8260c 100%);
+}
+
+html {
+  background: var(--color-ash-950);
+}
+
+body {
+  background:
+    radial-gradient(1200px 600px at 50% -10%, rgb(255 90 31 / 0.14), transparent 60%),
+    radial-gradient(900px 500px at 100% 110%, rgb(122 15 10 / 0.25), transparent 60%),
+    var(--color-ash-950);
+  color: var(--color-bone);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgb(255 90 31 / 0.4);
+}
+
+/* Film grain over everything, so dark surfaces read as stone rather than flat black. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 60;
+  opacity: 0.06;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+@utility molten-text {
+  background: var(--molten);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@utility panel {
+  background: linear-gradient(180deg, rgb(30 22 17 / 0.85), rgb(17 12 9 / 0.85));
+  border: 1px solid rgb(61 46 36 / 0.7);
+  box-shadow: inset 0 1px 0 rgb(255 225 161 / 0.05), 0 20px 40px -24px rgb(0 0 0 / 0.8);
+  backdrop-filter: blur(10px);
+}
+
+@utility btn-fire {
+  background: linear-gradient(180deg, #ff9a2e 0%, #ff5a1f 45%, #d8320e 100%);
+  color: #1a0603;
+  box-shadow:
+    inset 0 1px 0 rgb(255 233 184 / 0.7),
+    inset 0 -2px 0 rgb(122 15 10 / 0.6),
+    0 8px 24px -8px rgb(255 90 31 / 0.7);
+  transition: transform 0.12s, box-shadow 0.2s, filter 0.2s;
+  &:hover:not(:disabled) {
+    filter: brightness(1.08);
+    box-shadow:
+      inset 0 1px 0 rgb(255 233 184 / 0.8),
+      inset 0 -2px 0 rgb(122 15 10 / 0.6),
+      0 10px 34px -6px rgb(255 90 31 / 0.95);
+  }
+  &:active:not(:disabled) {
+    transform: translateY(1px) scale(0.99);
+  }
+  &:disabled {
+    filter: grayscale(0.8) brightness(0.55);
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+}
+
+@utility btn-ash {
+  background: linear-gradient(180deg, #2b2019, #1e1611);
+  border: 1px solid rgb(92 74 61 / 0.6);
+  color: var(--color-ash-200);
+  box-shadow: inset 0 1px 0 rgb(255 225 161 / 0.06);
+  transition: border-color 0.15s, color 0.15s, transform 0.12s, background 0.15s;
+  &:hover:not(:disabled) {
+    border-color: rgb(255 154 46 / 0.6);
+    color: var(--color-bone);
+  }
+  &:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+  &:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+}
+
+/* The table: dark felt, a molten rim, and faint lava cracks bleeding in from the edges. */
+@utility felt {
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 38%, rgb(70 26 14 / 0.55), transparent 70%),
+    radial-gradient(ellipse at 50% 120%, rgb(255 90 31 / 0.22), transparent 55%),
+    linear-gradient(180deg, #1a0f0b, #0f0907 70%);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 122 31 / 0.25),
+    inset 0 0 80px rgb(0 0 0 / 0.85),
+    inset 0 -30px 80px -40px rgb(255 90 31 / 0.5),
+    0 30px 80px -30px rgb(0 0 0 / 0.9),
+    0 0 60px -20px rgb(255 90 31 / 0.35);
+}
+
+@utility tabular {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
