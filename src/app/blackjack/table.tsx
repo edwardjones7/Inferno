@@ -1,8 +1,9 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { dealAction, playAction } from "@/app/actions";
 import { Chip, CHIP_VALUES, chipsFor } from "@/components/chip";
@@ -10,90 +11,35 @@ import { CoinIcon } from "@/components/coin-icon";
 import { EmberBurst } from "@/components/ember-burst";
 import { PlayingCard } from "@/components/playing-card";
 import { useWallet } from "@/components/wallet-provider";
+import { OutcomeBanner, ResultTag, TotalBadge } from "./parts";
+import { outcome, playerKey, schedule, type Timing } from "./timing";
 import type { ActionType, RoundView } from "@/lib/blackjack/engine";
 import { basicStrategy } from "@/lib/blackjack/strategy";
 import { formatUsd, MAX_BET_USD, MIN_BET_USD, unitsToUsd, type Currency } from "@/lib/currency";
 import { play } from "@/lib/sound";
 import { isBoolString, useStored } from "@/lib/use-stored";
-import type { Fairness, RoundPayload } from "@/server/casino";
 
-/* ------------------------------------------------------------------ timing */
+const Table3D = dynamic(() => import("./three/table-3d"), {
+  ssr: false,
+  loading: () => <div className="felt h-[420px] animate-pulse rounded-[28px] sm:h-[540px] sm:rounded-[44px]" />,
+});
 
-const DEAL_STEP = 0.22;
-const HIT_STEP = 0.28;
-const DEALER_STEP = 0.5;
-
-interface Timing {
-  delays: Record<string, number>;
-  flip: number;
-  total: number;
-}
-
-const playerKey = (h: number, i: number, c: string) => `p${h}-${i}-${c}`;
-
-/** Work out when each newly visible card lands so the table plays out like a real deal. */
-function schedule(prev: RoundView | null, next: RoundView): Timing {
-  const delays: Record<string, number> = {};
-  const seen = new Set<string>();
-  prev?.hands.forEach((h, hi) => h.cards.forEach((c, i) => seen.add(playerKey(hi, i, c))));
-  let t = 0;
-  let flip = 0;
-
-  if (!prev) {
-    // Opening deal: player, dealer, player, dealer(hole)
-    delays[playerKey(0, 0, next.hands[0].cards[0])] = 0;
-    delays["d0"] = DEAL_STEP;
-    delays[playerKey(0, 1, next.hands[0].cards[1])] = DEAL_STEP * 2;
-    delays["d1"] = DEAL_STEP * 3;
-    t = DEAL_STEP * 3 + 0.35;
-    if (next.dealer[1]) {
-      flip = t;
-      t += 0.5;
+let webgl: boolean | null = null;
+function hasWebGL() {
+  if (webgl === null) {
+    try {
+      const c = document.createElement("canvas");
+      webgl = !!(c.getContext("webgl2") || c.getContext("webgl"));
+    } catch {
+      webgl = false;
     }
-    for (let i = 2; i < next.dealer.length; i++) delays[`d${i}`] = t + (i - 2) * DEALER_STEP;
-    t += Math.max(0, next.dealer.length - 2) * DEALER_STEP;
-    return { delays, flip, total: t + 0.15 };
   }
-
-  next.hands.forEach((h, hi) =>
-    h.cards.forEach((c, i) => {
-      const k = playerKey(hi, i, c);
-      if (!seen.has(k)) {
-        delays[k] = t;
-        t += HIT_STEP;
-      }
-    }),
-  );
-  if (!prev.dealer[1] && next.dealer[1]) {
-    t += 0.1;
-    flip = t;
-    t += 0.55;
-  }
-  for (let i = prev.dealer.length; i < next.dealer.length; i++) {
-    delays[`d${i}`] = t;
-    t += DEALER_STEP;
-  }
-  return { delays, flip, total: t + 0.1 };
+  return webgl;
 }
-
-/* ------------------------------------------------------------------ outcome */
-
-function outcome(v: RoundView, currency: Currency) {
-  const net = unitsToUsd(v.payout - v.wagered, currency);
-  const blackjack = v.hands.some((h) => h.result === "blackjack");
-  const allBust = v.hands.every((h) => h.total > 21);
-  const surrendered = v.hands.every((h) => h.result === "surrender");
-  let title: string;
-  if (blackjack) title = "Blackjack";
-  else if (surrendered) title = "Surrendered";
-  else if (v.dealerBlackjack) title = "Dealer blackjack";
-  else if (net > 0) title = "You win";
-  else if (net === 0) title = "Push";
-  else if (allBust) title = "Bust";
-  else title = "Dealer wins";
-  const tone: "win" | "push" | "lose" = net > 0 ? "win" : net === 0 ? "push" : "lose";
-  return { net, title, tone, blackjack };
-}
+const noopSubscribe = () => () => {};
+const VIEW_KEY = "inferno:view";
+const isViewMode = (v: unknown): v is "3d" | "2d" => v === "3d" || v === "2d";
+import type { Fairness, RoundPayload } from "@/server/casino";
 
 /* ------------------------------------------------------------------ table */
 
@@ -117,6 +63,10 @@ export function BlackjackTable({ initial }: { initial: { round: RoundPayload | n
   const [bet, setBet] = useState(10);
   const [betStack, setBetStack] = useState<number[]>([]);
   const [busy, setBusy] = useState(false);
+  const [epoch, setEpoch] = useState(0);
+  const [viewMode, setViewMode] = useStored(VIEW_KEY, "3d", isViewMode);
+  const webglOk = useSyncExternalStore(noopSubscribe, hasWebGL, () => true);
+  const use3d = viewMode === "3d" && webglOk;
   const [hintsPref, setHintsPref] = useStored(HINT_KEY, "0", isBoolString);
   const hints = hintsPref === "1";
   const revealTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -135,6 +85,7 @@ export function BlackjackTable({ initial }: { initial: { round: RoundPayload | n
     (next: RoundPayload, nextWallet: Record<Currency, number>, prev: RoundView | null) => {
       const t = schedule(prev, next.view);
       setTiming(t);
+      setEpoch((e) => e + 1);
       setRound(next);
       Object.entries(t.delays).forEach(([, d]) => play("card", d));
       if (t.flip) play("flip", t.flip);
@@ -242,13 +193,41 @@ export function BlackjackTable({ initial }: { initial: { round: RoundPayload | n
     <div className="grid gap-5 lg:grid-cols-[1fr_280px]">
       <div className="min-w-0">
         {/* ---------------------------------------------------- felt */}
+        {use3d ? (
+          <div className="relative">
+            <Table3D
+              view={view}
+              roundId={round?.id ?? null}
+              timing={timing}
+              epoch={epoch}
+              revealed={revealed}
+              pendingBetUsd={bet}
+              toUsd={toUsd}
+              burstKey={burstKey}
+            />
+            <div className="pointer-events-none absolute inset-x-0 top-0 z-20 h-[84%]">
+              <OutcomeBanner result={result && revealed ? result : null} roundId={round?.id ?? ""} />
+            </div>
+            {burstKey > 0 && (
+              <div className="pointer-events-none absolute inset-x-0 top-0 z-20 h-[84%]">
+                <EmberBurst key={burstKey} seed={burstKey} intensity={result?.blackjack ? 1.4 : 1} count={result?.blackjack ? 60 : 36} />
+              </div>
+            )}
+            {view?.insurance && (
+              <p className="absolute inset-x-0 bottom-3 text-center text-xs text-ash-300">
+                Insurance {formatUsd(toUsd(view.insurance.bet))}
+                {view.phase === "settled" && revealed && (view.insurance.payout ? " · paid 2:1" : " · lost")}
+              </p>
+            )}
+          </div>
+        ) : (
         <div className="felt relative isolate overflow-hidden rounded-[28px] px-3 pb-6 pt-5 sm:rounded-[44px] sm:px-8 sm:pb-8 sm:pt-7">
           <Shoe />
 
           {/* dealer */}
           <div className="flex min-h-[150px] flex-col items-center sm:min-h-[180px]">
             <Label>Dealer</Label>
-            <div className="mt-2 flex h-[92px] items-start sm:h-[120px]">
+            <div key={round?.id ?? "none"} className="mt-2 flex h-[92px] items-start sm:h-[120px]">
               {view?.dealer.map((c, i) => (
                 <div key={`d${i}`} className={i ? "-ml-[34px] sm:-ml-[44px]" : ""}>
                   <PlayingCard card={c} delay={timing.delays[`d${i}`] ?? 0} flipDelay={i === 1 ? timing.flip : 0} />
@@ -278,36 +257,7 @@ export function BlackjackTable({ initial }: { initial: { round: RoundPayload | n
               Dealer stands on all 17s · Insurance pays 2 to 1
             </p>
             </div>
-            {/* outcome */}
-            <AnimatePresence>
-              {result && revealed && (
-                <motion.div
-                  key={round!.id}
-                  initial={{ opacity: 0, scale: 0.85 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ type: "spring", stiffness: 300, damping: 22 }}
-                  className="absolute inset-0 z-10 flex items-center justify-center"
-                >
-                  <div className="rounded-2xl bg-ash-950/85 px-7 py-3 text-center ring-1 ring-ash-600/60 backdrop-blur-md">
-                    <p
-                      className={`font-display text-2xl font-black uppercase tracking-wider sm:text-3xl ${
-                        result.tone === "win" ? "molten-text" : result.tone === "push" ? "text-ash-200" : "text-ash-400"
-                      }`}
-                    >
-                      {result.title}
-                    </p>
-                    <p
-                      className={`tabular mt-0.5 text-sm font-semibold ${
-                        result.tone === "win" ? "text-ember-300" : result.tone === "push" ? "text-ash-300" : "text-ash-500"
-                      }`}
-                    >
-                      {result.net === 0 ? "Stake returned" : formatUsd(result.net, { sign: true })}
-                    </p>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            <OutcomeBanner result={result && revealed ? result : null} roundId={round?.id ?? ""} />
             {burstKey > 0 && (
               <div className="absolute inset-0 z-20">
                 <EmberBurst key={burstKey} seed={burstKey} intensity={result?.blackjack ? 1.4 : 1} count={result?.blackjack ? 60 : 36} />
@@ -322,7 +272,7 @@ export function BlackjackTable({ initial }: { initial: { round: RoundPayload | n
                 const active = inPlay && view.phase === "player" && hi === view.active;
                 const finished = settledShown && h.result;
                 return (
-                  <motion.div layout key={hi} className="flex flex-col items-center">
+                  <motion.div layout key={`${round?.id}:${hi}`} className="flex flex-col items-center">
                     <div className="mb-2 h-7">
                       <AnimatePresence>
                         {finished && <ResultTag result={h.result!} payoutUsd={toUsd(h.payout ?? 0)} betUsd={toUsd(h.bet)} />}
@@ -366,6 +316,7 @@ export function BlackjackTable({ initial }: { initial: { round: RoundPayload | n
           )}
 
         </div>
+        )}
 
         {/* ---------------------------------------------------- dock */}
         <div className="panel mt-4 rounded-3xl p-4 sm:p-5">
@@ -446,6 +397,21 @@ export function BlackjackTable({ initial }: { initial: { round: RoundPayload | n
 
       {/* ---------------------------------------------------- side */}
       <aside className="flex min-w-0 flex-col gap-4">
+        <div className="panel flex items-center gap-1 rounded-2xl p-1.5">
+          {(["3d", "2d"] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setViewMode(m)}
+              disabled={m === "3d" && !webglOk}
+              aria-pressed={viewMode === m}
+              className={`h-9 flex-1 rounded-xl text-sm font-bold transition-colors ${
+                (m === "3d" ? use3d : !use3d) ? "bg-ember-500 text-ash-950 shadow-[0_0_20px_-4px_rgba(255,90,31,0.8)]" : "text-ash-400 hover:text-bone"
+              } disabled:opacity-40`}
+            >
+              {m === "3d" ? "3D table" : "Classic"}
+            </button>
+          ))}
+        </div>
         <div className="panel rounded-3xl p-5">
           <div className="flex items-center justify-between">
             <h2 className="font-display text-sm font-bold">Strategy hints</h2>
@@ -598,59 +564,6 @@ function StakeChips({ usd }: { usd: number }) {
         </span>
       ))}
     </span>
-  );
-}
-
-function TotalBadge({
-  total,
-  soft,
-  bust,
-  active,
-  hiddenHole,
-}: {
-  total: number | null;
-  soft?: boolean;
-  bust?: boolean;
-  active?: boolean;
-  hiddenHole?: boolean;
-}) {
-  if (total === null) return <span className="inline-block h-7 w-10 animate-pulse rounded-full bg-ash-800" />;
-  const label = soft && total < 21 && !hiddenHole ? `${total - 10}/${total}` : String(total);
-  return (
-    <span
-      className={`tabular inline-flex h-7 min-w-10 items-center justify-center rounded-full px-2.5 text-sm font-bold ring-1 ${
-        bust
-          ? "bg-ash-800 text-ash-400 ring-ash-600 line-through"
-          : total === 21
-            ? "bg-ember-500 text-ash-950 ring-ember-300"
-            : active
-              ? "bg-ash-950 text-ember-200 ring-ember-400"
-              : "bg-ash-950/80 text-bone ring-ash-600"
-      }`}
-    >
-      {label}
-      {hiddenHole && <span className="ml-1 text-ash-500">+?</span>}
-    </span>
-  );
-}
-
-function ResultTag({ result, payoutUsd, betUsd }: { result: string; payoutUsd: number; betUsd: number }) {
-  const net = payoutUsd - betUsd;
-  const map: Record<string, string> = {
-    blackjack: "bg-gradient-to-b from-ember-300 to-ember-500 text-ash-950",
-    win: "bg-ember-500 text-ash-950",
-    push: "bg-ash-600 text-bone",
-    lose: "bg-ash-800 text-ash-400",
-    surrender: "bg-ash-800 text-ash-300",
-  };
-  return (
-    <motion.span
-      initial={{ y: 8, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      className={`tabular inline-flex h-7 items-center rounded-full px-3 text-xs font-bold uppercase tracking-wider ${map[result]}`}
-    >
-      {result === "lose" ? "Lose" : result} {net !== 0 && formatUsd(net, { sign: true })}
-    </motion.span>
   );
 }
 

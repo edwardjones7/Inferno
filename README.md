@@ -27,6 +27,7 @@ npm run build
 | `src/lib/blackjack/strategy.ts` | Basic strategy, used for the in-game hints and the simulation. |
 | `src/server/casino.ts` | Game service. Every money move happens in a transaction with the user row locked, and is written to an append-only `ledger`. |
 | `src/server/db/` | Drizzle schema + PGlite/Postgres connection. |
+| `src/app/blackjack/three/` | The 3D table (React Three Fiber): card/chip/felt textures painted at runtime, shoe-to-table card flights and flips, chip stacks, bloom. The "Classic" toggle falls back to the 2D table, and does so automatically without WebGL. |
 | `src/app/actions.ts` | Server actions the UI calls (deal, play, faucet, rotate seeds, reset). |
 | `src/proxy.ts` | Issues the guest-id cookie on first visit. |
 
