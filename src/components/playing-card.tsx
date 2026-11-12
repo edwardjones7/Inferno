@@ -9,6 +9,8 @@ interface Props {
   delay?: number;
   /** seconds before a face-down card flips (when it becomes known) */
   flipDelay?: number;
+  /** seconds the flip takes (longer for a slow-motion reveal) */
+  flipDuration?: number;
   dim?: boolean;
   small?: boolean;
 }
@@ -18,7 +20,7 @@ const SIZE = {
   sm: "h-[46px] w-[33px] rounded-[5px]",
 };
 
-export function PlayingCard({ card, delay = 0, flipDelay = 0, dim = false, small = false }: Props) {
+export function PlayingCard({ card, delay = 0, flipDelay = 0, flipDuration = 0.5, dim = false, small = false }: Props) {
   const faceUp = card !== null;
   return (
     <motion.div
@@ -31,7 +33,7 @@ export function PlayingCard({ card, delay = 0, flipDelay = 0, dim = false, small
         className="relative h-full w-full [transform-style:preserve-3d]"
         initial={false}
         animate={{ rotateY: faceUp ? 0 : 180 }}
-        transition={{ duration: 0.5, delay: faceUp ? flipDelay : 0, ease: [0.3, 0.7, 0.2, 1] }}
+        transition={{ duration: flipDuration, delay: faceUp ? flipDelay : 0, ease: [0.3, 0.7, 0.2, 1] }}
       >
         <div className="absolute inset-0 [backface-visibility:hidden]">{card && <Face card={card} small={small} />}</div>
         <div className="absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)]">

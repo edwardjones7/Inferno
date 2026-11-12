@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { faucetAction } from "@/app/actions";
 import { CoinIcon } from "@/components/coin-icon";
 import { Wordmark } from "@/components/logo";
+import { Odometer, useTrend } from "@/components/odometer";
 import { useWallet } from "@/components/wallet-provider";
 import { CURRENCIES, CURRENCY_CODES, FAUCET_USD, formatCoin, formatUsd, unitsToUsd } from "@/lib/currency";
 import { isMuted, onMuteChange, play, setMuted } from "@/lib/sound";
@@ -66,6 +67,7 @@ function WalletPill() {
   const { wallet, currency, setCurrency, ready } = useWallet();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const trend = useTrend(wallet ? wallet[currency] : null, currency);
 
   useEffect(() => {
     if (!open) return;
@@ -89,10 +91,15 @@ function WalletPill() {
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="flex h-10 items-center gap-1.5 rounded-xl border border-ash-600/70 bg-ash-900 px-2.5 sm:gap-2 sm:pr-3 transition-colors hover:border-ember-500/60"
+        className="relative flex h-10 items-center gap-1.5 rounded-xl border border-ash-600/70 bg-ash-900 px-2.5 sm:gap-2 sm:pr-3 transition-colors hover:border-ember-500/60"
       >
         <CoinIcon currency={currency} />
-        <span className="tabular text-sm font-semibold text-bone">{formatCoin(wallet[currency], currency)}</span>
+        <span className="tabular text-sm font-semibold text-bone">
+          <Odometer value={formatCoin(wallet[currency], currency)} trend={trend} />
+          <span className="sr-only" aria-live="polite" aria-atomic>
+            {formatCoin(wallet[currency], currency)} {currency}
+          </span>
+        </span>
         <span className="hidden text-xs text-ash-400 sm:inline">≈ {formatUsd(unitsToUsd(wallet[currency], currency))}</span>
         <svg viewBox="0 0 12 12" className={`hidden h-3 w-3 text-ash-400 transition-transform sm:block ${open ? "rotate-180" : ""}`}>
           <path d="M2 4l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" />

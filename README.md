@@ -27,7 +27,8 @@ npm run build
 | `src/lib/blackjack/strategy.ts` | Basic strategy, used for the in-game hints and the simulation. |
 | `src/server/casino.ts` | Game service. Every money move happens in a transaction with the user row locked, and is written to an append-only `ledger`. |
 | `src/server/db/` | Drizzle schema + PGlite/Postgres connection. |
-| `src/app/blackjack/three/` | The 3D table (React Three Fiber): card/chip/felt textures painted at runtime, shoe-to-table card flights and flips, chip stacks, bloom. The "Classic" toggle falls back to the 2D table, and does so automatically without WebGL. |
+| `src/app/blackjack/three/` | The 3D table (React Three Fiber). `table-3d.tsx` composes it; `fx-context.ts` carries game-feel signals (streak heat, dramatic reveal, win/lose/blackjack events) to every part: `cards.tsx`/`card-rig.ts` (paper cards, foil, burn-to-ash), `table-body.tsx` (lava rail, felt cracks, brass), `environment.tsx` + `env-*`/`flame-jet.tsx` (lamp, light beam, embers, blackjack flame jet), `chips.tsx`/`chip-sim.ts` (Rapier physics chips), `camera.tsx` + `effects.tsx`/`post-effects.ts` (reveal push-in, DoF, heat colour grade). The "Classic" toggle falls back to the 2D table, and does so automatically without WebGL. |
+| `src/lib/sound.ts`, `public/sfx/` | Sound engine: CC0 card/chip recordings (Kenney Casino Audio, see `public/sfx/LICENSE.txt`), synthesized stingers, and a fire-crackle ambience that follows streak heat. |
 | `src/app/actions.ts` | Server actions the UI calls (deal, play, faucet, rotate seeds, reset). |
 | `src/proxy.ts` | Issues the guest-id cookie on first visit. |
 

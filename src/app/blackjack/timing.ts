@@ -9,8 +9,21 @@ const DEALER_STEP = 0.5;
 
 export interface Timing {
   delays: Record<string, number>;
+  /** seconds until the hole card starts flipping (0 = no flip in this update) */
   flip: number;
+  /** how long the hole-card flip takes; long when the reveal is dramatic (slow motion) */
+  flipDuration: number;
+  /** window (seconds from the update) for the cinematic reveal, or null */
+  drama: { start: number; end: number } | null;
   total: number;
+}
+
+export const NORMAL_FLIP = 0.42;
+export const SLOW_FLIP = 1.35;
+
+/** A reveal is worth slowing down when the player still has a live, decent hand riding on it. */
+function isDramatic(v: RoundView) {
+  return v.hands.some((h) => h.result !== "surrender" && h.total <= 21 && (h.total >= 17 || h.doubled));
 }
 
 export const playerKey = (h: number, i: number, c: string) => `p${h}-${i}-${c}`;
@@ -30,13 +43,20 @@ export function schedule(prev: RoundView | null, next: RoundView): Timing {
     delays[playerKey(0, 1, next.hands[0].cards[1])] = DEAL_STEP * 2;
     delays["d1"] = DEAL_STEP * 3;
     t = DEAL_STEP * 3 + 0.35;
+    let flipDuration = NORMAL_FLIP;
+    let drama: Timing["drama"] = null;
     if (next.dealer[1]) {
+      const slow = isDramatic(next);
+      flipDuration = slow ? SLOW_FLIP : NORMAL_FLIP;
+      if (slow) t += 0.5; // let the camera settle in first
       flip = t;
-      t += 0.5;
+      t += flipDuration + 0.1;
+      if (slow) drama = { start: flip - 0.6, end: t + 0.4 };
     }
     for (let i = 2; i < next.dealer.length; i++) delays[`d${i}`] = t + (i - 2) * DEALER_STEP;
     t += Math.max(0, next.dealer.length - 2) * DEALER_STEP;
-    return { delays, flip, total: t + 0.15 };
+    if (drama) drama.end = t + 0.3;
+    return { delays, flip, flipDuration, drama, total: t + 0.15 };
   }
 
   next.hands.forEach((h, hi) =>
@@ -48,16 +68,22 @@ export function schedule(prev: RoundView | null, next: RoundView): Timing {
       }
     }),
   );
+  let flipDuration = NORMAL_FLIP;
+  let drama: Timing["drama"] = null;
   if (!prev.dealer[1] && next.dealer[1]) {
-    t += 0.1;
+    const slow = isDramatic(next);
+    flipDuration = slow ? SLOW_FLIP : NORMAL_FLIP;
+    t += slow ? 0.7 : 0.1;
     flip = t;
-    t += 0.55;
+    t += flipDuration + 0.13;
+    if (slow) drama = { start: Math.max(0, flip - 0.7), end: 0 };
   }
   for (let i = prev.dealer.length; i < next.dealer.length; i++) {
     delays[`d${i}`] = t;
     t += DEALER_STEP;
   }
-  return { delays, flip, total: t + 0.1 };
+  if (drama) drama.end = t + 0.3;
+  return { delays, flip, flipDuration, drama, total: t + 0.1 };
 }
 
 /* ------------------------------------------------------------------ outcome */

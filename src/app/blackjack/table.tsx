@@ -11,12 +11,12 @@ import { CoinIcon } from "@/components/coin-icon";
 import { EmberBurst } from "@/components/ember-burst";
 import { PlayingCard } from "@/components/playing-card";
 import { useWallet } from "@/components/wallet-provider";
-import { OutcomeBanner, ResultTag, TotalBadge } from "./parts";
+import { HeatMeter, OutcomeBanner, ResultTag, TotalBadge } from "./parts";
 import { outcome, playerKey, schedule, type Timing } from "./timing";
 import type { ActionType, RoundView } from "@/lib/blackjack/engine";
 import { basicStrategy } from "@/lib/blackjack/strategy";
 import { formatUsd, MAX_BET_USD, MIN_BET_USD, unitsToUsd, type Currency } from "@/lib/currency";
-import { play } from "@/lib/sound";
+import { play, setAmbienceHeat, startAmbience, stopAmbience } from "@/lib/sound";
 import { isBoolString, useStored } from "@/lib/use-stored";
 
 const Table3D = dynamic(() => import("./three/table-3d"), {
@@ -38,6 +38,14 @@ function hasWebGL() {
 }
 const noopSubscribe = () => () => {};
 const VIEW_KEY = "inferno:view";
+const HEAT_KEY = "inferno:heat";
+
+/** Streak heat: wins push it toward +1 (on fire), losses toward -1 (ice cold), pushes cool it toward 0. */
+function nextHeat(h: number, tone: "win" | "push" | "lose", blackjack: boolean) {
+  if (tone === "win") return Math.min(1, Math.max(0, h) + (blackjack ? 0.5 : 0.3));
+  if (tone === "lose") return Math.max(-1, Math.min(0, h) - 0.28);
+  return h * 0.7;
+}
 const isViewMode = (v: unknown): v is "3d" | "2d" => v === "3d" || v === "2d";
 import type { Fairness, RoundPayload } from "@/server/casino";
 
@@ -57,9 +65,13 @@ export function BlackjackTable({ initial }: { initial: { round: RoundPayload | n
   const { wallet, currency: walletCurrency, setWallet, balanceUsd, ready } = useWallet();
   const [round, setRound] = useState<RoundPayload | null>(initial?.round ?? null);
   const [fairness, setFairness] = useState<Fairness | null>(initial?.fairness ?? null);
-  const [timing, setTiming] = useState<Timing>({ delays: {}, flip: 0, total: 0 });
+  const [timing, setTiming] = useState<Timing>({ delays: {}, flip: 0, flipDuration: 0.42, drama: null, total: 0 });
   const [revealed, setRevealed] = useState(true);
   const [burstKey, setBurstKey] = useState(0);
+  const [heat, setHeat] = useState(0);
+  const [drama, setDrama] = useState(false);
+  const [blackjackKey, setBlackjackKey] = useState(0);
+  const [loseKey, setLoseKey] = useState(0);
   const [bet, setBet] = useState(10);
   const [betStack, setBetStack] = useState<number[]>([]);
   const [busy, setBusy] = useState(false);
@@ -70,8 +82,33 @@ export function BlackjackTable({ initial }: { initial: { round: RoundPayload | n
   const [hintsPref, setHintsPref] = useStored(HINT_KEY, "0", isBoolString);
   const hints = hintsPref === "1";
   const revealTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const dramaTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
-  useEffect(() => () => clearTimeout(revealTimer.current), []);
+  useEffect(
+    () => () => {
+      clearTimeout(revealTimer.current);
+      dramaTimers.current.forEach(clearTimeout);
+    },
+    [],
+  );
+
+  // Heat survives page reloads within the tab so a hot streak isn't lost on refresh.
+  useEffect(() => {
+    try {
+      const saved = Number(sessionStorage.getItem(HEAT_KEY));
+      if (Number.isFinite(saved) && saved !== 0) queueMicrotask(() => setHeat(Math.max(-1, Math.min(1, saved))));
+    } catch {}
+  }, []);
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(HEAT_KEY, String(heat));
+    } catch {}
+    setAmbienceHeat(heat);
+  }, [heat]);
+  useEffect(() => {
+    startAmbience();
+    return () => stopAmbience();
+  }, []);
 
   const view = round?.view ?? null;
   const currency: Currency = round && view?.phase !== "settled" ? round.currency : walletCurrency;
@@ -88,8 +125,20 @@ export function BlackjackTable({ initial }: { initial: { round: RoundPayload | n
       setEpoch((e) => e + 1);
       setRound(next);
       Object.entries(t.delays).forEach(([, d]) => play("card", d));
-      if (t.flip) play("flip", t.flip);
+      if (t.flip) play("flip", t.flip + (t.flipDuration > 0.5 ? t.flipDuration * 0.5 : 0));
       clearTimeout(revealTimer.current);
+      dramaTimers.current.forEach(clearTimeout);
+      dramaTimers.current = [];
+      if (t.drama) {
+        const { start, end } = t.drama;
+        play("drama", start);
+        dramaTimers.current.push(
+          setTimeout(() => setDrama(true), start * 1000),
+          setTimeout(() => setDrama(false), end * 1000),
+        );
+      } else {
+        setDrama(false);
+      }
 
       if (next.view.phase !== "settled") {
         setRevealed(true);
@@ -103,13 +152,20 @@ export function BlackjackTable({ initial }: { initial: { round: RoundPayload | n
         const o = outcome(next.view, next.currency);
         play(o.blackjack ? "blackjack" : o.tone === "win" ? "win" : o.tone === "push" ? "push" : "lose");
         if (o.tone === "win") setBurstKey((k) => k + 1);
+        if (o.tone === "lose") setLoseKey((k) => k + 1);
+        if (o.blackjack) {
+          setBlackjackKey((k) => k + 1);
+          play("flame");
+        }
+        if (next.view.hands.some((h) => h.result === "lose" || h.result === "surrender")) play("burn", 0.15);
+        setHeat((h) => nextHeat(h, o.tone, o.blackjack));
       }, t.total * 1000);
     },
     [setWallet],
   );
 
   const deal = useCallback(async () => {
-    if (busy || inPlay) return;
+    if (busy || inPlay || !revealed) return;
     setBusy(true);
     play("chip");
     const res = await dealAction(walletCurrency, bet);
@@ -117,7 +173,7 @@ export function BlackjackTable({ initial }: { initial: { round: RoundPayload | n
     if (!res.ok) return void toast.error(res.error);
     setFairness((f) => (f ? { ...f, nonce: res.data.nextNonce } : f));
     receive(res.data.round, res.data.wallet, null);
-  }, [busy, inPlay, walletCurrency, bet, receive]);
+  }, [busy, inPlay, revealed, walletCurrency, bet, receive]);
 
   const act = useCallback(
     async (a: ActionType) => {
@@ -203,8 +259,11 @@ export function BlackjackTable({ initial }: { initial: { round: RoundPayload | n
               revealed={revealed}
               pendingBetUsd={bet}
               toUsd={toUsd}
-              burstKey={burstKey}
+              fx={{ heat, drama, blackjackKey, winKey: burstKey, loseKey }}
             />
+            <div className="absolute left-4 top-4 z-20 sm:left-6 sm:top-5">
+              <HeatMeter heat={heat} />
+            </div>
             <div className="pointer-events-none absolute inset-x-0 top-0 z-20 h-[84%]">
               <OutcomeBanner result={result && revealed ? result : null} roundId={round?.id ?? ""} />
             </div>
@@ -223,6 +282,9 @@ export function BlackjackTable({ initial }: { initial: { round: RoundPayload | n
         ) : (
         <div className="felt relative isolate overflow-hidden rounded-[28px] px-3 pb-6 pt-5 sm:rounded-[44px] sm:px-8 sm:pb-8 sm:pt-7">
           <Shoe />
+          <div className="absolute left-4 top-4 z-20 sm:left-6 sm:top-5">
+            <HeatMeter heat={heat} />
+          </div>
 
           {/* dealer */}
           <div className="flex min-h-[150px] flex-col items-center sm:min-h-[180px]">
@@ -230,7 +292,12 @@ export function BlackjackTable({ initial }: { initial: { round: RoundPayload | n
             <div key={round?.id ?? "none"} className="mt-2 flex h-[92px] items-start sm:h-[120px]">
               {view?.dealer.map((c, i) => (
                 <div key={`d${i}`} className={i ? "-ml-[34px] sm:-ml-[44px]" : ""}>
-                  <PlayingCard card={c} delay={timing.delays[`d${i}`] ?? 0} flipDelay={i === 1 ? timing.flip : 0} />
+                  <PlayingCard
+                    card={c}
+                    delay={timing.delays[`d${i}`] ?? 0}
+                    flipDelay={i === 1 ? timing.flip : 0}
+                    flipDuration={i === 1 ? timing.flipDuration : undefined}
+                  />
                 </div>
               ))}
             </div>
@@ -381,6 +448,7 @@ export function BlackjackTable({ initial }: { initial: { round: RoundPayload | n
               bet={bet}
               currency={currency}
               busy={busy}
+              locked={!revealed}
               betTooBig={betTooBig}
               ready={ready}
               balanceUsd={balanceUsd}
@@ -462,6 +530,8 @@ function BetDock(props: {
   bet: number;
   currency: Currency;
   busy: boolean;
+  /** true while the previous hand's result is still playing out */
+  locked: boolean;
   betTooBig: boolean;
   ready: boolean;
   balanceUsd: number;
@@ -472,7 +542,7 @@ function BetDock(props: {
   onUndo: () => void;
   onDeal: () => void;
 }) {
-  const { bet, currency, busy, betTooBig, ready, balanceUsd, canUndo, again, onChip, onSet, onUndo, onDeal } = props;
+  const { bet, currency, busy, locked, betTooBig, ready, balanceUsd, canUndo, again, onChip, onSet, onUndo, onDeal } = props;
   return (
     <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
       <div className="flex flex-1 flex-wrap items-center justify-center gap-1.5 sm:gap-3 lg:justify-start">
@@ -514,7 +584,7 @@ function BetDock(props: {
         </button>
         <button
           onClick={onDeal}
-          disabled={busy || !ready || betTooBig || bet < MIN_BET_USD}
+          disabled={busy || locked || !ready || betTooBig || bet < MIN_BET_USD}
           className="btn-fire h-12 min-w-36 rounded-xl px-6 font-display text-sm font-bold uppercase tracking-wider"
         >
           {busy ? "Dealing…" : again ? "Deal again" : "Deal"}

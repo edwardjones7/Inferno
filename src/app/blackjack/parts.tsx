@@ -91,3 +91,30 @@ export function OutcomeBanner({ result, roundId }: { result: Outcome | null; rou
     </AnimatePresence>
   );
 }
+
+/** Thermometer for the session streak: ash-blue when cold, molten when hot. */
+export function HeatMeter({ heat }: { heat: number }) {
+  const pct = ((heat + 1) / 2) * 100;
+  const label = heat > 0.66 ? "On fire" : heat > 0.2 ? "Heating up" : heat < -0.66 ? "Ice cold" : heat < -0.2 ? "Cooling" : "Warm";
+  return (
+    <div
+      className="pointer-events-none flex items-center gap-2 rounded-full bg-ash-950/75 px-3 py-1.5 ring-1 ring-ash-700/80 backdrop-blur-md"
+      role="meter"
+      aria-label="Streak heat"
+      aria-valuemin={-1}
+      aria-valuemax={1}
+      aria-valuenow={Number(heat.toFixed(2))}
+      aria-valuetext={label}
+    >
+      <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-ash-400">Heat</span>
+      <span className="relative h-1.5 w-20 overflow-hidden rounded-full bg-gradient-to-r from-sky-400/70 via-ash-500 to-ember-400 sm:w-28">
+        <motion.span
+          className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-bone shadow-[0_0_10px_rgba(255,194,75,0.9)]"
+          animate={{ left: `${pct}%` }}
+          transition={{ type: "spring", stiffness: 120, damping: 18 }}
+        />
+      </span>
+      <span className={`text-[11px] font-bold ${heat > 0.2 ? "text-ember-300" : heat < -0.2 ? "text-sky-300" : "text-ash-300"}`}>{label}</span>
+    </div>
+  );
+}

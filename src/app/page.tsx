@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { Chip } from "@/components/chip";
 import { CoinIcon } from "@/components/coin-icon";
+import { LobbyHero } from "@/components/lobby-hero";
 import { PlayingCardStatic } from "@/components/playing-card-static";
 import { formatUsd } from "@/lib/currency";
 import { getLeaderboard, getRecentWins } from "@/server/casino";
@@ -55,7 +56,7 @@ export default function Lobby() {
           </div>
         </div>
 
-        <HeroArt />
+        <LobbyHero fallback={<HeroArt />} />
       </section>
 
       {/* games */}
@@ -120,9 +121,10 @@ function SectionTitle({ eyebrow, title }: { eyebrow: string; title: string }) {
   );
 }
 
+/** Static hero art: server-rendered, shown while the live scene loads and whenever it can't run. */
 function HeroArt() {
   return (
-    <div aria-hidden className="relative mx-auto hidden h-[360px] w-full max-w-[460px] sm:block">
+    <div className="relative h-full w-full">
       <div className="absolute inset-x-8 bottom-0 top-10 rounded-[50%] bg-[radial-gradient(closest-side,rgba(255,90,31,0.35),transparent)] blur-2xl" />
       <div className="absolute left-[18%] top-[18%] -rotate-[14deg] transition-transform"><PlayingCardStatic card="AH" large /></div>
       <div className="absolute left-[38%] top-[8%] rotate-[4deg]"><PlayingCardStatic card="KS" large /></div>
