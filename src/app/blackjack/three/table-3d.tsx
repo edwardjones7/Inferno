@@ -388,21 +388,18 @@ function WinFlash({ burstKey }: { burstKey: number }) {
   return <pointLight ref={light} position={[0, 1.6, 0.6]} color="#ffaa44" intensity={0} distance={9} />;
 }
 
+/** Fixed camera; only re-frames when the canvas changes between wide and narrow. */
 function CameraRig() {
-  const reduce = useMemo(() => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches, []);
-  useFrame((state, dt) => {
-    const { size, pointer } = state;
+  useFrame((state) => {
     const cam = state.camera as THREE.PerspectiveCamera;
-    const narrow = size.width / size.height < 1.15;
+    const narrow = state.size.width / state.size.height < 1.15;
     const fov = narrow ? 50 : 36;
     if (Math.abs(cam.fov - fov) > 0.01) {
       cam.fov = fov;
       cam.updateProjectionMatrix();
     }
-    const px = reduce ? 0 : pointer.x * 0.35;
-    const py = reduce ? 0 : pointer.y * 0.2;
-    const base = narrow ? new THREE.Vector3(px * 0.5, 4.7 + py, 3.9) : new THREE.Vector3(px, 5.0 + py, 5.25);
-    cam.position.lerp(base, 1 - Math.exp(-dt * 3));
+    if (narrow) cam.position.set(0, 4.7, 3.9);
+    else cam.position.set(0, 5.0, 5.25);
     cam.lookAt(0, 0, narrow ? 0.15 : 0.25);
   });
   return null;
