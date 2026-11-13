@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { PokerTrainer } from "./poker-trainer";
 
 export const metadata: Metadata = { title: "Poker trainer" };
@@ -11,7 +12,10 @@ export default function PokerPage() {
           <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-ember-400">Texas Hold&apos;em</p>
           <h1 className="font-display text-2xl font-black sm:text-3xl">Poker trainer</h1>
         </div>
-        <p className="hidden max-w-sm text-right text-xs text-ash-400 sm:block">
+        <Link href="/poker/play" className="btn-fire order-last rounded-xl px-4 py-2 text-sm font-bold sm:order-none">
+          Play at the table →
+        </Link>
+        <p className="hidden max-w-sm text-right text-xs text-ash-400 xl:block">
           The fundamentals that win at No-Limit Hold&apos;em: opening ranges, pot odds, reading showdowns and feeling equity. Every
           answer graded with exact maths.
         </p>

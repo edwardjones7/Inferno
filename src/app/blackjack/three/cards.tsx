@@ -21,6 +21,8 @@ export interface Card3DProps {
   dim: boolean;
   /** losing hand once the result is shown: burn the card away to ash */
   burn: boolean;
+  /** where the card is dealt from (defaults to the blackjack shoe) */
+  from?: THREE.Vector3;
   /** "blackjack" makes the card flash gold when the result is shown */
   highlight: "blackjack" | null;
 }
@@ -50,7 +52,8 @@ function hashSeed(key: string) {
   return (h >>> 0) / 4294967296;
 }
 
-export function Card3D({ slot, delay, flipDelay, flipDuration, epoch, dim, burn, highlight }: Card3DProps) {
+export function Card3D({ slot, delay, flipDelay, flipDuration, epoch, dim, burn, highlight, from }: Card3DProps) {
+  const origin = from ?? SHOE_MOUTH;
   const group = useRef<THREE.Group>(null);
   const flipper = useRef<THREE.Group>(null);
   const body = useRef<THREE.Mesh>(null);
@@ -101,8 +104,8 @@ export function Card3D({ slot, delay, flipDelay, flipDuration, epoch, dim, burn,
     }
     if (s.born < 0) {
       s.born = now + delay;
-      g.position.copy(SHOE_MOUTH);
-      s.prevPos.copy(SHOE_MOUTH);
+      g.position.copy(origin);
+      s.prevPos.copy(origin);
     }
     s.target.set(...slot.pos);
 
@@ -136,7 +139,7 @@ export function Card3D({ slot, delay, flipDelay, flipDuration, epoch, dim, burn,
 
     if (!landed) {
       const e = easeOut(t);
-      g.position.lerpVectors(SHOE_MOUTH, s.target, e);
+      g.position.lerpVectors(origin, s.target, e);
       g.position.y += Math.sin(Math.PI * t) * 0.45;
       g.rotation.y = (1 - e) * 0.8;
       // open cards turn over in the air; the hole card stays down
