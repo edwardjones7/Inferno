@@ -5,7 +5,7 @@ import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
-import { dealAction, playAction } from "@/app/actions";
+import { dealAction, playAction, settleAbandonedAction } from "@/app/actions";
 import { Chip, CHIP_VALUES, chipsFor } from "@/components/chip";
 import { CoinIcon } from "@/components/coin-icon";
 import { EmberBurst } from "@/components/ember-burst";
@@ -38,7 +38,6 @@ function hasWebGL() {
 }
 const noopSubscribe = () => () => {};
 const VIEW_KEY = "inferno:view";
-const HEAT_KEY = "inferno:heat";
 
 /** Streak heat: wins push it toward +1 (on fire), losses toward -1 (ice cold), pushes cool it toward 0. */
 function nextHeat(h: number, tone: "win" | "push" | "lose", blackjack: boolean) {
@@ -63,7 +62,11 @@ const HINT_KEY = "inferno:hints";
 
 export function BlackjackTable({ initial }: { initial: { round: RoundPayload | null; fairness: Fairness } | null }) {
   const { wallet, currency: walletCurrency, setWallet, balanceUsd, ready } = useWallet();
-  const [round, setRound] = useState<RoundPayload | null>(initial?.round ?? null);
+  // Every fresh visit starts at an empty table. A hand left unfinished from a previous
+  // visit is completed in the background (stand / no insurance, like a casino treats an
+  // abandoned hand) rather than resumed; dealing waits until that's done.
+  const [round, setRound] = useState<RoundPayload | null>(null);
+  const [settling, setSettling] = useState(() => !!initial?.round && initial.round.view.phase !== "settled");
   const [fairness, setFairness] = useState<Fairness | null>(initial?.fairness ?? null);
   const [timing, setTiming] = useState<Timing>({ delays: {}, flip: 0, flipDuration: 0.42, drama: null, total: 0 });
   const [revealed, setRevealed] = useState(true);
@@ -106,17 +109,28 @@ export function BlackjackTable({ initial }: { initial: { round: RoundPayload | n
     [],
   );
 
-  // Heat survives page reloads within the tab so a hot streak isn't lost on refresh.
+  // Runs once per table instance (a ref survives Next's hidden-page Activity, so navigating
+  // away mid-hand and back keeps the hand; only a fresh visit settles a leftover one).
+  const abandonedHandled = useRef(false);
   useEffect(() => {
-    try {
-      const saved = Number(sessionStorage.getItem(HEAT_KEY));
-      if (Number.isFinite(saved) && saved !== 0) queueMicrotask(() => setHeat(Math.max(-1, Math.min(1, saved))));
-    } catch {}
-  }, []);
+    if (abandonedHandled.current) return;
+    abandonedHandled.current = true;
+    const left = initial?.round;
+    if (!left || left.view.phase === "settled") return;
+    void settleAbandonedAction(left.id).then((res) => {
+      setSettling(false);
+      if (!res.ok) return void toast.error(res.error);
+      setWallet(res.data.wallet);
+      if (res.data.settledNow) {
+        const o = outcome(res.data.round.view, res.data.round.currency);
+        toast(`Your unfinished hand was settled (stood): ${o.title.toLowerCase()}`, {
+          description: o.net === 0 ? "Stake returned" : formatUsd(o.net, { sign: true }),
+        });
+      }
+    });
+  }, [initial, setWallet]);
+
   useEffect(() => {
-    try {
-      sessionStorage.setItem(HEAT_KEY, String(heat));
-    } catch {}
     setAmbienceHeat(heat);
   }, [heat]);
   useEffect(() => {
@@ -179,7 +193,7 @@ export function BlackjackTable({ initial }: { initial: { round: RoundPayload | n
   );
 
   const deal = useCallback(async () => {
-    if (busy || inPlay || !revealed) return;
+    if (busy || inPlay || !revealed || settling) return;
     setBusy(true);
     play("chip");
     const res = await dealAction(walletCurrency, bet);
@@ -187,7 +201,7 @@ export function BlackjackTable({ initial }: { initial: { round: RoundPayload | n
     if (!res.ok) return void toast.error(res.error);
     setFairness((f) => (f ? { ...f, nonce: res.data.nextNonce } : f));
     receive(res.data.round, res.data.wallet, null);
-  }, [busy, inPlay, revealed, walletCurrency, bet, receive]);
+  }, [busy, inPlay, revealed, settling, walletCurrency, bet, receive]);
 
   const act = useCallback(
     async (a: ActionType) => {
@@ -467,7 +481,7 @@ export function BlackjackTable({ initial }: { initial: { round: RoundPayload | n
               bet={bet}
               currency={currency}
               busy={busy}
-              locked={!revealed}
+              locked={!revealed || settling}
               betTooBig={betTooBig}
               ready={ready}
               balanceUsd={balanceUsd}

@@ -209,6 +209,39 @@ export async function playAction(userId: string, roundId: string, action: Action
   });
 }
 
+/**
+ * Finish a hand the player walked away from, the way a casino treats an abandoned hand:
+ * insurance is declined and every live hand stands. Nothing is refunded, so reloading
+ * can't be used to dodge a bad hand. Idempotent: an already-settled round is returned as is.
+ */
+export async function settleAbandoned(userId: string, roundId: string) {
+  const db = await getDb();
+  return db.transaction(async (tx) => {
+    await lockUser(tx, userId);
+    const [r] = await tx
+      .select()
+      .from(rounds)
+      .where(and(eq(rounds.id, roundId), eq(rounds.userId, userId)))
+      .for("update");
+    if (!r) throw new GameError("Hand not found");
+    if (r.status !== "active") return { round: payload(r), wallet: await walletOf(tx, userId), settledNow: false };
+
+    const shoe = fairShoe(r.serverSeed, r.clientSeed, r.nonce);
+    let s = r.state;
+    for (let guard = 0; s.phase !== "settled" && guard < 12; guard++) {
+      s = applyAction(s, { type: s.phase === "insurance" ? "decline" : "stand" }, shoe);
+    }
+    if (s.phase !== "settled") throw new Error("could not settle abandoned round");
+    const [row] = await tx
+      .update(rounds)
+      .set({ state: s, wagered: s.wagered, payout: s.payout, status: "settled", settledAt: new Date() })
+      .where(eq(rounds.id, r.id))
+      .returning();
+    await adjust(tx, userId, r.currency as Currency, s.payout, "payout", r.id);
+    return { round: payload(row), wallet: await walletOf(tx, userId), settledNow: true };
+  });
+}
+
 /* ------------------------------------------------------------------ fairness */
 
 export async function rotateSeeds(userId: string, clientSeed?: string) {

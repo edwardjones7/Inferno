@@ -39,6 +39,10 @@ export async function playAction(roundId: string, action: string) {
   });
 }
 
+export async function settleAbandonedAction(roundId: string) {
+  return run((id) => casino.settleAbandoned(id, String(roundId)));
+}
+
 export async function rotateSeedsAction(clientSeed?: string) {
   return run((id) => casino.rotateSeeds(id, clientSeed === undefined ? undefined : String(clientSeed)));
 }

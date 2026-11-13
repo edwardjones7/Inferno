@@ -117,6 +117,24 @@ describe("casino service", () => {
     expect(profile.history[0].serverSeed).toBe(revealed.serverSeed);
   });
 
+  it("settles an abandoned hand by standing (no refund) and is idempotent", async () => {
+    const id = newUser();
+    let round;
+    do {
+      round = (await casino.startRound(id, "USDT", 20)).round;
+    } while (round.view.phase === "settled");
+    const res = await casino.settleAbandoned(id, round.id);
+    expect(res.settledNow).toBe(true);
+    expect(res.round.view.phase).toBe("settled");
+    expect(res.round.view.hands.every((h) => h.result !== "surrender")).toBe(true);
+    const again = await casino.settleAbandoned(id, round.id);
+    expect(again.settledNow).toBe(false);
+    expect(await ledgerSum(id, "USDT")).toBe(again.wallet.USDT);
+    // the table is free for a new hand
+    await expect(casino.startRound(id, "USDT", 5)).resolves.toBeTruthy();
+    await expect(casino.settleAbandoned(newUser(), round.id)).rejects.toThrow(casino.GameError);
+  });
+
   it("faucet pays once per cooldown", async () => {
     const id = newUser();
     const before = (await casino.getAccount(id)).wallet.BTC;
