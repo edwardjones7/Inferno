@@ -5,7 +5,8 @@ import { CoinIcon } from "@/components/coin-icon";
 import { MiniCard } from "@/components/playing-card-static";
 import type { Card } from "@/lib/blackjack/cards";
 import { formatUsd } from "@/lib/currency";
-import { getProfile } from "@/server/casino";
+import { MOVE_LABEL, type Move } from "@/lib/blackjack/strategy";
+import { getProfile, getTraining } from "@/server/casino";
 import { currentUserId } from "@/server/session";
 import { ResetBalances } from "./reset-balances";
 
@@ -24,7 +25,7 @@ export default function ProfilePage() {
 async function Profile() {
   const userId = await currentUserId();
   if (!userId) return <p className="text-ash-400">Enable cookies to keep a guest profile.</p>;
-  const { name, createdAt, stats, history, curve } = await getProfile(userId);
+  const [{ name, createdAt, stats, history, curve }, training] = await Promise.all([getProfile(userId), getTraining(userId)]);
   const losses = stats.hands - stats.wins - stats.pushes;
   const winRate = stats.hands ? (stats.wins / stats.hands) * 100 : 0;
 
@@ -46,6 +47,8 @@ async function Profile() {
         <Stat label="Biggest win" value={formatUsd(stats.bestWinUsd, { compact: true })} hot={stats.bestWinUsd > 0} />
         <Stat label="Blackjacks" value={String(stats.blackjacks)} sub={`${formatUsd(stats.wageredUsd, { compact: true })} wagered`} />
       </div>
+
+      <TrainingReport training={training} />
 
       <section className="panel mt-6 rounded-3xl p-5">
         <div className="mb-3 flex items-baseline justify-between">
@@ -179,5 +182,98 @@ function ProfitChart({ points }: { points: number[] }) {
       <path d={`${line}L${W},${H}L0,${H}Z`} fill="url(#pf-fill)" />
       <path d={line} fill="none" stroke="url(#pf-line)" strokeWidth="2.5" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
     </svg>
+  );
+}
+
+const KIND_LABEL: Record<string, string> = { hard: "Hard totals", soft: "Soft totals", pair: "Pairs", insurance: "Insurance" };
+const pct = (num: number, den: number) => (den ? Math.round((num / den) * 100) : null);
+
+function TrainingReport({ training }: { training: Awaited<ReturnType<typeof getTraining>> }) {
+  const { live, drill, byKind, leaks } = training;
+  const liveAcc = pct(live.correct, live.decisions);
+  const drillAcc = pct(drill.correct, drill.answers);
+  return (
+    <section className="mt-6 grid gap-4 lg:grid-cols-[1fr_1.2fr]">
+      <div className="panel rounded-3xl p-5">
+        <div className="flex items-baseline justify-between">
+          <h2 className="font-display text-sm font-bold">Strategy accuracy</h2>
+          <Link href="/trainer" className="text-xs font-semibold text-ember-400 hover:text-ember-300">
+            Open trainer →
+          </Link>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-ash-500">At the table</p>
+            <p className={`tabular mt-1 font-display text-2xl font-bold ${liveAcc !== null && liveAcc >= 95 ? "molten-text" : "text-bone"}`}>
+              {liveAcc === null ? "–" : `${liveAcc}%`}
+            </p>
+            <p className="tabular text-[11px] text-ash-400">{live.decisions} decisions graded</p>
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-ash-500">In drills</p>
+            <p className={`tabular mt-1 font-display text-2xl font-bold ${drillAcc !== null && drillAcc >= 95 ? "molten-text" : "text-bone"}`}>
+              {drillAcc === null ? "–" : `${drillAcc}%`}
+            </p>
+            <p className="tabular text-[11px] text-ash-400">
+              {drill.answers} answers · best streak {drill.bestStreak}
+            </p>
+          </div>
+        </div>
+        {byKind.length > 0 && (
+          <ul className="mt-5 space-y-2.5">
+            {byKind
+              .sort((a, b) => b.seen - a.seen)
+              .map((k) => {
+                const acc = pct(k.correct, k.seen) ?? 0;
+                return (
+                  <li key={k.kind}>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-ash-300">{KIND_LABEL[k.kind] ?? k.kind}</span>
+                      <span className="tabular text-ash-400">
+                        {acc}% <span className="text-ash-600">· {k.seen}</span>
+                      </span>
+                    </div>
+                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-ash-800">
+                      <div
+                        className={`h-full rounded-full ${acc >= 90 ? "bg-gradient-to-r from-ember-500 to-ember-300" : acc >= 75 ? "bg-ember-600" : "bg-ember-800"}`}
+                        style={{ width: `${acc}%` }}
+                      />
+                    </div>
+                  </li>
+                );
+              })}
+          </ul>
+        )}
+      </div>
+
+      <div className="panel rounded-3xl p-5">
+        <h2 className="font-display text-sm font-bold">Biggest leaks</h2>
+        <p className="mt-1 text-xs text-ash-400">The spots you get wrong most often, at the table and in drills.</p>
+        {leaks.length === 0 ? (
+          <p className="mt-6 text-center text-sm text-ash-500">No leaks found yet. Play with Coach on or run a drill.</p>
+        ) : (
+          <ul className="mt-3 divide-y divide-ash-800">
+            {leaks.map((l) => (
+              <li key={`${l.spot}|${l.correct}`} className="flex items-center gap-3 py-2.5 text-sm">
+                <span className="min-w-0 flex-1">
+                  <span className="font-semibold text-bone">{l.spot === "insurance" ? "Taking insurance" : l.label}</span>
+                  <span className="block text-xs text-ash-400">
+                    Right play: {l.correct === "decline" ? "decline" : (MOVE_LABEL[l.correct as Move] ?? l.correct).toLowerCase()}
+                  </span>
+                </span>
+                <span className="tabular text-xs text-ember-300">
+                  missed {l.misses} of {l.seen}
+                </span>
+                {l.spot !== "insurance" && (
+                  <Link href={`/trainer?spot=${l.spot}`} className="btn-ash shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold">
+                    Drill
+                  </Link>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </section>
   );
 }

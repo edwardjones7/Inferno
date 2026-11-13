@@ -28,8 +28,15 @@ function arcText(g: CanvasRenderingContext2D, text: string, cx: number, cy: numb
   }
 }
 
-export function feltTexture() {
-  return texture("felt", () => {
+export interface FeltPrint {
+  /** "3 TO 2" or "6 TO 5" */
+  payout: string;
+  dealerHitsSoft17: boolean;
+}
+const DEFAULT_PRINT: FeltPrint = { payout: "3 TO 2", dealerHitsSoft17: false };
+
+export function feltTexture(print: FeltPrint = DEFAULT_PRINT) {
+  return texture(`felt:${print.payout}:${print.dealerHitsSoft17 ? "h17" : "s17"}`, () => {
     const W = TABLE.halfWidth * 2 * FELT_PX;
     const H = TABLE.halfDepth * 2 * FELT_PX;
     const [c, g] = canvas(W, H);
@@ -80,11 +87,11 @@ export function feltTexture() {
     g.shadowColor = "rgba(255,90,31,0.8)";
     g.shadowBlur = 14 * K;
     g.font = `800 ${Math.round(64 * K)}px ${display()}`;
-    arcText(g, "BLACKJACK PAYS 3 TO 2", cx, top, 2.85 * P, 14 * K);
+    arcText(g, `BLACKJACK PAYS ${print.payout}`, cx, top, 2.85 * P, 14 * K);
     g.shadowBlur = 0;
     g.fillStyle = "rgba(221,208,195,0.42)";
     g.font = `700 ${Math.round(34 * K)}px ${sans()}`;
-    arcText(g, "DEALER STANDS ON ALL 17s  ·  INSURANCE PAYS 2 TO 1", cx, top, 2.55 * P, 9 * K);
+    arcText(g, `${print.dealerHitsSoft17 ? "DEALER HITS SOFT 17" : "DEALER STANDS ON ALL 17s"}  ·  INSURANCE PAYS 2 TO 1`, cx, top, 2.55 * P, 9 * K);
 
     // betting circle
     g.save();

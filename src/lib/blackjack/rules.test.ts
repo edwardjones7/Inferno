@@ -5,8 +5,9 @@
  */
 import { describe, expect, it } from "vitest";
 import type { Card } from "./cards";
-import { applyAction, deal, legalActions, type ActionType, type RoundState } from "./engine";
-import { basicStrategy, type Move } from "./strategy";
+import { applyAction, deal, DEFAULT_RULES, legalActions, type ActionType, type RoundState } from "./engine";
+import { generateSpot, spotFromKey, spotLegal } from "./drill";
+import { basicStrategy, spotOf, type Move } from "./strategy";
 
 const stack = (...top: Card[]): Card[] => [...top, ...Array<Card>(40).fill("2C")];
 const act = (s: RoundState, shoe: Card[], ...types: ActionType[]) => types.reduce((st, type) => applyAction(st, { type }, shoe), s);
@@ -177,5 +178,63 @@ describe("basic strategy hint matches the S17 / DAS / LS chart", () => {
     expect(basicStrategy(["TS", "6H"], "TC", ["hit", "stand"])).toBe("hit"); // no surrender -> hit
     expect(basicStrategy(["AS", "7H"], "4C", ["hit", "stand"])).toBe("stand"); // Ds -> stand
     expect(basicStrategy(["6S", "5H", "TD"].slice(0, 2) as Card[], "AC", ["hit", "stand"])).toBe("hit");
+  });
+});
+
+describe("strategy adapts to table rules", () => {
+  const H17 = { ...DEFAULT_RULES, dealerHitsSoft17: true };
+  const NODAS = { ...DEFAULT_RULES, doubleAfterSplit: false };
+  const NOLS = { ...DEFAULT_RULES, surrender: false };
+  const bs = (cards: Card[], up: Card, rules = DEFAULT_RULES) => basicStrategy(cards, up, ALL, rules);
+
+  it("H17 changes: 11 vs A doubles, A7 vs 2 and A8 vs 6 double, more surrenders", () => {
+    expect(bs(["6S", "5H"], "AC")).toBe("hit");
+    expect(bs(["6S", "5H"], "AC", H17)).toBe("double");
+    expect(bs(["AS", "7H"], "2C", H17)).toBe("double");
+    expect(bs(["AS", "8H"], "6C", H17)).toBe("double");
+    expect(bs(["TS", "5H"], "AC", H17)).toBe("surrender");
+    expect(bs(["TS", "7H"], "AC", H17)).toBe("surrender");
+    expect(bs(["8S", "8H"], "AC", H17)).toBe("surrender");
+    expect(bs(["8S", "8H"], "AC")).toBe("split");
+  });
+
+  it("no double-after-split splits small pairs less", () => {
+    expect(bs(["2S", "2H"], "2C", NODAS)).toBe("hit");
+    expect(bs(["2S", "2H"], "4C", NODAS)).toBe("split");
+    expect(bs(["4S", "4H"], "5C", NODAS)).toBe("hit");
+    expect(bs(["6S", "6H"], "2C", NODAS)).toBe("hit");
+    expect(bs(["6S", "6H"], "3C", NODAS)).toBe("split");
+  });
+
+  it("without surrender, falls back to the playing decision", () => {
+    expect(basicStrategy(["TS", "6H"], "TC", ["hit", "stand", "double"], NOLS)).toBe("hit");
+  });
+});
+
+describe("drill spots", () => {
+  let seed = 7;
+  const rand = () => {
+    seed = (seed * 16807) % 2147483647;
+    return seed / 2147483647;
+  };
+  it("generates valid spots for every category and never a blackjack", () => {
+    for (const cat of ["all", "hard", "soft", "pair", "surrender", "leaks"] as const) {
+      for (let i = 0; i < 300; i++) {
+        const s = generateSpot(cat, rand, ["soft-18-9", "pair-9-7"]);
+        const legal = spotLegal(s.cards, s.up, DEFAULT_RULES);
+        expect(legal.length).toBeGreaterThan(1);
+        const spot = spotOf(s.cards, s.up);
+        if (cat === "hard") expect(spot.kind).toBe("hard");
+        if (cat === "soft") expect(spot.kind).toBe("soft");
+        if (cat === "pair") expect(spot.kind).toBe("pair");
+        if (cat === "leaks") expect(["soft-18-9", "pair-9-7"]).toContain(spot.key);
+      }
+    }
+  });
+  it("rebuilds a spot from its key", () => {
+    for (const key of ["hard-16-10", "soft-18-2", "pair-8-11", "pair-10-6", "hard-5-11"]) {
+      const s = spotFromKey(key, rand)!;
+      expect(spotOf(s.cards, s.up).key).toBe(key);
+    }
   });
 });

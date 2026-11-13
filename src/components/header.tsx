@@ -15,6 +15,7 @@ import { isMuted, onMuteChange, play, setMuted } from "@/lib/sound";
 const NAV = [
   { href: "/", label: "Lobby" },
   { href: "/blackjack", label: "Blackjack" },
+  { href: "/trainer", label: "Trainer" },
   { href: "/fairness", label: "Fairness" },
   { href: "/profile", label: "Profile" },
 ];

@@ -11,13 +11,13 @@ export default function BlackjackPage() {
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
       <div className="mb-5 flex items-end justify-between gap-4">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-ember-400">Inferno Classic</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-ember-400">Play &amp; train</p>
           <h1 className="font-display text-2xl font-black sm:text-3xl">Blackjack</h1>
         </div>
         <p className="hidden text-right text-xs text-ash-400 sm:block">
           6 decks · fresh shuffle every hand
           <br />
-          RTP ≈ 99.5% with perfect play
+          RTP up to 99.7% with perfect play
         </p>
       </div>
       <Suspense fallback={<TableSkeleton />}>

@@ -8,6 +8,7 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import { TABLE } from "./canvas-utils";
 import { cardBack } from "./card-textures";
 import { crackMaskTexture } from "./felt-cracks";
+import { tableOf, type TableId } from "@/lib/blackjack/tables";
 import { feltTexture } from "./felt-texture";
 import { useSceneFx } from "./fx-context";
 import { HAND_Z, SHOE_POS } from "./table-layout";
@@ -21,7 +22,7 @@ const LEATHER = "#22120b";
 const damp = (from: number, to: number, rate: number, dt: number) => from + (to - from) * (1 - Math.exp(-rate * dt));
 
 /** Felt (with lava cracks), padded leather rail, brass trim, lava seam, dealer lip and floor. */
-export function TableBody() {
+export function TableBody({ tableId = "classic" }: { tableId?: TableId }) {
   const fx = useSceneFx();
 
   const { felt, cracks, weave, leather, shape } = useMemo(() => {
@@ -31,14 +32,15 @@ export function TableBody() {
     shape.lineTo(W, D);
     shape.absellipse(0, D, W, D * 2, 0, Math.PI, true);
     // the felt cap's UVs are raw table coordinates; map them onto the whole canvas
-    const felt = feltTexture();
+    const rules = tableOf(tableId).rules;
+    const felt = feltTexture({ payout: rules.blackjackPays === 1.5 ? "3 TO 2" : "6 TO 5", dealerHitsSoft17: rules.dealerHitsSoft17 });
     felt.repeat.set(1 / (W * 2), 1 / (D * 2));
     felt.offset.set(0.5, 0.5);
     const cracks = crackMaskTexture();
     cracks.repeat.set(1 / (W * 2), 1 / (D * 2));
     cracks.offset.set(0.5, 0.5);
     return { felt, cracks, weave: feltNormalTexture(), leather: leatherNormalTexture(), shape };
-  }, []);
+  }, [tableId]);
 
   const geometry = useMemo(
     () => new THREE.ExtrudeGeometry(shape, { depth: 0.3, bevelEnabled: true, bevelThickness: 0.04, bevelSize: 0.04, bevelSegments: 3, curveSegments: 96 }),

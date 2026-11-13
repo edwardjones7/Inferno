@@ -3,6 +3,7 @@
 import { Canvas, useThree } from "@react-three/fiber";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RoundView } from "@/lib/blackjack/engine";
+import type { TableId } from "@/lib/blackjack/tables";
 import type { Timing } from "../timing";
 import { CameraRig } from "./camera";
 import { Card3D } from "./cards";
@@ -25,18 +26,19 @@ export interface Table3DProps {
   pendingBetUsd: number;
   toUsd: (units: number) => number;
   fx: Omit<SceneFx, "reducedMotion">;
+  tableId: TableId;
 }
 
 
 function Scene(props: Table3DProps & { labelEls: React.RefObject<Map<string, HTMLDivElement>> }) {
-  const { view, roundId, timing, epoch, revealed, pendingBetUsd, toUsd, labelEls } = props;
+  const { view, roundId, timing, epoch, revealed, pendingBetUsd, toUsd, labelEls, tableId } = props;
   const slots = view && roundId ? layoutCards(view, roundId) : [];
   const shown = view?.phase === "settled" && revealed;
 
   return (
     <>
       <Environment />
-      <TableBody />
+      <TableBody tableId={tableId} />
       <Shoe />
       <ChipTray />
       <ShaderWarmup />

@@ -25,11 +25,19 @@ export async function accountAction() {
   return run((id) => casino.getAccount(id));
 }
 
-export async function dealAction(currency: string, betUsd: number) {
+export async function dealAction(currency: string, betUsd: number, tableId: string = "classic") {
   return run((id) => {
     if (!isCurrency(currency)) throw new casino.GameError("Unknown currency");
-    return casino.startRound(id, currency, Number(betUsd));
+    return casino.startRound(id, currency, Number(betUsd), String(tableId));
   });
+}
+
+export async function recordDrillAction(tableId: string, answers: casino.DrillAnswerInput[]) {
+  return run((id) => casino.recordDrill(id, String(tableId), answers));
+}
+
+export async function trainingAction() {
+  return run((id) => casino.getTraining(id));
 }
 
 export async function playAction(roundId: string, action: string) {

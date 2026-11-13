@@ -1,6 +1,11 @@
 import "server-only";
 import { and, desc, eq, sql } from "drizzle-orm";
-import { applyAction, deal, DEFAULT_RULES, IllegalAction, toView, type ActionType, type RoundState, type RoundView } from "@/lib/blackjack/engine";
+import { isTwentyOne, type Card } from "@/lib/blackjack/cards";
+import { gradeAction, gradeSpot, type Decision } from "@/lib/blackjack/coach";
+import { spotLegal } from "@/lib/blackjack/drill";
+import { applyAction, deal, IllegalAction, toView, type ActionType, type RoundState, type RoundView } from "@/lib/blackjack/engine";
+import { spotLabel } from "@/lib/blackjack/strategy";
+import { tableOf, type TableId } from "@/lib/blackjack/tables";
 import { fairShoe, randomSeed, sha256Hex } from "@/lib/blackjack/fair";
 import {
   CURRENCY_CODES,
@@ -15,7 +20,7 @@ import {
 } from "@/lib/currency";
 import { getDb, schema, type DB } from "./db";
 
-const { users, balances, ledger, rounds } = schema;
+const { users, balances, ledger, rounds, drillAnswers } = schema;
 type Tx = Parameters<Parameters<DB["transaction"]>[0]>[0];
 
 /** Errors whose message is safe to show the player. */
@@ -32,6 +37,7 @@ export interface Fairness {
 export interface RoundPayload {
   id: string;
   currency: Currency;
+  tableId: TableId;
   view: RoundView;
   nonce: number;
 }
@@ -70,6 +76,7 @@ async function walletOf(db: DB | Tx, userId: string): Promise<Wallet> {
 const payload = (r: typeof rounds.$inferSelect): RoundPayload => ({
   id: r.id,
   currency: r.currency as Currency,
+  tableId: tableOf(r.tableId).id,
   view: toView(r.state),
   nonce: r.nonce,
 });
@@ -123,7 +130,8 @@ export async function getTable(userId: string): Promise<{ round: RoundPayload | 
   };
 }
 
-export async function startRound(userId: string, currency: Currency, betUsd: number) {
+export async function startRound(userId: string, currency: Currency, betUsd: number, tableId: string = "classic") {
+  const table = tableOf(tableId);
   if (!Number.isFinite(betUsd) || betUsd < MIN_BET_USD || betUsd > MAX_BET_USD) {
     throw new GameError(`Bets are $${MIN_BET_USD}–$${MAX_BET_USD.toLocaleString()}`);
   }
@@ -144,7 +152,7 @@ export async function startRound(userId: string, currency: Currency, betUsd: num
     await adjust(tx, userId, currency, -bet, "bet", id);
 
     const shoe = fairShoe(u.serverSeed, u.clientSeed, nonce);
-    const state = deal(bet, shoe, DEFAULT_RULES);
+    const state = deal(bet, shoe, table.rules);
     const settled = state.phase === "settled";
     const [row] = await tx
       .insert(rounds)
@@ -161,6 +169,7 @@ export async function startRound(userId: string, currency: Currency, betUsd: num
         serverSeedHash: u.serverSeedHash,
         clientSeed: u.clientSeed,
         nonce,
+        tableId: table.id,
         settledAt: settled ? new Date() : null,
       })
       .returning();
@@ -183,7 +192,9 @@ export async function playAction(userId: string, roundId: string, action: Action
     const shoe = fairShoe(r.serverSeed, r.clientSeed, r.nonce);
 
     let next: RoundState;
+    let decision: Decision | null = null;
     try {
+      decision = r.state.phase === "insurance" || r.state.phase === "player" ? gradeAction(r.state, action) : null;
       next = applyAction(r.state, { type: action }, shoe);
     } catch (e) {
       if (e instanceof IllegalAction) throw new GameError(e.message);
@@ -197,6 +208,7 @@ export async function playAction(userId: string, roundId: string, action: Action
       .update(rounds)
       .set({
         state: next,
+        decisions: decision ? [...(r.decisions ?? []), decision] : r.decisions,
         wagered: next.wagered,
         payout: next.payout,
         status: settled ? "settled" : "active",
@@ -205,7 +217,7 @@ export async function playAction(userId: string, roundId: string, action: Action
       .where(eq(rounds.id, r.id))
       .returning();
     if (settled) await adjust(tx, userId, currency, next.payout, "payout", r.id);
-    return { round: payload(row), wallet: await walletOf(tx, userId) };
+    return { round: payload(row), wallet: await walletOf(tx, userId), decision };
   });
 }
 
@@ -300,6 +312,126 @@ export async function resetBalances(userId: string) {
     }
     return { wallet: await walletOf(tx, userId) };
   });
+}
+
+/* ------------------------------------------------------------------ training */
+
+const CARD_RE = /^[A2-9TJQK][SHDC]$/;
+const isCard = (v: unknown): v is Card => typeof v === "string" && CARD_RE.test(v);
+
+export interface DrillAnswerInput {
+  cards: string[];
+  up: string;
+  action: string;
+}
+
+/**
+ * Record drill answers. The client sends what it showed and what was chosen; grading is
+ * redone here so stats can't be faked by a modified client.
+ */
+export async function recordDrill(userId: string, tableId: string, answers: DrillAnswerInput[]) {
+  if (!Array.isArray(answers) || answers.length === 0) return { saved: 0 };
+  if (answers.length > 50) throw new GameError("Too many answers at once");
+  const table = tableOf(tableId);
+  const rows = answers.map((a) => {
+    if (!Array.isArray(a.cards) || a.cards.length !== 2 || !a.cards.every(isCard) || !isCard(a.up)) {
+      throw new GameError("Invalid drill spot");
+    }
+    const cards = a.cards as Card[];
+    if (isTwentyOne(cards)) throw new GameError("Invalid drill spot");
+    const legal = spotLegal(cards, a.up as Card, table.rules);
+    if (!legal.includes(a.action as ActionType)) throw new GameError("Invalid drill answer");
+    const d = gradeSpot(cards, a.up as Card, legal, table.rules, a.action as ActionType);
+    return { userId, tableId: table.id, spot: d.spot, kind: d.kind, chosen: d.chosen, correct: d.correct, ok: d.ok ? 1 : 0 };
+  });
+  await ensureUser(userId);
+  const db = await getDb();
+  await db.insert(drillAnswers).values(rows);
+  return { saved: rows.length };
+}
+
+export interface Leak {
+  spot: string;
+  label: string;
+  kind: string;
+  correct: string;
+  seen: number;
+  misses: number;
+}
+
+export interface TrainingStats {
+  live: { decisions: number; correct: number };
+  drill: { answers: number; correct: number; bestStreak: number };
+  byKind: { kind: string; seen: number; correct: number }[];
+  leaks: Leak[];
+}
+
+/** Accuracy from live play (graded decisions) and drills, plus the most-missed chart cells. */
+export async function getTraining(userId: string): Promise<TrainingStats> {
+  await ensureUser(userId);
+  const db = await getDb();
+
+  const live = await db.execute<{ spot: string; kind: string; correct: string; seen: number; misses: number }>(sql`
+    select d->>'spot' as spot, d->>'kind' as kind, d->>'correct' as correct,
+           count(*)::int as seen,
+           count(*) filter (where (d->>'ok')::boolean = false)::int as misses
+    from ${rounds}, jsonb_array_elements(${rounds.decisions}) as d
+    where ${rounds.userId} = ${userId}
+    group by 1, 2, 3`);
+  const drill = await db
+    .select({
+      spot: drillAnswers.spot,
+      kind: drillAnswers.kind,
+      correct: drillAnswers.correct,
+      seen: sql<number>`count(*)::int`,
+      misses: sql<number>`count(*) filter (where ${drillAnswers.ok} = 0)::int`,
+    })
+    .from(drillAnswers)
+    .where(eq(drillAnswers.userId, userId))
+    .groupBy(drillAnswers.spot, drillAnswers.kind, drillAnswers.correct);
+
+  // best streak of consecutive correct drill answers (last 2,000 answers)
+  const recent = await db
+    .select({ ok: drillAnswers.ok })
+    .from(drillAnswers)
+    .where(eq(drillAnswers.userId, userId))
+    .orderBy(desc(drillAnswers.id))
+    .limit(2000);
+  let streak = 0;
+  let bestStreak = 0;
+  for (const r of [...recent].reverse()) {
+    streak = r.ok ? streak + 1 : 0;
+    bestStreak = Math.max(bestStreak, streak);
+  }
+
+  const liveRows = "rows" in live ? (live.rows as typeof drill) : (live as unknown as typeof drill);
+  const sum = (rows: typeof drill) => rows.reduce((a, r) => ({ seen: a.seen + r.seen, misses: a.misses + r.misses }), { seen: 0, misses: 0 });
+  const liveTotals = sum(liveRows);
+  const drillTotals = sum(drill);
+
+  const kinds = new Map<string, { seen: number; correct: number }>();
+  const leaks = new Map<string, Leak>();
+  for (const r of [...liveRows, ...drill]) {
+    const k = kinds.get(r.kind) ?? { seen: 0, correct: 0 };
+    k.seen += r.seen;
+    k.correct += r.seen - r.misses;
+    kinds.set(r.kind, k);
+    const key = `${r.spot}|${r.correct}`;
+    const l = leaks.get(key) ?? { spot: r.spot, label: spotLabel(r.spot), kind: r.kind, correct: r.correct, seen: 0, misses: 0 };
+    l.seen += r.seen;
+    l.misses += r.misses;
+    leaks.set(key, l);
+  }
+
+  return {
+    live: { decisions: liveTotals.seen, correct: liveTotals.seen - liveTotals.misses },
+    drill: { answers: drillTotals.seen, correct: drillTotals.seen - drillTotals.misses, bestStreak },
+    byKind: [...kinds.entries()].map(([kind, v]) => ({ kind, ...v })),
+    leaks: [...leaks.values()]
+      .filter((l) => l.misses > 0)
+      .sort((a, b) => b.misses - a.misses || b.misses / b.seen - a.misses / a.seen)
+      .slice(0, 8),
+  };
 }
 
 /* ------------------------------------------------------------------ stats */

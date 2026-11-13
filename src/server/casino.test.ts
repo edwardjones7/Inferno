@@ -135,6 +135,42 @@ describe("casino service", () => {
     await expect(casino.settleAbandoned(newUser(), round.id)).rejects.toThrow(casino.GameError);
   });
 
+  it("grades live decisions with the table's rules", async () => {
+    const id = newUser();
+    let round;
+    do {
+      round = (await casino.startRound(id, "USDT", 10, "h17")).round;
+    } while (round.view.phase === "settled");
+    expect(round.tableId).toBe("h17");
+    const before = round.view;
+    const action = before.phase === "insurance" ? "insurance" : "stand";
+    const res = await casino.playAction(id, round.id, action);
+    expect(res.decision).toBeTruthy();
+    if (action === "insurance") expect(res.decision!.ok).toBe(false);
+    const db = await getDb();
+    const [row] = await db.select().from(schema.rounds).where(eq(schema.rounds.id, round.id));
+    expect(row.decisions).toHaveLength(1);
+    expect(row.state.rules.dealerHitsSoft17).toBe(true);
+  });
+
+  it("re-grades drill answers server-side and reports leaks", async () => {
+    const id = newUser();
+    await casino.recordDrill(id, "classic", [
+      { cards: ["AS", "7H"], up: "9C", action: "stand" }, // wrong: hit
+      { cards: ["AD", "7C"], up: "9H", action: "stand" }, // wrong again
+      { cards: ["TS", "6H"], up: "TC", action: "surrender" }, // right
+      { cards: ["8S", "8H"], up: "AC", action: "split" }, // right
+    ]);
+    await expect(casino.recordDrill(id, "classic", [{ cards: ["AS", "KH"], up: "9C", action: "stand" }])).rejects.toThrow(casino.GameError);
+    await expect(casino.recordDrill(id, "classic", [{ cards: ["9S", "9H"], up: "9C", action: "surrender" }])).resolves.toBeTruthy();
+    await expect(casino.recordDrill(id, "oldschool", [{ cards: ["TS", "6H"], up: "TC", action: "surrender" }])).rejects.toThrow("Invalid drill answer");
+    const t = await casino.getTraining(id);
+    expect(t.drill.answers).toBe(5);
+    expect(t.drill.correct).toBe(2);
+    expect(t.drill.bestStreak).toBe(2);
+    expect(t.leaks[0]).toMatchObject({ spot: "soft-18-9", label: "Soft 18 vs 9", correct: "hit", misses: 2 });
+  });
+
   it("faucet pays once per cooldown", async () => {
     const id = newUser();
     const before = (await casino.getAccount(id)).wallet.BTC;

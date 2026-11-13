@@ -14,7 +14,9 @@ import { useWallet } from "@/components/wallet-provider";
 import { HeatMeter, OutcomeBanner, ResultTag, TotalBadge } from "./parts";
 import { outcome, playerKey, schedule, type Timing } from "./timing";
 import type { ActionType, RoundView } from "@/lib/blackjack/engine";
+import { choiceLabel, type Decision } from "@/lib/blackjack/coach";
 import { basicStrategy } from "@/lib/blackjack/strategy";
+import { isTableId, TABLE_IDS, TABLES, tableOf } from "@/lib/blackjack/tables";
 import { formatUsd, MAX_BET_USD, MIN_BET_USD, unitsToUsd, type Currency } from "@/lib/currency";
 import { play, setAmbienceHeat, startAmbience, stopAmbience } from "@/lib/sound";
 import { isBoolString, useStored } from "@/lib/use-stored";
@@ -59,6 +61,8 @@ const ACTION_META: Record<Exclude<ActionType, "insurance" | "decline">, { label:
 };
 
 const HINT_KEY = "inferno:hints";
+const COACH_KEY = "inferno:coach";
+const TABLE_KEY = "inferno:table";
 
 export function BlackjackTable({ initial }: { initial: { round: RoundPayload | null; fairness: Fairness } | null }) {
   const { wallet, currency: walletCurrency, setWallet, balanceUsd, ready } = useWallet();
@@ -98,6 +102,12 @@ export function BlackjackTable({ initial }: { initial: { round: RoundPayload | n
   }, []);
   const [hintsPref, setHintsPref] = useStored(HINT_KEY, "0", isBoolString);
   const hints = hintsPref === "1";
+  const [coachPref, setCoachPref] = useStored(COACH_KEY, "1", isBoolString);
+  const coach = coachPref === "1";
+  const [tablePref, setTablePref] = useStored(TABLE_KEY, "classic", isTableId);
+  const [coachNote, setCoachNote] = useState<(Decision & { n: number }) | null>(null);
+  const coachTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(coachTimer.current), []);
   const revealTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const dramaTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
@@ -196,12 +206,12 @@ export function BlackjackTable({ initial }: { initial: { round: RoundPayload | n
     if (busy || inPlay || !revealed || settling) return;
     setBusy(true);
     play("chip");
-    const res = await dealAction(walletCurrency, bet);
+    const res = await dealAction(walletCurrency, bet, tablePref);
     setBusy(false);
     if (!res.ok) return void toast.error(res.error);
     setFairness((f) => (f ? { ...f, nonce: res.data.nextNonce } : f));
     receive(res.data.round, res.data.wallet, null);
-  }, [busy, inPlay, revealed, settling, walletCurrency, bet, receive]);
+  }, [busy, inPlay, revealed, settling, walletCurrency, bet, tablePref, receive]);
 
   const act = useCallback(
     async (a: ActionType) => {
@@ -212,8 +222,14 @@ export function BlackjackTable({ initial }: { initial: { round: RoundPayload | n
       setBusy(false);
       if (!res.ok) return void toast.error(res.error);
       receive(res.data.round, res.data.wallet, view);
+      const d = res.data.decision;
+      if (d && coach) {
+        setCoachNote((prev) => ({ ...d, n: (prev?.n ?? 0) + 1 }));
+        clearTimeout(coachTimer.current);
+        coachTimer.current = setTimeout(() => setCoachNote(null), d.ok ? 2200 : 7000);
+      }
     },
-    [round, busy, view, receive],
+    [round, busy, view, receive, coach],
   );
 
   const addChip = (v: number) => {
@@ -230,6 +246,13 @@ export function BlackjackTable({ initial }: { initial: { round: RoundPayload | n
     setBet(clamped);
     play("click");
   };
+  /** Take every chip back off the betting circle (undo restores the previous bet). */
+  const clearBet = () => {
+    if (inPlay || bet === 0) return;
+    setBetStack((s) => [...s, bet]);
+    setBet(0);
+    play("click");
+  };
   const undo = () => {
     setBetStack((s) => {
       if (!s.length) return s;
@@ -239,7 +262,9 @@ export function BlackjackTable({ initial }: { initial: { round: RoundPayload | n
   };
 
   const hand = inPlay && view.phase === "player" ? view.hands[view.active] : null;
-  const hint = hints && hand && view ? basicStrategy(hand.cards, view.dealer[0]!, view.legal) : null;
+  // the round's own table while a hand is live; otherwise the one picked for the next deal
+  const table = inPlay && round ? tableOf(round.tableId) : TABLES[tablePref];
+  const hint = hints && hand && view ? basicStrategy(hand.cards, view.dealer[0]!, view.legal, table.rules) : null;
   const canAfford = (a: ActionType) => !view?.costs[a] || toUsd(view.costs[a]!) <= unitsToUsd(wallet?.[roundCurrency] ?? 0, roundCurrency) + 1e-9;
   const betTooBig = ready && bet > balanceUsd + 1e-9;
 
@@ -290,6 +315,7 @@ export function BlackjackTable({ initial }: { initial: { round: RoundPayload | n
               pendingBetUsd={bet}
               toUsd={toUsd}
               fx={{ heat, drama, blackjackKey, winKey: burstKey, loseKey }}
+              tableId={table.id}
             />
             ) : (
               <div className="felt h-[420px] animate-pulse rounded-[28px] sm:h-[540px] sm:rounded-[44px]" />
@@ -350,11 +376,11 @@ export function BlackjackTable({ initial }: { initial: { round: RoundPayload | n
           <div className="pointer-events-none relative my-3 select-none text-center sm:my-5">
             <div className={`transition-opacity duration-300 ${result && revealed ? "opacity-0" : "opacity-100"}`}>
             <p className="font-display text-[10px] font-bold uppercase tracking-[0.35em] text-ember-400/70 sm:text-xs">
-              Blackjack pays 3 to 2
+              Blackjack pays {table.rules.blackjackPays === 1.5 ? "3 to 2" : "6 to 5"}
             </p>
             <div className="mx-auto my-1.5 h-px w-2/3 max-w-sm bg-gradient-to-r from-transparent via-ember-500/50 to-transparent" />
             <p className="text-[9px] font-semibold uppercase tracking-[0.3em] text-ash-500 sm:text-[10px]">
-              Dealer stands on all 17s · Insurance pays 2 to 1
+              {table.rules.dealerHitsSoft17 ? "Dealer hits soft 17" : "Dealer stands on all 17s"} · Insurance pays 2 to 1
             </p>
             </div>
             <OutcomeBanner result={result && revealed ? result : null} roundId={round?.id ?? ""} />
@@ -417,6 +443,9 @@ export function BlackjackTable({ initial }: { initial: { round: RoundPayload | n
 
         </div>
         )}
+
+        {/* ---------------------------------------------------- coach */}
+        <CoachLine note={coachNote} />
 
         {/* ---------------------------------------------------- dock */}
         <div className="panel mt-4 rounded-3xl p-4 sm:p-5">
@@ -489,6 +518,7 @@ export function BlackjackTable({ initial }: { initial: { round: RoundPayload | n
               onChip={addChip}
               onSet={setBetTo}
               onUndo={undo}
+              onClear={clearBet}
               onDeal={deal}
               again={!!view}
             />
@@ -515,11 +545,50 @@ export function BlackjackTable({ initial }: { initial: { round: RoundPayload | n
         </div>
         <div className="panel rounded-3xl p-5">
           <div className="flex items-center justify-between">
-            <h2 className="font-display text-sm font-bold">Strategy hints</h2>
+            <h2 className="font-display text-sm font-bold">Table</h2>
+            <Link href="/trainer" className="text-xs font-semibold text-ember-400 hover:text-ember-300">
+              Drill →
+            </Link>
+          </div>
+          <div className="mt-3 grid gap-1.5" role="radiogroup" aria-label="Table rules">
+            {TABLE_IDS.map((id) => {
+              const t = TABLES[id];
+              const on = tablePref === id;
+              return (
+                <button
+                  key={id}
+                  role="radio"
+                  aria-checked={on}
+                  disabled={inPlay}
+                  onClick={() => setTablePref(id)}
+                  className={`rounded-xl px-3 py-2 text-left transition-colors disabled:cursor-not-allowed ${
+                    on ? "bg-ember-500/12 ring-1 ring-ember-500/60" : "hover:bg-ash-800"
+                  } ${inPlay && !on ? "opacity-40" : ""}`}
+                >
+                  <span className="flex items-center justify-between gap-2">
+                    <span className={`text-sm font-bold ${on ? "text-bone" : "text-ash-200"}`}>{t.name}</span>
+                    <span className={`tabular text-[11px] font-semibold ${t.edge > 1 ? "text-ember-400" : "text-ash-400"}`}>{t.edge.toFixed(2)}% edge</span>
+                  </span>
+                  <span className="block text-[11px] text-ash-500">{t.short}</span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-[11px] leading-relaxed text-ash-500">{table.blurb}</p>
+        </div>
+
+        <div className="panel rounded-3xl p-5">
+          <div className="flex items-center justify-between">
+            <h2 className="font-display text-sm font-bold">Coach</h2>
+            <Toggle on={coach} onChange={(v) => setCoachPref(v ? "1" : "0")} />
+          </div>
+          <p className="mt-2 text-xs leading-relaxed text-ash-400">Grades every decision against basic strategy for this table and tells you when you slipped.</p>
+          <div className="mt-4 flex items-center justify-between">
+            <h2 className="font-display text-sm font-bold">Hints</h2>
             <Toggle on={hints} onChange={(v) => setHintsPref(v ? "1" : "0")} />
           </div>
           <p className="mt-2 text-xs leading-relaxed text-ash-400">
-            Highlights the mathematically best move for 6 decks, dealer stands on soft 17. Played perfectly the house edge is about 0.5%.
+            Highlights the right move before you act. Played perfectly, this table&apos;s house edge is {table.edge.toFixed(2)}%.
           </p>
         </div>
 
@@ -573,9 +642,10 @@ function BetDock(props: {
   onChip: (v: number) => void;
   onSet: (v: number) => void;
   onUndo: () => void;
+  onClear: () => void;
   onDeal: () => void;
 }) {
-  const { bet, currency, busy, locked, betTooBig, ready, balanceUsd, canUndo, again, onChip, onSet, onUndo, onDeal } = props;
+  const { bet, currency, busy, locked, betTooBig, ready, balanceUsd, canUndo, again, onChip, onSet, onUndo, onClear, onDeal } = props;
   return (
     <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
       <div className="flex flex-1 flex-wrap items-center justify-center gap-1.5 sm:gap-3 lg:justify-start">
@@ -610,6 +680,9 @@ function BetDock(props: {
         </div>
         <button onClick={() => onSet(bet / 2)} className="btn-ash h-12 w-11 rounded-xl text-sm font-bold">½</button>
         <button onClick={() => onSet(bet * 2)} className="btn-ash h-12 w-11 rounded-xl text-sm font-bold">2×</button>
+        <button onClick={onClear} disabled={bet === 0} aria-label="Clear bet" className="btn-ash h-12 rounded-xl px-3 text-sm font-bold">
+          Clear
+        </button>
         <button onClick={onUndo} disabled={!canUndo} aria-label="Undo last chip" className="btn-ash grid h-12 w-11 place-items-center rounded-xl">
           <svg viewBox="0 0 16 16" className="h-4 w-4" aria-hidden>
             <path d="M6 4L2 8l4 4M2.5 8H10a4 4 0 0 1 0 8" fill="none" stroke="currentColor" strokeWidth="1.6" transform="translate(0 -2)" />
@@ -632,13 +705,52 @@ function BetDock(props: {
   );
 }
 
+function CoachLine({ note }: { note: (Decision & { n: number }) | null }) {
+  return (
+    <div className="mt-3 min-h-11" aria-live="polite">
+      <AnimatePresence mode="wait">
+        {note && (
+          <motion.div
+            key={note.n}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className={`flex items-start gap-3 rounded-2xl px-4 py-2.5 text-sm ring-1 ${
+              note.ok ? "bg-emerald-500/10 text-emerald-200 ring-emerald-500/30" : "bg-ember-500/10 text-ember-100 ring-ember-500/40"
+            }`}
+          >
+            <span
+              className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full text-xs font-black ${
+                note.ok ? "bg-emerald-400 text-ash-950" : "bg-ember-500 text-ash-950"
+              }`}
+            >
+              {note.ok ? "✓" : "!"}
+            </span>
+            <span>
+              <span className="font-bold">{note.label}:</span>{" "}
+              {note.ok ? (
+                <>{choiceLabel(note.chosen)} is correct.</>
+              ) : (
+                <>
+                  you chose {choiceLabel(note.chosen).toLowerCase()}, the right play is{" "}
+                  <span className="font-bold">{choiceLabel(note.correct).toLowerCase()}</span>. <span className="text-ash-300">{note.why}</span>
+                </>
+              )}
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 function EmptySeat({ bet }: { bet: number }) {
   return (
     <div className="flex flex-col items-center gap-3 pb-4">
       <div className="grid h-28 w-28 place-items-center rounded-full border-2 border-dashed border-ember-500/40 bg-ember-500/5 shadow-[inset_0_0_30px_rgba(255,90,31,0.15)]">
         <div className="flex flex-col items-center">
           <div className="relative h-12 w-12">
-            {chipsFor(bet, 5).map((v, i) => (
+            {(bet > 0 ? chipsFor(bet, 5) : []).map((v, i) => (
               <motion.span
                 key={`${i}-${v}`}
                 initial={{ y: -30, opacity: 0 }}

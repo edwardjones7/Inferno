@@ -1,5 +1,6 @@
 import { bigint, bigserial, index, integer, jsonb, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
 import type { RoundState } from "@/lib/blackjack/engine";
+import type { Decision } from "@/lib/blackjack/coach";
 
 export const users = pgTable("users", {
   id: text("id").primaryKey(),
@@ -52,10 +53,30 @@ export const rounds = pgTable(
     serverSeedHash: text("server_seed_hash").notNull(),
     clientSeed: text("client_seed").notNull(),
     nonce: integer("nonce").notNull(),
+    tableId: text("table_id").notNull().default("classic"),
+    /** every player decision graded against basic strategy for this table's rules */
+    decisions: jsonb("decisions").$type<Decision[]>().notNull().default([]),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     settledAt: timestamp("settled_at", { withTimezone: true }),
   },
   (t) => [index("rounds_user_idx").on(t.userId, t.createdAt), index("rounds_settled_idx").on(t.status, t.settledAt)],
+);
+
+/** Answers given in the drill trainer (practice spots, no money involved). */
+export const drillAnswers = pgTable(
+  "drill_answers",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    userId: text("user_id").notNull(),
+    tableId: text("table_id").notNull(),
+    spot: text("spot").notNull(),
+    kind: text("kind").notNull(),
+    chosen: text("chosen").notNull(),
+    correct: text("correct").notNull(),
+    ok: integer("ok").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("drill_user_idx").on(t.userId, t.id)],
 );
 
 /** Idempotent bootstrap so the app runs with zero setup. Mirrors the tables above. */
@@ -106,4 +127,18 @@ CREATE TABLE IF NOT EXISTS rounds (
 CREATE INDEX IF NOT EXISTS rounds_user_idx ON rounds (user_id, created_at);
 CREATE INDEX IF NOT EXISTS rounds_settled_idx ON rounds (status, settled_at);
 CREATE UNIQUE INDEX IF NOT EXISTS rounds_one_active ON rounds (user_id) WHERE status = 'active';
+ALTER TABLE rounds ADD COLUMN IF NOT EXISTS table_id text NOT NULL DEFAULT 'classic';
+ALTER TABLE rounds ADD COLUMN IF NOT EXISTS decisions jsonb NOT NULL DEFAULT '[]'::jsonb;
+CREATE TABLE IF NOT EXISTS drill_answers (
+  id bigserial PRIMARY KEY,
+  user_id text NOT NULL,
+  table_id text NOT NULL,
+  spot text NOT NULL,
+  kind text NOT NULL,
+  chosen text NOT NULL,
+  correct text NOT NULL,
+  ok integer NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS drill_user_idx ON drill_answers (user_id, id);
 `;
