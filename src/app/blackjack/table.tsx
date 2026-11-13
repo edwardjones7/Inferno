@@ -79,6 +79,20 @@ export function BlackjackTable({ initial }: { initial: { round: RoundPayload | n
   const [viewMode, setViewMode] = useStored(VIEW_KEY, "3d", isViewMode);
   const webglOk = useSyncExternalStore(noopSubscribe, hasWebGL, () => true);
   const use3d = viewMode === "3d" && webglOk;
+
+  // Next keeps visited pages alive in a hidden <Activity> so they reopen instantly. Hiding
+  // runs effect cleanups (WebGL renderer, Rapier physics world are freed) but keeps state,
+  // so re-showing the stale 3D tree crashed ("recursive use of an object" from Rapier).
+  // Drop the scene while hidden and mount a fresh one when the page is shown again.
+  const [sceneOn, setSceneOn] = useState(true);
+  const [sceneKey, setSceneKey] = useState(0);
+  useEffect(() => {
+    queueMicrotask(() => setSceneOn(true));
+    return () => {
+      setSceneOn(false);
+      setSceneKey((k) => k + 1);
+    };
+  }, []);
   const [hintsPref, setHintsPref] = useStored(HINT_KEY, "0", isBoolString);
   const hints = hintsPref === "1";
   const revealTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -251,7 +265,9 @@ export function BlackjackTable({ initial }: { initial: { round: RoundPayload | n
         {/* ---------------------------------------------------- felt */}
         {use3d ? (
           <div className="relative">
+            {sceneOn ? (
             <Table3D
+              key={sceneKey}
               view={view}
               roundId={round?.id ?? null}
               timing={timing}
@@ -261,6 +277,9 @@ export function BlackjackTable({ initial }: { initial: { round: RoundPayload | n
               toUsd={toUsd}
               fx={{ heat, drama, blackjackKey, winKey: burstKey, loseKey }}
             />
+            ) : (
+              <div className="felt h-[420px] animate-pulse rounded-[28px] sm:h-[540px] sm:rounded-[44px]" />
+            )}
             <div className="absolute left-4 top-4 z-20 sm:left-6 sm:top-5">
               <HeatMeter heat={heat} />
             </div>
