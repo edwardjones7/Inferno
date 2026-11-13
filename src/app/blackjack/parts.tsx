@@ -70,7 +70,7 @@ export function OutcomeBanner({ result, roundId }: { result: Outcome | null; rou
           transition={{ type: "spring", stiffness: 300, damping: 22 }}
           className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
         >
-          <div className="rounded-2xl bg-ash-950/85 px-7 py-3 text-center ring-1 ring-ash-600/60 backdrop-blur-md">
+          <div className="rounded-2xl bg-ash-950/92 px-7 py-3 text-center ring-1 ring-ash-600/60 shadow-[0_10px_40px_rgba(0,0,0,0.6)]">
             <p
               className={`font-display text-2xl font-black uppercase tracking-wider sm:text-3xl ${
                 result.tone === "win" ? "molten-text" : result.tone === "push" ? "text-ash-200" : "text-ash-400"
@@ -98,7 +98,7 @@ export function HeatMeter({ heat }: { heat: number }) {
   const label = heat > 0.66 ? "On fire" : heat > 0.2 ? "Heating up" : heat < -0.66 ? "Ice cold" : heat < -0.2 ? "Cooling" : "Warm";
   return (
     <div
-      className="pointer-events-none flex items-center gap-2 rounded-full bg-ash-950/75 px-3 py-1.5 ring-1 ring-ash-700/80 backdrop-blur-md"
+      className="pointer-events-none flex items-center gap-2 rounded-full bg-ash-950/85 px-3 py-1.5 ring-1 ring-ash-700/80"
       role="meter"
       aria-label="Streak heat"
       aria-valuemin={-1}

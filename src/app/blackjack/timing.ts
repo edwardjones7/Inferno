@@ -96,6 +96,8 @@ export function outcome(v: RoundView, currency: Currency) {
   let title: string;
   if (blackjack) title = "Blackjack";
   else if (surrendered) title = "Surrendered";
+  else if (v.dealerBlackjack && v.hands.some((h) => h.result === "push")) title = "Blackjack push";
+  else if (v.dealerBlackjack && (v.insurance?.payout ?? 0) > 0) title = "Insurance pays";
   else if (v.dealerBlackjack) title = "Dealer blackjack";
   else if (net > 0) title = "You win";
   else if (net === 0) title = "Push";

@@ -8,7 +8,11 @@ import type { ActionType } from "./engine";
 export type Move = "hit" | "stand" | "double" | "split" | "surrender";
 
 export function basicStrategy(cards: readonly Card[], dealerUp: Card, legal: readonly ActionType[]): Move {
-  const can = (m: Move) => legal.includes(m);
+  // Never trust `legal` alone: only pairs split, only opening hands double/surrender.
+  const opening = cards.length === 2;
+  const pair = opening && cardValue(cards[0]) === cardValue(cards[1]);
+  const can = (m: Move) =>
+    legal.includes(m) && (m === "split" ? pair : m === "double" || m === "surrender" ? opening : true);
   const d = cardValue(dealerUp) === 1 ? 11 : cardValue(dealerUp);
   const { total, soft } = handTotal(cards);
   const between = (lo: number, hi: number) => d >= lo && d <= hi;
@@ -36,10 +40,12 @@ export function basicStrategy(cards: readonly Card[], dealerUp: Card, legal: rea
 
   if (soft) {
     if (total >= 20) return "stand";
-    if (total === 19) return d === 6 ? doubleOr("stand") : "stand";
+    // S17 chart: A,8 always stands (doubling vs 6 is the H17 play)
+    if (total === 19) return "stand";
     if (total === 18) {
-      if (between(2, 6)) return doubleOr("stand");
-      if (between(7, 8)) return "stand";
+      // S17 chart: stand vs 2 (doubling vs 2 is the H17 play)
+      if (between(3, 6)) return doubleOr("stand");
+      if (d === 2 || between(7, 8)) return "stand";
       return "hit";
     }
     if (total === 17) return between(3, 6) ? doubleOr("hit") : "hit";

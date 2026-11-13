@@ -98,7 +98,7 @@ export function TableBody() {
       const k = (h + 1) / 2;
       const pulse = calm ? 1 : 1 + 0.18 * Math.sin(c.t * 0.9) + 0.06 * Math.sin(c.t * 2.3);
       // nearly invisible when cold, unbloomed embers at neutral, blazing when hot
-      m.emissiveIntensity = (0.02 + 3.2 * Math.pow(k, 3.6)) * pulse;
+      m.emissiveIntensity = (0.02 + 2.2 * Math.pow(k, 3.6)) * pulse;
     }
   });
 

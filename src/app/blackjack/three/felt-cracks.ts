@@ -101,16 +101,24 @@ export function strokeCracks(g: CanvasRenderingContext2D, px: number, style: str
   g.strokeStyle = style;
   g.lineCap = "round";
   g.lineJoin = "round";
+  // Batch cracks into a few paths by (quantised) line width: one stroke per bucket, so a
+  // shadowBlur is computed ~10 times instead of once per crack (hundreds), which made
+  // painting the felt block the main thread for a few hundred ms on first open.
+  const buckets = new Map<number, Path2D>();
   for (const c of crackNetwork()) {
-    g.lineWidth = Math.max(0.6, width * c.w);
-    g.beginPath();
+    const lw = Math.max(0.6, Math.round(width * c.w * 2) / 2);
+    let path = buckets.get(lw);
+    if (!path) buckets.set(lw, (path = new Path2D()));
     c.pts.forEach(([x, z], i) => {
       const X = (x + W) * px;
       const Y = (z + D) * px;
-      if (i === 0) g.moveTo(X, Y);
-      else g.lineTo(X, Y);
+      if (i === 0) path.moveTo(X, Y);
+      else path.lineTo(X, Y);
     });
-    g.stroke();
+  }
+  for (const [lw, path] of buckets) {
+    g.lineWidth = lw;
+    g.stroke(path);
   }
 }
 

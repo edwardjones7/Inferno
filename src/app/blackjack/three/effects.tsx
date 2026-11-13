@@ -116,7 +116,7 @@ export function Effects() {
     dofRef.current?.setAmount(dr, MAX_BOKEH);
 
     const bloom = bloomRef.current;
-    if (bloom) bloom.intensity = BLOOM_BASE + 0.22 * hot - 0.12 * cold + 0.6 * win + 1.5 * bj;
+    if (bloom) bloom.intensity = BLOOM_BASE + 0.1 * hot - 0.12 * cold + 0.35 * win + 1.1 * bj;
 
     const ca = chromaRef.current;
     if (ca) {

@@ -30,10 +30,12 @@ export default function Template({ children }: { children: React.ReactNode }) {
       anims.push(
         page.current.animate(
           [
-            { opacity: 0.35, transform: "translateY(14px)", filter: "blur(3px) saturate(1.4)" },
-            { opacity: 1, transform: "translateY(0)", filter: "blur(0) saturate(1)" },
+            // opacity + transform only: compositor-friendly, no full-page blur while the
+            // incoming page (often a WebGL scene) is doing its own first render
+            { opacity: 0.4, transform: "translateY(10px)" },
+            { opacity: 1, transform: "translateY(0)" },
           ],
-          { duration: 380, easing: EASE },
+          { duration: 320, easing: EASE },
         ),
       );
     }
@@ -41,10 +43,10 @@ export default function Template({ children }: { children: React.ReactNode }) {
       anims.push(
         sweep.current.animate(
           [
-            { transform: "translateY(100vh)", opacity: 1 },
-            { transform: "translateY(-70vh)", opacity: 0.6 },
+            { transform: "translateY(100vh)", opacity: 0.9 },
+            { transform: "translateY(-10vh)", opacity: 0 },
           ],
-          { duration: 400, easing: "cubic-bezier(0.4, 0, 0.2, 1)" },
+          { duration: 420, easing: "cubic-bezier(0.4, 0, 0.2, 1)" },
         ),
       );
     }
@@ -57,16 +59,13 @@ export default function Template({ children }: { children: React.ReactNode }) {
       <div
         ref={sweep}
         aria-hidden
-        className="pointer-events-none fixed inset-x-0 top-0 z-30 h-[70vh]"
+        className="pointer-events-none fixed inset-x-0 top-0 z-30 h-24"
         style={{
           transform: "translateY(100vh)",
           opacity: 0,
+          // a thin rising heat line, not a full-screen smear
           background:
-            "linear-gradient(0deg, transparent 0%, rgb(179 32 12 / 0.16) 22%, rgb(255 90 31 / 0.22) 42%, rgb(255 194 75 / 0.28) 52%, rgb(255 90 31 / 0.18) 64%, transparent 100%)",
-          backdropFilter: "blur(5px) saturate(1.5)",
-          WebkitBackdropFilter: "blur(5px) saturate(1.5)",
-          maskImage: "linear-gradient(0deg, transparent, #000 35%, #000 65%, transparent)",
-          WebkitMaskImage: "linear-gradient(0deg, transparent, #000 35%, #000 65%, transparent)",
+            "linear-gradient(0deg, transparent 0%, rgb(255 90 31 / 0.10) 40%, rgb(255 194 75 / 0.22) 50%, rgb(255 90 31 / 0.10) 60%, transparent 100%)",
         }}
       />
     </>

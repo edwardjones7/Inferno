@@ -3,6 +3,7 @@ import { JetBrains_Mono, Manrope, Unbounded } from "next/font/google";
 import { Toaster } from "sonner";
 import { EmberField } from "@/components/ember-field";
 import { Header } from "@/components/header";
+import { PrefetchTable } from "@/components/prefetch-table";
 import { WalletProvider } from "@/components/wallet-provider";
 import "./globals.css";
 
@@ -22,6 +23,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <WalletProvider>
           <EmberField />
           <Header />
+          <PrefetchTable />
           <main className="flex-1">{children}</main>
           <footer className="border-t border-ash-800/80 px-4 py-6 text-center text-xs text-ash-500">
             Inferno is a demo with paper funds only. Nothing here has real-world value.

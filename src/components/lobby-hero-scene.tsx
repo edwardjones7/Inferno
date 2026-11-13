@@ -389,6 +389,9 @@ export default function LobbyHeroScene({ onReady }: { onReady: () => void }) {
           dpr={[1, 1.5]}
           camera={{ position: [0, 0.05, 6.4], fov: 32, near: 0.1, far: 30 }}
           gl={{ antialias: false, powerPreference: "low-power" }}
+          onCreated={({ gl }) => {
+            gl.debug.checkShaderErrors = process.env.NODE_ENV !== "production";
+          }}
         >
           <Scene onReady={onReady} />
         </Canvas>

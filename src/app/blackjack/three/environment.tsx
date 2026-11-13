@@ -151,7 +151,7 @@ function MoodLights({ mood, lampY }: { mood: MoodRef; lampY: number }) {
 function WinFlash({ mood }: { mood: MoodRef }) {
   const light = useRef<THREE.PointLight>(null);
   useFrame(() => {
-    if (light.current) light.current.intensity = 40 * mood.current.win;
+    if (light.current) light.current.intensity = 16 * mood.current.win;
   });
   return <pointLight ref={light} position={[0, 1.6, 0.6]} color="#ffaa44" intensity={0} distance={9} />;
 }
