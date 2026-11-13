@@ -13,7 +13,6 @@ const SOON = [
   { name: "Mines", blurb: "Dodge the bombs. Cash out before you burn.", glyph: "✹" },
   { name: "Crash", blurb: "Ride the flame up. Bail before it blows.", glyph: "↗" },
   { name: "Dice", blurb: "Pick your odds, roll under the line.", glyph: "⚂" },
-  { name: "Roulette", blurb: "Single-zero wheel, red-hot payouts.", glyph: "◎" },
 ];
 
 export default function Lobby() {
@@ -79,6 +78,15 @@ export default function Lobby() {
               Inferno Classic. 6 decks, 3:2 blackjack, double after split, late surrender, strategy hints.
             </p>
             <span className="mt-4 text-sm font-bold text-ember-300 transition-colors group-hover:text-ember-200">Take a seat →</span>
+          </Link>
+          <Link
+            href="/poker"
+            className="panel group relative flex min-h-40 flex-col justify-end overflow-hidden rounded-3xl p-5 ring-1 ring-ember-500/30 transition-transform hover:-translate-y-1"
+          >
+            <span className="absolute right-4 top-3 font-display text-5xl text-ember-500/40 transition-colors group-hover:text-ember-400/70">♠</span>
+            <span className="mb-2 w-fit rounded-full bg-ember-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-ash-950">New</span>
+            <h3 className="font-display text-lg font-bold">Poker trainer</h3>
+            <p className="mt-1 text-xs text-ash-400">Opening ranges, pot odds, showdowns and equity drills for Hold&apos;em.</p>
           </Link>
           {SOON.map((g) => (
             <div key={g.name} className="panel relative flex min-h-40 flex-col justify-end overflow-hidden rounded-3xl p-5 opacity-80">

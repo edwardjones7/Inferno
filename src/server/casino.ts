@@ -3,6 +3,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { isTwentyOne, type Card } from "@/lib/blackjack/cards";
 import { gradeAction, gradeSpot, type Decision } from "@/lib/blackjack/coach";
 import { spotLegal } from "@/lib/blackjack/drill";
+import { answersFor, gradePoker, validSpot, type PokerDrill } from "@/lib/poker/drills";
 import { applyAction, deal, IllegalAction, toView, type ActionType, type RoundState, type RoundView } from "@/lib/blackjack/engine";
 import { spotLabel } from "@/lib/blackjack/strategy";
 import { tableOf, type TableId } from "@/lib/blackjack/tables";
@@ -20,7 +21,7 @@ import {
 } from "@/lib/currency";
 import { getDb, schema, type DB } from "./db";
 
-const { users, balances, ledger, rounds, drillAnswers } = schema;
+const { users, balances, ledger, rounds, drillAnswers, pokerAnswers } = schema;
 type Tx = Parameters<Parameters<DB["transaction"]>[0]>[0];
 
 /** Errors whose message is safe to show the player. */
@@ -432,6 +433,72 @@ export async function getTraining(userId: string): Promise<TrainingStats> {
       .sort((a, b) => b.misses - a.misses || b.misses / b.seen - a.misses / a.seen)
       .slice(0, 8),
   };
+}
+
+/* ------------------------------------------------------------------ poker training */
+
+export interface PokerAnswerInput {
+  spot: unknown;
+  answer: string;
+}
+
+/** Re-grade poker drill answers from the spots the client showed, then store them. */
+export async function recordPoker(userId: string, answers: PokerAnswerInput[]) {
+  if (!Array.isArray(answers) || answers.length === 0) return { saved: 0 };
+  if (answers.length > 30) throw new GameError("Too many answers at once");
+  const rows = answers.map((a) => {
+    if (!validSpot(a.spot)) throw new GameError("Invalid poker spot");
+    const drill = a.spot.kind as PokerDrill;
+    if (!answersFor(drill).includes(String(a.answer))) throw new GameError("Invalid poker answer");
+    const g = gradePoker(a.spot, String(a.answer));
+    return { userId, drill, key: g.key, label: g.label, ok: g.ok ? 1 : 0 };
+  });
+  await ensureUser(userId);
+  const db = await getDb();
+  await db.insert(pokerAnswers).values(rows);
+  return { saved: rows.length };
+}
+
+export interface PokerStats {
+  byDrill: { drill: string; seen: number; correct: number }[];
+  leaks: { key: string; label: string; drill: string; seen: number; misses: number }[];
+  bestStreak: number;
+}
+
+export async function getPokerStats(userId: string): Promise<PokerStats> {
+  await ensureUser(userId);
+  const db = await getDb();
+  const byDrill = await db
+    .select({
+      drill: pokerAnswers.drill,
+      seen: sql<number>`count(*)::int`,
+      correct: sql<number>`count(*) filter (where ${pokerAnswers.ok} = 1)::int`,
+    })
+    .from(pokerAnswers)
+    .where(eq(pokerAnswers.userId, userId))
+    .groupBy(pokerAnswers.drill);
+  const leaks = await db
+    .select({
+      key: pokerAnswers.key,
+      label: sql<string>`max(${pokerAnswers.label})`,
+      drill: sql<string>`max(${pokerAnswers.drill})`,
+      seen: sql<number>`count(*)::int`,
+      misses: sql<number>`count(*) filter (where ${pokerAnswers.ok} = 0)::int`,
+    })
+    .from(pokerAnswers)
+    .where(eq(pokerAnswers.userId, userId))
+    .groupBy(pokerAnswers.key)
+    .having(sql`count(*) filter (where ${pokerAnswers.ok} = 0) > 0`)
+    .orderBy(sql`count(*) filter (where ${pokerAnswers.ok} = 0) desc`)
+    .limit(8);
+  const recent = await db.select({ ok: pokerAnswers.ok }).from(pokerAnswers).where(eq(pokerAnswers.userId, userId)).orderBy(desc(pokerAnswers.id)).limit(2000);
+  let streak = 0;
+  let bestStreak = 0;
+  for (const r of [...recent].reverse()) {
+    streak = r.ok ? streak + 1 : 0;
+    bestStreak = Math.max(bestStreak, streak);
+  }
+  return { byDrill, leaks, bestStreak };
 }
 
 /* ------------------------------------------------------------------ stats */

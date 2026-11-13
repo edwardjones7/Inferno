@@ -16,6 +16,7 @@ const NAV = [
   { href: "/", label: "Lobby" },
   { href: "/blackjack", label: "Blackjack" },
   { href: "/trainer", label: "Trainer" },
+  { href: "/poker", label: "Poker" },
   { href: "/fairness", label: "Fairness" },
   { href: "/profile", label: "Profile" },
 ];

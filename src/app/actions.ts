@@ -36,6 +36,14 @@ export async function recordDrillAction(tableId: string, answers: casino.DrillAn
   return run((id) => casino.recordDrill(id, String(tableId), answers));
 }
 
+export async function recordPokerAction(answers: casino.PokerAnswerInput[]) {
+  return run((id) => casino.recordPoker(id, answers));
+}
+
+export async function pokerStatsAction() {
+  return run((id) => casino.getPokerStats(id));
+}
+
 export async function trainingAction() {
   return run((id) => casino.getTraining(id));
 }

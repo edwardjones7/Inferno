@@ -79,6 +79,21 @@ export const drillAnswers = pgTable(
   (t) => [index("drill_user_idx").on(t.userId, t.id)],
 );
 
+/** Answers given in the poker trainer. */
+export const pokerAnswers = pgTable(
+  "poker_answers",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    userId: text("user_id").notNull(),
+    drill: text("drill").notNull(),
+    key: text("key").notNull(),
+    label: text("label").notNull(),
+    ok: integer("ok").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("poker_user_idx").on(t.userId, t.id)],
+);
+
 /** Idempotent bootstrap so the app runs with zero setup. Mirrors the tables above. */
 export const BOOTSTRAP_SQL = `
 CREATE TABLE IF NOT EXISTS users (
@@ -141,4 +156,14 @@ CREATE TABLE IF NOT EXISTS drill_answers (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS drill_user_idx ON drill_answers (user_id, id);
+CREATE TABLE IF NOT EXISTS poker_answers (
+  id bigserial PRIMARY KEY,
+  user_id text NOT NULL,
+  drill text NOT NULL,
+  key text NOT NULL,
+  label text NOT NULL,
+  ok integer NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS poker_user_idx ON poker_answers (user_id, id);
 `;

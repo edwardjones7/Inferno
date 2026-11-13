@@ -188,3 +188,22 @@ describe("casino service", () => {
     expect(await ledgerSum(id, "USDT")).toBe(wallet.USDT);
   });
 });
+
+describe("poker trainer", () => {
+  it("re-grades poker answers server-side and tracks leaks", async () => {
+    const id = newUser();
+    await casino.recordPoker(id, [
+      { spot: { kind: "preflop", pos: "UTG", cards: ["KS", "4S"] }, answer: "raise" }, // wrong
+      { spot: { kind: "preflop", pos: "UTG", cards: ["KD", "4D"] }, answer: "raise" }, // wrong, same cell
+      { spot: { kind: "preflop", pos: "BTN", cards: ["KS", "4S"] }, answer: "raise" }, // right
+      { spot: { kind: "equity", hero: ["AS", "AH"], villain: ["KD", "KC"] }, answer: "gt65" }, // right
+    ]);
+    await expect(casino.recordPoker(id, [{ spot: { kind: "preflop", pos: "UTG", cards: ["KS", "KS"] }, answer: "raise" }])).rejects.toThrow("Invalid poker spot");
+    await expect(casino.recordPoker(id, [{ spot: { kind: "preflop", pos: "UTG", cards: ["KS", "4S"] }, answer: "call" }])).rejects.toThrow("Invalid poker answer");
+    const st = await casino.getPokerStats(id);
+    const pre = st.byDrill.find((d) => d.drill === "preflop")!;
+    expect(pre).toMatchObject({ seen: 3, correct: 1 });
+    expect(st.leaks[0]).toMatchObject({ key: "pre-UTG-K4s", misses: 2 });
+    expect(st.bestStreak).toBe(2);
+  });
+});
