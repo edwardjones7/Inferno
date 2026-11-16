@@ -10,6 +10,8 @@
  * - Everything runs through master gain -> glue compressor -> limiter. Mute fades the master.
  * - Safe to import during SSR: nothing touches window/AudioContext until called in the browser.
  */
+import { haptic, type Haptic } from "./haptics";
+
 export type Sfx =
   | "chip"
   | "card"
@@ -663,7 +665,20 @@ function playBank(e: Engine, sfx: Sfx, bank: Bank, t: number) {
   SYNTH[sfx](e, t);
 }
 
+const HAPTIC: Partial<Record<Sfx, Haptic>> = {
+  chip: "light",
+  click: "tap",
+  flip: "light",
+  win: "success",
+  blackjack: "heavy",
+  lose: "medium",
+  push: "light",
+  drama: "heavy",
+};
+
 export function play(sfx: Sfx, delaySec = 0) {
+  const h = HAPTIC[sfx];
+  if (h && gestureSeen) haptic(h, delaySec);
   if (muted || !gestureSeen) return;
   const e = audio();
   if (!e) return;

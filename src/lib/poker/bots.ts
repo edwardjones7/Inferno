@@ -276,10 +276,25 @@ function postflop(s: PokerState, seatId: number, L: LegalOptions, style: BotStyl
   return { kind: "fold" };
 }
 
+/**
+ * What a weaker player does instead of their normal play: mostly calling too much and
+ * checking strong hands, sometimes a random fold or an unjustified bet.
+ */
+function blunder(s: PokerState, L: LegalOptions, rand: () => number): PlayerAction {
+  const r = rand();
+  if (L.canCheck) return r < 0.25 && L.canRaise ? raiseTo(L, s.currentBet + (0.3 + rand() * 0.7) * s.pot, s.pot) : { kind: "check" };
+  if (r < 0.65) return { kind: "call" };
+  if (r < 0.9) return { kind: "fold" };
+  return raiseTo(L, L.minRaiseTo, s.pot);
+}
+
 export function botDecide(state: PokerState, seatId: number, rand: () => number): PlayerAction {
   if (state.toAct !== seatId) throw new Error(`Seat ${seatId} is not due to act`);
   const L = legal(state);
-  const style: BotStyle = state.seats[seatId].style ?? "tag";
+  const seat = state.seats[seatId];
+  const style: BotStyle = seat.style ?? "tag";
+  const skill = Math.max(0, Math.min(1, seat.skill ?? 1));
+  if (skill < 1 && rand() < (1 - skill) * 0.45) return sanitize(L, blunder(state, L, rand));
   const a = state.street === "preflop" ? preflop(state, seatId, L, style, rand) : postflop(state, seatId, L, style, rand);
   return sanitize(L, a);
 }

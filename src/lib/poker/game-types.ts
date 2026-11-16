@@ -19,6 +19,8 @@ export interface Seat {
   name: string;
   isHero: boolean;
   style: BotStyle | null;
+  /** bot strength 0..1 (1 = plays its style perfectly; lower = more blunders). Hero: undefined */
+  skill?: number;
   stack: number;
   /** two hole cards while in a hand, [] otherwise */
   hole: Card[];

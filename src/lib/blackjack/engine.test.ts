@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildShoe, handTotal, type Card } from "./cards";
 import { applyAction, deal, IllegalAction, legalActions, toView, type ActionType, type RoundState } from "./engine";
-import { fairFloats, fairShoe, sha256Hex } from "./fair";
+import { shuffledShoe } from "./shoe";
 import { basicStrategy } from "./strategy";
 
 /** Shoe whose first cards are exactly `top` (deal order: P D P D, then draws). */
@@ -136,25 +136,18 @@ describe("player actions", () => {
   });
 });
 
-describe("provably fair shoe", () => {
-  it("is a deterministic permutation of six decks", () => {
-    const a = fairShoe("server", "client", 1);
-    const b = fairShoe("server", "client", 1);
-    const c = fairShoe("server", "client", 2);
-    expect(a).toEqual(b);
-    expect(a).not.toEqual(c);
+describe("shuffled shoe", () => {
+  it("is a permutation of six decks", () => {
+    const a = shuffledShoe();
+    expect(a).toHaveLength(312);
     expect([...a].sort()).toEqual(buildShoe(6).sort());
-  });
-
-  it("floats are in [0,1) and hashing is stable", () => {
-    for (const f of fairFloats("s", "c", 0, 500)) expect(f >= 0 && f < 1).toBe(true);
-    expect(sha256Hex("abc")).toBe("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+    expect(a).not.toEqual(shuffledShoe());
   });
 });
 
 describe("house edge simulation", () => {
   it("basic strategy lands near the expected ~0.5% house edge", () => {
-    // Fast seeded PRNG shoe (the engine is shoe-agnostic); fair shoe is too slow for 300k hands.
+    // Fast seeded PRNG shoe (the engine is shoe-agnostic); a full shuffle is too slow for 300k hands.
     let seed = 0x9e3779b9;
     const rand = () => {
       seed = (seed + 0x6d2b79f5) | 0;

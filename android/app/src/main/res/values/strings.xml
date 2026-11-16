@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Inferno</string>
+    <string name="title_activity_main">Inferno</string>
+    <string name="package_name">app.inferno.trainer</string>
+    <string name="custom_url_scheme">app.inferno.trainer</string>
+</resources>

@@ -14,8 +14,8 @@ export function PrefetchTable() {
     if (!window.matchMedia("(min-width: 640px)").matches) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const t = setTimeout(() => {
-      void import("@/app/blackjack/three/table-3d");
-      void import("@/app/blackjack/three/prewarm").then((m) => m.prewarmTableAssets());
+      void import("@/game/three/table-3d");
+      void import("@/game/three/prewarm").then((m) => m.prewarmTableAssets());
     }, 2000);
     return () => clearTimeout(t);
   }, []);

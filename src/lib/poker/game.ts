@@ -12,7 +12,7 @@ export type TablePosition = "UTG" | "HJ" | "CO" | "BTN" | "SB" | "BB";
 
 export interface NewTableOptions {
   heroName: string;
-  bots: { name: string; style: BotStyle }[];
+  bots: { name: string; style: BotStyle; skill?: number }[];
   stack: number;
   sb: number;
   bb: number;
@@ -66,8 +66,9 @@ export function newTable(opts: NewTableOptions): PokerState {
   const { heroName, bots, stack, sb, bb } = opts;
   if (!Number.isInteger(stack) || !Number.isInteger(sb) || !Number.isInteger(bb) || sb <= 0 || bb < sb || stack <= 0)
     throw new Error("Stack and blinds must be positive integers with sb <= bb");
-  const mk = (id: number, name: string, isHero: boolean, style: BotStyle | null): Seat => ({
+  const mk = (id: number, name: string, isHero: boolean, style: BotStyle | null, skill?: number): Seat => ({
     id,
+    ...(skill === undefined ? {} : { skill }),
     name,
     isHero,
     style,
@@ -80,7 +81,7 @@ export function newTable(opts: NewTableOptions): PokerState {
     acted: false,
     lastAction: null,
   });
-  const seats = [mk(0, heroName, true, null), ...bots.map((b, i) => mk(i + 1, b.name, false, b.style))];
+  const seats = [mk(0, heroName, true, null), ...bots.map((b, i) => mk(i + 1, b.name, false, b.style, b.skill))];
   return {
     handNo: 0,
     sb,

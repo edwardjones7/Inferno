@@ -54,6 +54,27 @@
 
 html {
   background: var(--color-ash-950);
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* In the native app the page should feel like an app, not a web page. */
+html[data-native] {
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+html[data-native] input,
+html[data-native] textarea {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+button,
+a,
+[role="button"] {
+  touch-action: manipulation;
 }
 
 body {
@@ -151,6 +172,21 @@ body::after {
     inset 0 -30px 80px -40px rgb(255 90 31 / 0.5),
     0 30px 80px -30px rgb(0 0 0 / 0.9),
     0 0 60px -20px rgb(255 90 31 / 0.35);
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Press feedback for touch: a quick squash on tappable cards. */
+@utility pressable {
+  transition: transform 0.14s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.2s, box-shadow 0.2s;
+  &:active {
+    transform: scale(0.975);
+  }
 }
 
 @utility tabular {

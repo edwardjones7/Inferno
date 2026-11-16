@@ -5,8 +5,8 @@ import { Bloom, EffectComposer, ToneMapping } from "@react-three/postprocessing"
 import { ToneMappingMode } from "postprocessing";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import * as THREE from "three";
-import { cardBack, cardFace } from "@/app/blackjack/three/card-textures";
-import { chipSide, chipTop } from "@/app/blackjack/three/chip-textures";
+import { cardBack, cardFace } from "@/game/three/card-textures";
+import { chipSide, chipTop } from "@/game/three/chip-textures";
 import type { Card } from "@/lib/blackjack/cards";
 
 /* Live lobby hero: two cards turning in mid-air with a smouldering corner,

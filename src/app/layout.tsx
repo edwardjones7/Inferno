@@ -1,10 +1,10 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { JetBrains_Mono, Manrope, Unbounded } from "next/font/google";
 import { Toaster } from "sonner";
+import { AppShell } from "@/components/app-shell";
 import { EmberField } from "@/components/ember-field";
-import { Header } from "@/components/header";
+import { NativeBridge } from "@/components/native-bridge";
 import { PrefetchTable } from "@/components/prefetch-table";
-import { WalletProvider } from "@/components/wallet-provider";
 import "./globals.css";
 
 const unbounded = Unbounded({ variable: "--font-unbounded", subsets: ["latin"], weight: ["500", "700", "900"] });
@@ -12,30 +12,42 @@ const manrope = Manrope({ variable: "--font-manrope", subsets: ["latin"] });
 const jetbrains = JetBrains_Mono({ variable: "--font-jetbrains", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: { default: "Inferno — Provably fair crypto blackjack", template: "%s · Inferno" },
-  description: "Provably fair crypto blackjack with paper funds. Play hot, verify every shuffle.",
+  title: { default: "Inferno: Poker & Blackjack Trainer", template: "%s · Inferno" },
+  description: "Play poker against bots with personalities, play blackjack with a coach, and train every decision until it's automatic.",
+  applicationName: "Inferno",
+  appleWebApp: { capable: true, title: "Inferno", statusBarStyle: "black-translucent" },
+  icons: {
+    icon: [{ url: "/favicon.ico" }, { url: "/icons/icon-192.png", type: "image/png", sizes: "192x192" }],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
+  },
+  formatDetection: { telephone: false },
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export const viewport: Viewport = {
+  themeColor: "#0a0705",
+  colorScheme: "dark",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${unbounded.variable} ${manrope.variable} ${jetbrains.variable} h-full antialiased`}>
-      <body className="flex min-h-full flex-col">
-        <WalletProvider>
-          <EmberField />
-          <Header />
-          <PrefetchTable />
-          <main className="flex-1">{children}</main>
-          <footer className="border-t border-ash-800/80 px-4 py-6 text-center text-xs text-ash-500">
-            Inferno is a demo with paper funds only. Nothing here has real-world value.
-          </footer>
-          <Toaster
-            theme="dark"
-            position="bottom-right"
-            toastOptions={{
-              style: { background: "#17110d", border: "1px solid #3d2e24", color: "#f6ede3", fontFamily: "var(--font-manrope)" },
-            }}
-          />
-        </WalletProvider>
+    <html lang="en" className={`${unbounded.variable} ${manrope.variable} ${jetbrains.variable} antialiased`}>
+      <body>
+        <EmberField />
+        <AppShell>{children}</AppShell>
+        <PrefetchTable />
+        <NativeBridge />
+        <Toaster
+          theme="dark"
+          position="top-center"
+          offset={{ top: "calc(env(safe-area-inset-top) + 64px)" }}
+          mobileOffset={{ top: "calc(env(safe-area-inset-top) + 64px)" }}
+          toastOptions={{
+            style: { background: "#17110d", border: "1px solid #3d2e24", color: "#f6ede3", fontFamily: "var(--font-manrope)" },
+          }}
+        />
       </body>
     </html>
   );

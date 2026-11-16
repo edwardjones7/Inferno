@@ -4,7 +4,7 @@
  * shoe; clients only ever see `toView(state)`.
  *
  * Table rules (Inferno Classic):
- *  - 6 decks, fresh provably-fair shoe every round
+ *  - 6 decks, fresh shuffled shoe every round
  *  - Dealer stands on all 17s, peeks for blackjack with an A or 10-value upcard
  *  - Blackjack pays 3:2, insurance pays 2:1
  *  - Double on any first two cards, double after split allowed
