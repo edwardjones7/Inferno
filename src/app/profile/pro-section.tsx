@@ -89,7 +89,7 @@ export function ProSection() {
             <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-ember-400">{PRO_NAME}</p>
             <h2 className="mt-0.5 font-display text-lg font-black leading-tight">Go past the free tier</h2>
             <p className="mt-1 text-xs leading-relaxed text-ash-400">
-              Every lesson after the first {FREE_LESSONS_PER_TRACK}, the card counting course, the Advanced and Master bots, your whole hand history (not
+              Every lesson after the first {FREE_LESSONS_PER_TRACK}, the card counting course, the Capo and Boss bots, your whole hand history (not
               just the last {FREE_REVIEW_HANDS}), and no ads.
             </p>
           </div>

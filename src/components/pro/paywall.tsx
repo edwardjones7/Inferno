@@ -9,7 +9,7 @@ import { IconPlay, IconReview, IconSpade, IconX } from "@/components/icons";
 import { FlameMark } from "@/components/logo";
 import { FREE_LESSONS_PER_TRACK, FREE_REVIEW_HANDS, PRO_BOT_TIERS } from "@/lib/gates";
 import { lessonById, TRACKS } from "@/lib/learn";
-import { botById, ROSTER } from "@/lib/poker/roster";
+import { botById, ROSTER, TIER_LABEL } from "@/lib/poker/roster";
 import { PRO_NAME, useProState } from "@/lib/pro";
 import {
   getYearlySavings,
@@ -78,7 +78,7 @@ function pitchFor(reason: string | null): Pitch {
     const b = botById(arg);
     if (b)
       return {
-        eyebrow: `${b.tier} · ${b.rating}`,
+        eyebrow: `${TIER_LABEL[b.tier]} · ${b.rating}`,
         title: `Take a seat against ${b.name}`,
         sub: `${b.name} plays at the top of the ladder, where mistakes get punished. That's where you get better.`,
         perk: "bots",

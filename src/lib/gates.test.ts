@@ -11,7 +11,7 @@ import {
   PRO_BOT_TIERS,
 } from "./gates";
 import { lessonUnlocked, TRACK_IDS, TRACKS } from "./learn";
-import { ROSTER } from "./poker/roster";
+import { ROSTER, TIER_LABEL } from "./poker/roster";
 
 describe("lesson gates", () => {
   it("keeps the first three lessons of each track free and the rest Pro", () => {
@@ -44,6 +44,10 @@ describe("lesson gates", () => {
 });
 
 describe("bot gates", () => {
+  it("shows Pro tiers as the Capo and Boss ranks", () => {
+    expect(PRO_BOT_TIERS.map((t) => TIER_LABEL[t])).toEqual(["Capo", "Boss"]);
+  });
+
   it("needs Pro for Advanced and Master bots only", () => {
     for (const b of ROSTER) expect(botIsPro(b.id)).toBe(PRO_BOT_TIERS.includes(b.tier));
     expect(ROSTER.some((b) => botIsPro(b.id))).toBe(true);

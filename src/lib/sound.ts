@@ -6,11 +6,14 @@
  * - Cards and chips play real CC0 foley (Kenney "Casino Audio", see public/sfx/LICENSE.txt),
  *   lazily fetched + decoded after the first user gesture, with random variant / pitch / gain / pan
  *   per hit and per-sound voice caps. Until a buffer is ready a synthesized stand-in plays instead.
- * - Stingers, fire effects and the ambience bed are synthesized with WebAudio.
+ * - Stingers, fire effects and the lighter are synthesized with WebAudio.
+ * - The ambience bed is a smoky back room: a slow swung jazz loop (walking bass, brushes,
+ *   Rhodes) rendered once by sound-bed.ts, under vinyl crackle, a faint room murmur and room tone.
  * - Everything runs through master gain -> glue compressor -> limiter. Mute fades the master.
  * - Safe to import during SSR: nothing touches window/AudioContext until called in the browser.
  */
 import { haptic, type Haptic } from "./haptics";
+import { BED_RATE, BED_SECONDS, bedRenderer, renderVinyl, type Bed } from "./sound-bed";
 
 export type Sfx =
   | "chip"
@@ -28,7 +31,9 @@ export type Sfx =
   /** chips landing / settling on the felt */
   | "clack"
   /** low boom that opens a slow-motion dealer reveal */
-  | "drama";
+  | "drama"
+  /** a lighter: lid flick, flint strike, the flame catching */
+  | "lighter";
 
 const KEY = "inferno:muted";
 const isBrowser = typeof window !== "undefined";
@@ -338,11 +343,13 @@ function synthChip(e: Engine, t: number, gain: number) {
   for (let h = 0; h < hits; h++) {
     const th = t + h * rand(0.03, 0.05);
     const k = h ? 0.45 : 1;
+    // pitched a little low with a woody knock underneath, for a heavier clay chip
     for (const [f, g, d] of [
-      [2380, 0.06, 0.05],
-      [3150, 0.09, 0.04],
-      [4870, 0.06, 0.03],
-      [6420, 0.04, 0.02],
+      [1150, 0.05, 0.035],
+      [2050, 0.06, 0.05],
+      [2710, 0.09, 0.04],
+      [4190, 0.06, 0.03],
+      [5520, 0.04, 0.02],
     ]) {
       const x = osc(e, "sine", f * rand(0.97, 1.03), th, d);
       const a = e.ctx.createGain();
@@ -525,6 +532,47 @@ const SYNTH: Record<Sfx, (e: Engine, t: number) => void> = {
     rg.gain.exponentialRampToValueAtTime(0.0001, t + 1.7);
     noiseSrc(e, t + 0.2, 1.5).connect(bp).connect(rg).connect(o);
   },
+
+  lighter(e, t) {
+    const o = bus(e, 0.12);
+    // the lid flicks open: a bright metal clink
+    for (const [f, g, d] of [
+      [3150, 0.06, 0.05],
+      [4720, 0.05, 0.04],
+      [6930, 0.03, 0.03],
+    ]) {
+      const x = osc(e, "sine", f * rand(0.98, 1.02), t, d);
+      const a = e.ctx.createGain();
+      env(a.gain, t, 0.001, g, d);
+      x.connect(a).connect(o);
+    }
+    const tick = e.ctx.createGain();
+    env(tick.gain, t, 0.0005, 0.2, 0.008);
+    noiseSrc(e, t, 0.015).connect(filter(e, "bandpass", 4000, 1.2)).connect(tick).connect(o);
+    // the thumb rolls the flint wheel: a gritty scrape and a spray of sparks
+    const s = t + rand(0.15, 0.2);
+    const scrape = e.ctx.createGain();
+    env(scrape.gain, s, 0.005, 0.22, 0.07);
+    noiseSrc(e, s, 0.09).connect(filter(e, "bandpass", 3200, 2)).connect(scrape).connect(o);
+    for (let i = 0; i < 9; i++) crackle(e, o, s + rand(0, 0.07), rand(0.08, 0.25), 1.6);
+    // the flame catches: a soft whump that opens up, and a breathy hiss
+    const w = s + 0.05;
+    const lp = filter(e, "lowpass", 300, 0.8);
+    lp.frequency.setValueAtTime(300, w);
+    lp.frequency.exponentialRampToValueAtTime(900, w + 0.12);
+    lp.frequency.exponentialRampToValueAtTime(500, w + 0.55);
+    const wg = e.ctx.createGain();
+    wg.gain.setValueAtTime(0.0001, w);
+    wg.gain.exponentialRampToValueAtTime(0.35, w + 0.06);
+    wg.gain.exponentialRampToValueAtTime(0.0001, w + 0.55);
+    noiseSrc(e, w, 0.6, e.brown).connect(lp).connect(wg).connect(o);
+    const hg = e.ctx.createGain();
+    hg.gain.setValueAtTime(0.0001, w);
+    hg.gain.exponentialRampToValueAtTime(0.025, w + 0.08);
+    hg.gain.exponentialRampToValueAtTime(0.0001, w + 0.6);
+    noiseSrc(e, w, 0.65).connect(filter(e, "highpass", 5000)).connect(hg).connect(o);
+    thump(e, o, w, 120, 70, 0.08, 0.12, 0.2);
+  },
 };
 
 /* ------------------------------------------------------------------ samples */
@@ -532,6 +580,8 @@ const SYNTH: Record<Sfx, (e: Engine, t: number) => void> = {
 type Bank = {
   files: string[];
   gain: number;
+  /** base playback rate (below 1 = lower and heavier) */
+  rate?: number;
   /** ± playback-rate jitter */
   pitch: number;
   /** max overlapping voices; extra hits are dropped */
@@ -546,11 +596,13 @@ const range = (p: string, n: number) => Array.from({ length: n }, (_, i) => `${p
 const BANKS: Partial<Record<Sfx, Bank>> = {
   card: { files: range("card-deal", 6), gain: 0.55, pitch: 0.05, cap: 4, gap: 0.025, verb: 0.05 },
   flip: { files: range("card-flip", 4), gain: 0.6, pitch: 0.04, cap: 3, gap: 0.03, verb: 0.05 },
-  chip: { files: range("chip-stack", 6), gain: 0.55, pitch: 0.04, cap: 4, gap: 0.03, verb: 0.05 },
+  // chips are pitched down a touch so they land like heavy clay, not plastic
+  chip: { files: range("chip-stack", 6), gain: 0.6, rate: 0.87, pitch: 0.04, cap: 4, gap: 0.03, verb: 0.05 },
   clack: {
     files: [...range("chip-clack", 4), ...range("chip-lay", 3)],
-    gain: 0.4,
-    pitch: 0.07,
+    gain: 0.44,
+    rate: 0.9,
+    pitch: 0.06,
     cap: 5,
     gap: 0.035,
     verb: 0.04,
@@ -620,7 +672,7 @@ function claimVoice(sfx: Sfx, bank: Bank, t: number, dur: number, now: number) {
 function playBuffer(e: Engine, sfx: Sfx, bank: Bank, buf: AudioBuffer, t: number) {
   const src = e.ctx.createBufferSource();
   src.buffer = buf;
-  src.playbackRate.value = 1 + rand(-bank.pitch, bank.pitch);
+  src.playbackRate.value = (bank.rate ?? 1) * (1 + rand(-bank.pitch, bank.pitch));
   const g = e.ctx.createGain();
   // gentle ducking when many voices overlap (e.g. a pile of chips)
   const overlap = (voices.get(sfx) ?? []).filter((v) => v.s <= t && v.e > t).length;
@@ -674,6 +726,7 @@ const HAPTIC: Partial<Record<Sfx, Haptic>> = {
   lose: "medium",
   push: "light",
   drama: "heavy",
+  lighter: "light",
 };
 
 export function play(sfx: Sfx, delaySec = 0) {
@@ -696,17 +749,24 @@ export function play(sfx: Sfx, delaySec = 0) {
 
 type Amb = {
   out: GainNode;
+  /** warmth of the whole bed, follows the heat */
   tone: BiquadFilterNode;
-  rumble: GainNode;
-  hiss: GainNode;
-  crackles: GainNode;
-  srcs: AudioBufferSourceNode[];
+  music: GainNode;
+  vinyl: GainNode;
+  murmur: GainNode;
+  srcs: AudioScheduledSourceNode[];
   timer: ReturnType<typeof setInterval>;
-  next: number;
+  /** the band's loop is playing (it starts once rendered) */
+  musicOn: boolean;
+  /** next time the murmur swells or dips */
   breathe: number;
 };
 
+/** levels inside the bed, before AMB_LEVEL */
+const BED_MIX = { music: 0.95, vinyl: 0.3, murmur: 0.22, rumble: 0.22 };
+
 let amb: Amb | null = null;
+let bedBuffers: { music: AudioBuffer; vinyl: AudioBuffer } | null = null;
 let ambWanted = false;
 let heat = 0;
 let heatSmooth = 0;
@@ -735,7 +795,7 @@ function ensureAmbience() {
   const out = ctx.createGain();
   out.gain.value = 0;
   out.connect(e.master);
-  const tone = filter(e, "lowpass", 3000, 0.5);
+  const tone = filter(e, "lowpass", 3500, 0.5);
   tone.connect(out);
 
   const loop = (buf: AudioBuffer) => {
@@ -745,33 +805,121 @@ function ensureAmbience() {
     s.start(ctx.currentTime, Math.random() * buf.duration);
     return s;
   };
+
+  // room tone: the low hum of a basement full of people
   const rumbleSrc = loop(e.brown);
   const rumble = ctx.createGain();
-  rumble.gain.value = 0.7;
-  rumbleSrc.connect(filter(e, "lowpass", 170)).connect(rumble).connect(tone);
+  rumble.gain.value = BED_MIX.rumble;
+  rumbleSrc.connect(filter(e, "lowpass", 120)).connect(rumble).connect(tone);
 
-  const hissSrc = loop(e.noise);
-  const hiss = ctx.createGain();
-  hiss.gain.value = 0.03;
-  hissSrc.connect(filter(e, "bandpass", 2200, 0.6)).connect(hiss).connect(tone);
+  // murmur: talk two rooms away, noise through two voice-like bands, swelling and dipping
+  const murmurSrc = loop(e.noise);
+  const murmur = ctx.createGain();
+  murmur.gain.value = BED_MIX.murmur;
+  const lowVoice = ctx.createGain();
+  lowVoice.gain.value = 0.55;
+  const highVoice = ctx.createGain();
+  highVoice.gain.value = 0.2;
+  murmurSrc.connect(filter(e, "bandpass", 420, 1.2)).connect(lowVoice).connect(murmur);
+  murmurSrc.connect(filter(e, "bandpass", 950, 2)).connect(highVoice).connect(murmur);
+  murmur.connect(tone);
 
-  const crackles = ctx.createGain();
-  crackles.connect(tone);
+  const music = ctx.createGain();
+  music.gain.value = BED_MIX.music;
+  music.connect(tone);
 
-  amb = {
+  // the record's surface skips the tone filter so its clicks stay crisp
+  const vinyl = ctx.createGain();
+  vinyl.gain.value = BED_MIX.vinyl;
+  vinyl.connect(filter(e, "highpass", 600)).connect(out);
+
+  const a: Amb = {
     out,
     tone,
-    rumble,
-    hiss,
-    crackles,
-    srcs: [rumbleSrc, hissSrc],
-    timer: setInterval(ambienceTick, 60),
-    next: ctx.currentTime + 0.2,
+    music,
+    vinyl,
+    murmur,
+    srcs: [rumbleSrc, murmurSrc],
+    timer: setInterval(ambienceTick, 150),
+    musicOn: false,
     breathe: 0,
   };
+  amb = a;
+  // the band joins once its loop is rendered (immediately on every visit after the first)
+  if (bedBuffers) startBand(e, a, bedBuffers);
+  else renderBedInSlices(e);
+
   heatSmooth = heat;
   ambienceTick();
   updateAmbienceLevel();
+}
+
+function startBand(e: Engine, a: Amb, bufs: NonNullable<typeof bedBuffers>) {
+  if (a.musicOn) return;
+  a.musicOn = true;
+  const ctx = e.ctx;
+  const surface = ctx.createBufferSource();
+  surface.buffer = bufs.vinyl;
+  surface.loop = true;
+  surface.connect(a.vinyl);
+  surface.start(ctx.currentTime, Math.random() * bufs.vinyl.duration);
+  const song = ctx.createBufferSource();
+  song.buffer = bufs.music;
+  song.loop = true;
+  // a slow wow, like a record that isn't quite flat
+  const wow = osc(e, "sine", 0.55, ctx.currentTime, 1e6);
+  const depth = ctx.createGain();
+  depth.gain.value = 0.0015;
+  wow.connect(depth).connect(song.playbackRate);
+  song.connect(a.music);
+  // start on a random bar so the tune doesn't always open the same way
+  song.start(ctx.currentTime, (Math.floor(Math.random() * 8) * BED_SECONDS) / 8);
+  a.srcs.push(surface, song, wow);
+}
+
+let bedJob: Generator<void, Bed, void> | null = null;
+let bedTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Render the band's loop once, a few ms per slice, so the first tap and the 3D table never
+ * stall on it (the whole render is ~100 ms on a desktop, several times that on a phone).
+ */
+function renderBedInSlices(e: Engine) {
+  if (bedBuffers || bedTimer) return;
+  bedJob ??= bedRenderer(BED_RATE);
+  const slice = () => {
+    bedTimer = null;
+    const job = bedJob;
+    if (!job) return;
+    const until = performance.now() + 6;
+    try {
+      for (;;) {
+        const r = job.next();
+        if (r.done) {
+          bedJob = null;
+          bedBuffers = makeBedBuffers(e.ctx, r.value);
+          if (amb) startBand(e, amb, bedBuffers);
+          return;
+        }
+        if (performance.now() > until) break;
+      }
+    } catch {
+      bedJob = null; // no band; the room tone and murmur still play
+      return;
+    }
+    bedTimer = setTimeout(slice, 16);
+  };
+  bedTimer = setTimeout(slice, 30);
+}
+
+function makeBedBuffers(ctx: AudioContext, bed: Bed) {
+  const music = ctx.createBuffer(2, bed.left.length, BED_RATE);
+  music.getChannelData(0).set(bed.left);
+  music.getChannelData(1).set(bed.right);
+  const v = renderVinyl(BED_RATE);
+  const vinyl = ctx.createBuffer(1, v.length, BED_RATE);
+  vinyl.getChannelData(0).set(v);
+  return { music, vinyl };
 }
 
 function ambienceTick() {
@@ -779,33 +927,16 @@ function ambienceTick() {
   const a = amb;
   if (!e || !a) return;
   const now = e.ctx.currentTime;
-  if (hidden || muted || e.ctx.state !== "running") {
-    a.next = now + 0.1;
-    return;
-  }
-  heatSmooth += (heat - heatSmooth) * 0.04;
+  if (hidden || muted || e.ctx.state !== "running") return;
+  heatSmooth += (heat - heatSmooth) * 0.1;
   const h = (heatSmooth + 1) / 2; // 0 cold .. 1 hot
 
-  // colour and bed follow the heat
-  a.tone.frequency.setTargetAtTime(1300 + 8000 * h ** 1.3, now, 0.5);
+  // a hot table opens the room up a little: brighter band, livelier crowd
+  a.tone.frequency.setTargetAtTime(2400 + 3600 * h, now, 0.8);
+  a.music.gain.setTargetAtTime(BED_MIX.music * (0.85 + 0.15 * h), now, 0.8);
   if (now > a.breathe) {
-    a.breathe = now + rand(0.25, 0.7);
-    a.rumble.gain.setTargetAtTime((0.5 + 0.45 * h) * rand(0.75, 1.15), now, 0.25);
-    a.hiss.gain.setTargetAtTime((0.012 + 0.05 * h) * rand(0.6, 1.3), now, 0.2);
-  }
-
-  // Poisson crackles; hot = dense and bright, cold = sparse and muffled
-  const rate = 0.7 + 11 * h ** 1.4;
-  const bright = 0.45 + 0.85 * h;
-  if (a.next < now) a.next = now + 0.01;
-  while (a.next < now + 0.15) {
-    crackle(e, a.crackles, a.next, rand(0.15, 0.7) * (0.6 + 0.6 * h), bright);
-    if (Math.random() < 0.05 + 0.1 * h) {
-      // little burst of pops
-      const n = 2 + Math.floor(Math.random() * 4);
-      for (let i = 0; i < n; i++) crackle(e, a.crackles, a.next + rand(0.01, 0.09), rand(0.1, 0.45), bright);
-    }
-    a.next += -Math.log(1 - Math.random()) / rate;
+    a.breathe = now + rand(0.2, 0.6);
+    a.murmur.gain.setTargetAtTime(BED_MIX.murmur * (0.7 + 0.5 * h) * rand(0.55, 1.2), now, 0.15);
   }
 }
 
@@ -821,7 +952,7 @@ function teardownAmbience() {
   amb = null;
 }
 
-/** Start the looping fire-crackle bed (deferred until audio is unlocked by a user gesture). */
+/** Start the looping back-room bed (deferred until audio is unlocked by a user gesture). */
 export function startAmbience() {
   if (!isBrowser) return;
   ambWanted = true;
@@ -840,7 +971,7 @@ export function stopAmbience() {
   }, 1200);
 }
 
-/** -1 (cold) .. 1 (on fire): scales crackle density and warmth of the ambience. */
+/** -1 (cold) .. 1 (on fire): how bright and lively the room sounds. */
 export function setAmbienceHeat(h: number) {
   heat = Number.isFinite(h) ? Math.max(-1, Math.min(1, h)) : 0;
 }

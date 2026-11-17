@@ -115,7 +115,7 @@ Neither the app nor our code adds analytics or crash reporting of its own. If th
 
 The membership is sold through Apple and Google in-app purchases, with [RevenueCat](https://www.revenuecat.com) validating receipts and holding the entitlement (there is no Inferno server). Pro is cached on the device, so it keeps working offline; on launch and on resume the app asks RevenueCat for the current state. If RevenueCat can't be reached, the cached state stays.
 
-**What Pro unlocks** (`src/lib/gates.ts`): lessons after the first 3 of each track, the card counting drills, the Advanced and Master bots, and replays of poker hands and blackjack rounds older than the newest 10. No ads, and chip grants (handled elsewhere). Blackjack, the poker cash game, daily puzzles, basic drills, charts and the review queue stay free.
+**What Pro unlocks** (`src/lib/gates.ts`): lessons after the first 3 of each track, the card counting drills, the Capo and Boss bots (tiers `Advanced` and `Master` in code), and replays of poker hands and blackjack rounds older than the newest 10. No ads, and chip grants (handled elsewhere). Blackjack, the poker cash game, daily puzzles, basic drills, charts and the review queue stay free.
 
 **Build environment.** Set these before `npm run build` / `npm run cap:sync` (they are inlined at build time):
 
