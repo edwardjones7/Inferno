@@ -52,7 +52,7 @@ export function VisualView({ v }: { v: Visual }) {
       return (
         <div className="overflow-hidden rounded-2xl ring-1 ring-ash-800">
           {v.head && (
-            <div className="flex justify-between gap-3 bg-ash-900 px-3.5 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-ash-500">
+            <div className="flex justify-between gap-3 bg-ash-900 px-3.5 py-2 caps-label">
               <span>{v.head[0]}</span>
               <span className="text-right">{v.head[1]}</span>
             </div>
@@ -94,7 +94,7 @@ function CardsVisual({ v }: { v: Extract<Visual, { kind: "cards" }> }) {
     <div className={`felt flex flex-col items-center gap-3 rounded-[24px] px-3 py-4 ${normal ? "sm:py-5" : ""}`}>
       {v.rows.map((row, i) => (
         <div key={i} className="flex flex-col items-center">
-          {row.label && <span className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.28em] text-ash-500">{row.label}</span>}
+          {row.label && <span className="mb-1.5 caps-label">{row.label}</span>}
           <div className={`flex ${normal ? "" : "flex-wrap justify-center gap-1.5"}`}>
             {row.cards.map((c, j) =>
               normal ? (

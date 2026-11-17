@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: "Blackjack drills" };
 export default function BlackjackTrainerPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 pb-10 pt-5 sm:px-6 lg:pt-10">
-      <PageHeader eyebrow="Train · Blackjack" title="Strategy drills">
+      <PageHeader eyebrow="School · Blackjack" title="Strategy drills">
         <p className="hidden max-w-sm text-right text-xs text-ash-400 sm:block">
           Rapid-fire opening decisions graded against basic strategy for the table you pick.
         </p>

@@ -76,7 +76,7 @@ export function Charts() {
           />
         </div>
         <div className="flex min-w-0 items-center gap-2 sm:ml-auto">
-          <span className="shrink-0 text-[11px] font-bold uppercase tracking-[0.18em] text-ash-500">Color by</span>
+          <span className="shrink-0 caps-label">Color by</span>
           <div className="min-w-0 flex-1 sm:w-64 sm:flex-none">
             <Segmented
               label="Color by"
@@ -118,7 +118,7 @@ function BlackjackCharts({ colorBy }: { colorBy: ColorBy }) {
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-      <div className="panel min-w-0 rounded-[28px] p-3 sm:p-5">
+      <div className="panel min-w-0 rounded-3xl p-3 sm:p-5">
         <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
           <select
             aria-label="Table rules"
@@ -144,12 +144,12 @@ function BlackjackCharts({ colorBy }: { colorBy: ColorBy }) {
       <DetailPanel open={!!selected} onClose={() => setSelected(null)} empty="Tap any cell to see the play, the reason behind it and your record.">
         {cell && play && rec && (
           <>
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-ash-500">{table.name}</p>
+            <p className="caps-label">{table.name}</p>
             <h2 className="mt-1 font-display text-xl font-black">{cell.label}</h2>
             <div className="mt-3 flex items-center gap-3">
               <span className={`grid h-12 min-w-12 place-items-center rounded-xl px-2 font-display text-lg font-black ${MOVE_STYLE[play.move]}`}>{play.code}</span>
               <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-ash-500">Correct play</p>
+                <p className="caps-label">Correct play</p>
                 <p className="font-semibold text-bone">{playText(play)}</p>
               </div>
             </div>
@@ -180,7 +180,7 @@ function EvBreakdown({ spotKey, rules, best }: { spotKey: string; rules: Rules; 
   if (!rows.length) return null;
   return (
     <div className="mt-4">
-      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-ash-500">Expected value per bet</p>
+      <p className="caps-label">Expected value per bet</p>
       <ul className="tabular mt-1.5 space-y-1">
         {rows.map(([m, ev]) => (
           <li key={m} className={`flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs ${m === best ? "bg-ember-500/15 ring-1 ring-ember-500/40" : "bg-ash-950/50"}`}>
@@ -242,7 +242,7 @@ function OpeningCharts({ colorBy }: { colorBy: ColorBy }) {
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-      <div className="panel min-w-0 rounded-[28px] p-3 sm:p-5">
+      <div className="panel min-w-0 rounded-3xl p-3 sm:p-5">
         <Segmented label="Position" value={pos} onChange={setPos} options={POSITIONS.map((p) => ({ id: p, label: p }))} />
         <div className="mb-3 mt-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <p className="text-sm font-semibold text-bone">
@@ -275,7 +275,7 @@ function OpeningCharts({ colorBy }: { colorBy: ColorBy }) {
       <DetailPanel open={!!selected} onClose={() => setSelected(null)} empty="Tap any hand to see where it opens and how you've played it.">
         {selected && rec && everywhere && (
           <>
-            <p className="tabular text-[10px] font-bold uppercase tracking-[0.2em] text-ash-500">
+            <p className="tabular caps-label">
               {selected} · {combosOf(selected)} combos
             </p>
             <h2 className="mt-1 font-display text-xl font-black capitalize">{codeName(selected)}</h2>
@@ -291,7 +291,7 @@ function OpeningCharts({ colorBy }: { colorBy: ColorBy }) {
                 {range.has(selected) ? "Open-raise" : "Fold"} when it&apos;s folded to you in the {POSITION_NAME[pos].toLowerCase()}.
               </p>
             </div>
-            <p className="mt-4 text-[10px] font-bold uppercase tracking-[0.18em] text-ash-500">Opens from</p>
+            <p className="mt-4 caps-label">Opens from</p>
             <div className="mt-1.5 flex gap-1.5">
               {POSITIONS.map((p) => (
                 <span
@@ -387,7 +387,7 @@ function Vs3betCharts({ colorBy }: { colorBy: ColorBy }) {
 function Picker<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: readonly T[]; onChange: (v: T) => void }) {
   return (
     <div className="flex min-w-0 items-center gap-2">
-      <span className="w-20 shrink-0 text-[11px] font-bold uppercase tracking-[0.16em] text-ash-500">{label}</span>
+      <span className="w-20 shrink-0 caps-label">{label}</span>
       <div className="min-w-0 flex-1">
         <Segmented label={label} value={value} onChange={onChange} options={options.map((o) => ({ id: o, label: o }))} />
       </div>
@@ -431,7 +431,7 @@ function ResponseView({
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-      <div className="panel min-w-0 rounded-[28px] p-3 sm:p-5">
+      <div className="panel min-w-0 rounded-3xl p-3 sm:p-5">
         <div className="space-y-2">{pickers}</div>
         <div className="mb-3 mt-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <p className="text-sm font-semibold text-bone">{title}</p>
@@ -452,7 +452,7 @@ function ResponseView({
       <DetailPanel open={!!selected} onClose={() => setSelected(null)} empty="Tap any hand to see the play, why, and how you've done on it.">
         {selected && act && rec && (
           <>
-            <p className="tabular text-[10px] font-bold uppercase tracking-[0.2em] text-ash-500">
+            <p className="tabular caps-label">
               {selected} · {combosOf(selected)} combos
             </p>
             <h2 className="mt-1 font-display text-xl font-black capitalize">{codeName(selected)}</h2>
@@ -496,7 +496,7 @@ function RecordBox({ rec, extra }: { rec: KeyRecord; extra?: string }) {
   return (
     <div className="mt-4 rounded-2xl bg-ash-950/60 p-3 ring-1 ring-ash-800">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-ash-500">Your record</p>
+        <p className="caps-label">Your record</p>
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${ACCURACY_STYLE[state]}`}>{ACCURACY_LABEL[state]}</span>
       </div>
       <div className="tabular mt-2 flex gap-5">
@@ -535,9 +535,9 @@ function DetailPanel({ open, onClose, empty, children }: { open: boolean; onClos
       <aside
         aria-label="Spot details"
         aria-live="polite"
-        className={`${open ? "fixed" : "hidden"} inset-x-0 bottom-0 z-50 max-h-[78vh] overflow-y-auto rounded-t-[28px] border-t border-ash-700 bg-ash-900 p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-[0_-24px_60px_-20px_rgba(0,0,0,0.9)] animate-rise lg:sticky lg:top-6 lg:z-auto lg:block lg:max-h-none lg:self-start lg:overflow-visible lg:rounded-[28px] lg:border-t-0 lg:bg-transparent lg:p-0 lg:shadow-none lg:animate-none`}
+        className={`${open ? "fixed" : "hidden"} inset-x-0 bottom-0 z-50 max-h-[78vh] overflow-y-auto rounded-t-[28px] border-t border-ash-700 bg-ash-900 p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-[0_-24px_60px_-20px_rgba(0,0,0,0.9)] animate-rise lg:sticky lg:top-6 lg:z-auto lg:block lg:max-h-none lg:self-start lg:overflow-visible lg:rounded-3xl lg:border-t-0 lg:bg-transparent lg:p-0 lg:shadow-none lg:animate-none`}
       >
-        <div className="lg:panel lg:rounded-[28px] lg:p-5">
+        <div className="lg:panel lg:rounded-3xl lg:p-5">
           {open ? (
             <div className="relative">
               <div aria-hidden className="mx-auto -mt-2 mb-3 h-1 w-10 rounded-full bg-ash-700 lg:hidden" />

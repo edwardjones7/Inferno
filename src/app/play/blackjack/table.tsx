@@ -736,7 +736,7 @@ function Dock(props: {
     return (
       <div className="flex flex-col gap-2 pb-1">
         {props.gestures && (
-          <p className="text-center text-[11px] font-semibold uppercase tracking-[0.16em] text-ash-400 [@media(pointer:fine)]:hidden">
+          <p className="text-center caps-label [@media(pointer:fine)]:hidden">
             Tap the felt to hit · swipe sideways to stand
           </p>
         )}
@@ -946,7 +946,7 @@ function TableDrawer(props: {
       <DrawerSection>
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-ash-500">Chips</p>
+            <p className="caps-label">Chips</p>
             <p className="tabular mt-1 font-display text-2xl font-bold">{props.ready ? formatChips(props.balance) : "–"}</p>
           </div>
           <button onClick={props.onGetChips} disabled={!props.ready} className="btn-ash h-10 rounded-xl px-3.5 text-xs font-bold">

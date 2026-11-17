@@ -172,11 +172,12 @@ export function Paywall({ reason, onClose }: { reason: string | null; onClose: (
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 32, opacity: 0 }}
         transition={{ type: "spring", stiffness: 380, damping: 36 }}
-        className="relative flex h-dvh w-full flex-col overflow-hidden bg-ash-950 sm:h-auto sm:max-h-[min(92dvh,860px)] sm:max-w-[480px] sm:rounded-[32px] sm:ring-1 sm:ring-ember-500/30 sm:shadow-[0_40px_120px_-30px_rgba(255,90,31,0.55)]"
+        className="relative flex h-dvh w-full flex-col overflow-hidden bg-ash-950 sm:h-auto sm:max-h-[min(92dvh,860px)] sm:max-w-[480px] sm:rounded-2xl sm:border sm:border-brass-500/45 sm:shadow-[0_40px_120px_-30px_rgba(255,90,31,0.55)]"
       >
         {/* firelight from below the fold, a hot rim on top */}
         <div className="pointer-events-none absolute inset-x-0 top-0 h-[420px] bg-[radial-gradient(ellipse_70%_60%_at_50%_0%,rgba(255,90,31,0.32),transparent_70%)]" />
-        <div className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-ember-300/80 to-transparent" />
+        <div className="guilloche pointer-events-none absolute inset-x-0 top-0 h-[360px]" />
+        <div className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-brass-300/80 to-transparent" />
         <Sparks />
 
         <button
@@ -202,7 +203,7 @@ export function Paywall({ reason, onClose }: { reason: string | null; onClose: (
               )}
             </div>
 
-            <div className="relative border-t border-ash-800/80 bg-ash-950/95 px-5 pb-[calc(env(safe-area-inset-bottom)+14px)] pt-3.5 backdrop-blur-xl sm:px-7 sm:pb-5">
+            <div className="relative border-t border-brass-500/30 bg-ash-950/95 px-5 pb-[calc(env(safe-area-inset-bottom)+14px)] pt-3.5 backdrop-blur-xl sm:px-7 sm:pb-5">
               {selling && (
                 <>
                   <button
@@ -269,8 +270,8 @@ function Hero({ pitch, titleId }: { pitch: Pitch; titleId: string }) {
         <span className="absolute inset-0 rounded-full bg-[radial-gradient(closest-side,rgba(255,154,46,0.55),transparent)] blur-md" />
         <FlameMark className="relative h-20 w-20 animate-flicker drop-shadow-[0_0_24px_rgba(255,90,31,0.8)]" />
       </div>
-      <p className="mt-3 text-[11px] font-bold uppercase tracking-[0.32em] text-ember-400">{pitch.eyebrow}</p>
-      <h2 id={titleId} className="mx-auto mt-2 max-w-sm font-display text-[28px] font-black leading-[1.02] tracking-tight sm:text-[32px]">
+      <p className="mt-3 eyebrow">{pitch.eyebrow}</p>
+      <h2 id={titleId} className="mx-auto mt-2 max-w-sm font-marquee text-[28px] leading-[1.08] sm:text-[32px]">
         <span className="molten-text">{pitch.title}</span>
       </h2>
       <p className="mx-auto mt-2.5 max-w-sm text-sm leading-relaxed text-ash-300">{pitch.sub}</p>
@@ -346,12 +347,12 @@ function Plans({
             }}
             className={`relative flex items-center gap-3 rounded-2xl px-4 py-3.5 text-left transition-all ${
               on
-                ? "bg-[linear-gradient(180deg,rgb(255_90_31/0.16),rgb(122_15_10/0.14))] ring-2 ring-ember-400 shadow-[0_0_36px_-12px_rgba(255,90,31,0.9)]"
-                : "bg-ash-900/80 ring-1 ring-ash-700 hover:ring-ash-500"
+                ? "bg-[linear-gradient(180deg,rgb(255_90_31/0.16),rgb(122_15_10/0.14))] border border-brass-300/80 shadow-[inset_0_0_0_3px_rgb(10_7_5/0.55),inset_0_0_0_4px_rgb(255_154_46/0.45),0_0_36px_-12px_rgba(255,90,31,0.9)]"
+                : "border border-brass-500/35 bg-ash-900/80 shadow-[inset_0_0_0_3px_rgb(10_7_5/0.5),inset_0_0_0_4px_rgb(174_147_93/0.12)] hover:border-brass-400/60"
             }`}
           >
             {o.id === "annual" && save && (
-              <span className="absolute -top-2.5 right-4 rounded-full bg-gradient-to-b from-ember-300 to-ember-500 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-ash-950 shadow-[0_4px_14px_-4px_rgba(255,90,31,0.9)]">
+              <span className="absolute -top-2.5 right-4 rounded-sm border border-brass-300/80 bg-gradient-to-b from-[#c95c26] to-[#7f2810] px-2 py-0.5 font-display text-[11px] tracking-[0.08em] text-[#fff3df] shadow-[0_4px_14px_-4px_rgba(255,90,31,0.9)]">
                 Save {save}%
               </span>
             )}
@@ -405,8 +406,8 @@ function Welcome({ titleId, fresh, store, onClose }: { titleId: string; fresh: b
         </span>
       )}
       <FlameMark className="h-24 w-24 animate-flicker drop-shadow-[0_0_30px_rgba(255,90,31,0.9)]" />
-      <p className="mt-4 text-[11px] font-bold uppercase tracking-[0.32em] text-ember-400">{PRO_NAME}</p>
-      <h2 id={titleId} className="mt-2 font-display text-3xl font-black leading-tight">
+      <p className="mt-4 eyebrow">{PRO_NAME}</p>
+      <h2 id={titleId} className="mt-2 font-marquee text-3xl leading-tight">
         <span className="molten-text">{fresh ? "You're in." : "You're already Pro."}</span>
       </h2>
       <p className="mt-2 max-w-xs text-sm text-ash-300">Every lesson, every bot and every hand you&apos;ve played is open. Go get better.</p>

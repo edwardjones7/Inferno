@@ -66,7 +66,7 @@ export function FlatTable({
 
       {/* rules arc */}
       <div className={`pointer-events-none my-3 select-none text-center transition-opacity duration-300 sm:my-5 ${dimRules ? "opacity-0" : ""}`}>
-        <p className="font-display text-[10px] font-bold uppercase tracking-[0.35em] text-ember-400/70 sm:text-xs">
+        <p className="eyebrow text-[10px] text-ember-400/70 sm:text-xs">
           Blackjack pays {table.rules.blackjackPays === 1.5 ? "3 to 2" : "6 to 5"}
         </p>
         <div className="mx-auto my-1.5 h-px w-2/3 max-w-sm bg-gradient-to-r from-transparent via-ember-500/50 to-transparent" />
@@ -142,5 +142,5 @@ function EmptySeat({ bet }: { bet: number }) {
 }
 
 function Label({ children }: { children: React.ReactNode }) {
-  return <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-ash-500">{children}</span>;
+  return <span className="caps-label">{children}</span>;
 }

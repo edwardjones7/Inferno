@@ -148,7 +148,7 @@ export function DeckDrill() {
               {!grade.ok && <p className="mt-1 text-sm text-ash-400">You said {fmtCount(Number(entry))}. Time doesn’t count on a miss.</p>}
               {burned && (
                 <div className="mt-4 flex flex-col items-center gap-2">
-                  <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-ash-500">Burned card</span>
+                  <span className="caps-label">Burned card</span>
                   <PlayingCardStatic card={burned} />
                   <p className="max-w-xs text-xs text-ash-400">
                     {answer > 0 ? "Count ended positive: a high card (10 or ace) was missing." : answer < 0 ? "Count ended negative: a low card (2–6) was missing." : "Count ended at 0: the missing card was a 7, 8 or 9."}

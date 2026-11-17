@@ -7,7 +7,7 @@ export function LegalPage({ title, updated, intro, children }: { title: string; 
       <Link href="/profile/" className="text-xs font-bold text-ash-400 hover:text-bone">
         ← Profile
       </Link>
-      <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.28em] text-ember-400">Legal</p>
+      <p className="mt-5 eyebrow">Legal</p>
       <h1 className="mt-1 font-display text-2xl font-black sm:text-3xl">{title}</h1>
       <p className="mt-1 text-xs text-ash-500">Last updated {updated}</p>
       <div className="panel mt-5 rounded-3xl p-5 text-[15px] leading-relaxed text-ash-200 sm:p-6">{intro}</div>

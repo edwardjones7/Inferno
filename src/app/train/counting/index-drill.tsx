@@ -95,7 +95,7 @@ export function IndexDrill() {
         </TallyStrip>
 
         <div className="felt relative overflow-hidden rounded-[28px] px-4 pb-6 pt-5 sm:rounded-[40px] sm:px-8">
-          <p className="text-center font-display text-[10px] font-bold uppercase tracking-[0.3em] text-ember-400/70">
+          <p className="text-center eyebrow text-ember-400/70">
             6 decks · S17 · DAS · {spot?.rules.surrender ? "Late surrender" : "No surrender"}
           </p>
           <AnimatePresence mode="wait">
@@ -111,7 +111,7 @@ export function IndexDrill() {
                 <span className="mt-3 rounded-full bg-ember-500/15 px-4 py-1.5 font-display text-base font-black text-ember-200 ring-1 ring-ember-500/50">
                   True count <span className="tabular">{fmtCount(spot.trueCount)}</span>
                 </span>
-                <span className="mt-4 text-[10px] font-bold uppercase tracking-[0.3em] text-ash-500">Dealer shows</span>
+                <span className="mt-4 caps-label">Dealer shows</span>
                 <div className="mt-2 flex">
                   <PlayingCardStatic card={spot.up} />
                   <div className="-ml-12 h-[120px] w-[86px] rounded-[10px] bg-[radial-gradient(circle_at_50%_60%,#ff5a1f,#b3200c_40%,#3d0805_85%)] shadow-[0_24px_40px_-16px_rgba(0,0,0,.95)] ring-1 ring-ember-300/40" />

@@ -44,7 +44,7 @@ export function Review() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 pb-10 pt-5 sm:px-6 lg:pt-10">
-      <PageHeader eyebrow="Review" title="Learn from every hand" />
+      <PageHeader eyebrow="The Books" title="Learn from every hand" />
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="min-w-0 flex-1 basis-full sm:max-w-md sm:basis-auto">
           <Segmented
@@ -303,8 +303,8 @@ function Replayer({ hand }: { hand: PokerHandRecord }) {
 
   return (
     <div className="min-w-0">
-      <div className="felt relative overflow-hidden rounded-[28px] px-4 py-5 sm:px-6">
-        <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-[0.2em] text-ash-500">
+      <div className="felt relative overflow-hidden rounded-3xl px-4 py-5 sm:px-6">
+        <div className="flex items-center justify-between caps-label">
           <span>Hand #{hand.handNo}</span>
           <span>
             Blinds {hand.bb / 2}/{hand.bb}
@@ -353,7 +353,7 @@ function Replayer({ hand }: { hand: PokerHandRecord }) {
               <PlayingCardStatic key={i} card={c} small />
             ))}
           </span>
-          <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-ember-300">{pending.length ? "Your decision" : "You"}</span>
+          <span className="eyebrow">{pending.length ? "Your decision" : "You"}</span>
         </div>
 
         <p className="mt-4 min-h-5 text-center text-sm font-semibold text-bone" aria-live="polite">
@@ -419,7 +419,7 @@ function Replayer({ hand }: { hand: PokerHandRecord }) {
         ))}
         {pending.length > 0 && (
           <p className="rounded-2xl bg-ash-900 px-4 py-3 text-sm text-ash-300 ring-1 ring-ember-500/40">
-            <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-ember-300">{STREET_LABEL[pending[0].street] ?? pending[0].street} · your move</span>
+            <span className="eyebrow">{STREET_LABEL[pending[0].street] ?? pending[0].street} · your move</span>
             <span className="block">Decide what you&apos;d do, then step forward to see your play and the coach&apos;s verdict.</span>
           </p>
         )}
@@ -444,7 +444,7 @@ function NoteCard({ note: n, fresh }: { note: PokerNote; fresh: boolean }) {
         {n.ok === false ? <IconX className="h-3.5 w-3.5" /> : n.ok ? <IconCheck className="h-3.5 w-3.5" /> : <span className="text-[10px] font-black">i</span>}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="flex flex-wrap items-center gap-x-2 text-[10px] font-bold uppercase tracking-[0.18em] text-ash-500">
+        <span className="flex flex-wrap items-center gap-x-2 caps-label">
           {STREET_LABEL[n.street] ?? n.street}
           {n.ok === false && n.cost !== undefined && n.cost > 0 && <span className="tracking-normal text-ember-300 normal-case">costs ~{bbText(n.cost)}</span>}
         </span>

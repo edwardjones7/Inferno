@@ -86,7 +86,7 @@ export function ProSection() {
         <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center">
           <FlameMark className="h-12 w-12 shrink-0" />
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-ember-400">{PRO_NAME}</p>
+            <p className="eyebrow">{PRO_NAME}</p>
             <h2 className="mt-0.5 font-display text-lg font-black leading-tight">Go past the free tier</h2>
             <p className="mt-1 text-xs leading-relaxed text-ash-400">
               Every lesson after the first {FREE_LESSONS_PER_TRACK}, the card counting course, the Capo and Boss bots, your whole hand history (not

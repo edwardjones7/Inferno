@@ -22,7 +22,7 @@ export function LessonPlayer({ id }: { id: string }) {
   const pro = useIsPro();
   const [override, setOverride] = useState(false);
 
-  if (!hydrated) return <Frame><div className="panel h-[520px] animate-pulse rounded-[28px]" /></Frame>;
+  if (!hydrated) return <Frame><div className="panel h-[520px] animate-pulse rounded-3xl" /></Frame>;
 
   if (lessonLocked(id, pro)) {
     return (
@@ -49,7 +49,7 @@ export function LessonPlayer({ id }: { id: string }) {
     return (
       <Frame>
         <Header lesson={lesson} />
-        <div className="panel rounded-[28px] px-5 py-10 text-center">
+        <div className="panel rounded-3xl px-5 py-10 text-center">
           <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-ash-850 text-ash-400 ring-1 ring-ash-700">
             <IconLock className="h-6 w-6" />
           </span>
@@ -192,7 +192,7 @@ function Player({ lesson, alreadyDone }: { lesson: Lesson; alreadyDone: boolean 
           ) : step ? (
             <>
             {at === 0 && <LessonArt id={lesson.id} variant="hero" />}
-            <div className="panel rounded-[28px] p-5 sm:p-6">
+            <div className="panel rounded-3xl p-5 sm:p-6">
               {step.kind === "explain" ? (
                 <ExplainView title={step.title} body={step.body}>
                   {step.visual && <VisualView v={step.visual} />}
@@ -252,7 +252,7 @@ function CheckView({ step, picked, onPick }: { step: CheckStep; picked: string |
   const cols = short ? (step.options.length === 2 ? "grid-cols-2" : step.options.length === 4 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3") : "grid-cols-1";
   return (
     <div>
-      <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-ember-400">Quick check</p>
+      <p className="eyebrow">Quick check</p>
       <h2 className="mt-1 font-display text-lg font-bold leading-snug sm:text-xl">{step.prompt}</h2>
       {step.visual && <div className="mt-4">{<VisualView v={step.visual} />}</div>}
       <div className={`mt-4 grid gap-2 ${cols}`}>
@@ -302,7 +302,7 @@ function Finish({ lesson, right, checks, alreadyDone }: { lesson: Lesson; right:
   const nextLocked = !!next && lessonLocked(next.id, pro);
   const [main, ...more] = lesson.practice;
   return (
-    <div className="panel relative overflow-hidden rounded-[28px] p-6 text-center sm:p-8">
+    <div className="panel relative overflow-hidden rounded-3xl p-6 text-center sm:p-8">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-56">
         <EmberBurst seed={right + 3} count={36} />
       </div>
@@ -313,7 +313,7 @@ function Finish({ lesson, right, checks, alreadyDone }: { lesson: Lesson; right:
             {right}/{checks}
           </span>
         </Ring>
-        <p className="mt-4 text-[11px] font-bold uppercase tracking-[0.24em] text-ember-400">{alreadyDone ? "Lesson reviewed" : "Lesson complete"}</p>
+        <p className="mt-4 eyebrow">{alreadyDone ? "Lesson reviewed" : "Lesson complete"}</p>
         <h2 className="mt-1 font-display text-2xl font-black">{lesson.title}</h2>
         <p className="mx-auto mt-2 max-w-sm text-sm text-ash-400">
           {right === checks ? "Every check right. " : `${right} of ${checks} checks right. `}

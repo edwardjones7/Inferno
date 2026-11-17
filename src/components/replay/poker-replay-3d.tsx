@@ -165,7 +165,7 @@ export function PokerReplay3D({ hand, onClose }: { hand: PokerHandRecord; onClos
         bottom={
           <div className="flex flex-col gap-2.5 pb-1">
             <p className="min-h-10 text-center text-sm text-ash-100" aria-live="polite">
-              <span className="mr-2 text-[10px] font-bold uppercase tracking-[0.18em] text-ash-500">{g.street === "done" ? "Result" : g.street}</span>
+              <span className="mr-2 caps-label">{g.street === "done" ? "Result" : g.street}</span>
               {caption}
             </p>
             <input

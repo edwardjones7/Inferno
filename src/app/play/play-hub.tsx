@@ -5,7 +5,7 @@ import { BotAvatar } from "@/components/bot-avatar";
 import { Chip } from "@/components/chip";
 import { IconChevron } from "@/components/icons";
 import { PlayingCardStatic } from "@/components/playing-card-static";
-import { PageHeader } from "@/components/ui";
+import { PageHeader, Sunburst } from "@/components/ui";
 import { formatChips, unitsToChips } from "@/lib/chips";
 import { useSettleLeftSeat } from "@/lib/earn";
 import { botById, isUnlocked, ROSTER, TABLE_LINEUP } from "@/lib/poker/roster";
@@ -20,11 +20,12 @@ export function PlayHub() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 pb-10 pt-5 sm:px-6 lg:pt-10">
-      <PageHeader eyebrow="Play" title="Pick a game" />
+      <PageHeader eyebrow="Tables" title="Pick a table" />
 
       <div className="grid gap-3">
         {/* poker vs bots */}
-        <Link href="/play/poker/" className="felt pressable group relative overflow-hidden rounded-[28px] p-5 sm:p-7">
+        <Link href="/play/poker/" className="felt deco-corners pressable group relative overflow-hidden rounded-3xl p-5 sm:p-7">
+          <Sunburst />
           <div className="absolute -right-4 top-1/2 hidden -translate-y-1/2 sm:block">
             <div className="grid grid-cols-4 gap-2 opacity-90">
               {ROSTER.map((b) => (
@@ -33,8 +34,8 @@ export function PlayHub() {
             </div>
           </div>
           <div className="relative max-w-sm">
-            <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-ember-300">Hold&apos;em · Heads-up</p>
-            <h2 className="mt-1 font-display text-3xl font-black">Poker vs bots</h2>
+            <p className="eyebrow">Hold&apos;em · Heads-up</p>
+            <h2 className="mt-1 font-marquee text-3xl">Poker vs bots</h2>
             <p className="mt-2 text-sm leading-relaxed text-ash-300">
               Eight bots, each with their own style and rating. Beat one to unlock the next. Your poker rating moves with every match.
             </p>
@@ -50,7 +51,7 @@ export function PlayHub() {
 
         <div className="grid gap-3 sm:grid-cols-2">
           {/* blackjack */}
-          <Link href="/play/blackjack/" className="panel pressable group relative flex min-h-52 flex-col justify-end overflow-hidden rounded-[28px] p-5 sm:p-6">
+          <Link href="/play/blackjack/" className="panel deco-corners pressable group relative flex min-h-52 flex-col justify-end overflow-hidden rounded-3xl p-5 sm:p-6">
             <div className="absolute right-2 top-3 flex rotate-6 transition-transform duration-500 group-hover:rotate-0">
               <div className="-rotate-12 scale-75">
                 <PlayingCardStatic card="AS" />
@@ -62,20 +63,20 @@ export function PlayHub() {
             <div className="absolute bottom-24 right-6 rotate-12">
               <Chip value={500} size={40} />
             </div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-ember-300">vs the dealer</p>
+            <p className="eyebrow">vs the dealer</p>
             <h2 className="mt-1 font-display text-2xl font-black">Blackjack</h2>
             <p className="mt-1 text-sm text-ash-300">3D table, four rule sets, a coach on every decision.</p>
             <p className="tabular mt-3 text-xs font-semibold text-ash-400">{hydrated ? `${formatChips(unitsToChips(p.chips))} chips` : " "}</p>
           </Link>
 
           {/* 6-max */}
-          <Link href="/play/poker/table/" className="panel pressable group relative flex min-h-52 flex-col justify-end overflow-hidden rounded-[28px] p-5 sm:p-6">
+          <Link href="/play/poker/table/" className="panel deco-corners pressable group relative flex min-h-52 flex-col justify-end overflow-hidden rounded-3xl p-5 sm:p-6">
             <div className="absolute right-5 top-5 flex -space-x-3">
               {TABLE_LINEUP.map((id) => (
                 <BotAvatar key={id} bot={botById(id)!} size={38} />
               ))}
             </div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-ember-300">Hold&apos;em · 6-max</p>
+            <p className="eyebrow">Hold&apos;em · 6-max</p>
             <h2 className="mt-1 font-display text-2xl font-black">Cash game</h2>
             <p className="mt-1 text-sm text-ash-300">Five bots, endless hands. Buy in from your chips and practise multiway pots with no rating on the line.</p>
             <span className="mt-3 flex items-center gap-1 text-xs font-bold text-ember-400">

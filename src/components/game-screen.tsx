@@ -100,12 +100,12 @@ export function GameScreen({
             <button
               onClick={back}
               aria-label="Back"
-              className="pointer-events-auto grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-ash-950/60 text-ash-200 ring-1 ring-ash-700/70 backdrop-blur-md active:bg-ash-800"
+              className="pointer-events-auto grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-ash-950/60 text-ash-200 ring-1 ring-brass-500/40 backdrop-blur-md active:bg-ash-800"
             >
               <IconBack className="h-5 w-5" />
             </button>
             <div className="pointer-events-auto flex min-w-0 flex-1 items-center justify-end gap-2">{hud}</div>
-            <div className="pointer-events-auto rounded-xl bg-ash-950/60 ring-1 ring-ash-700/70 backdrop-blur-md">
+            <div className="pointer-events-auto rounded-xl bg-ash-950/60 ring-1 ring-brass-500/40 backdrop-blur-md">
               <MuteButton />
             </div>
             {drawer && (
@@ -116,7 +116,7 @@ export function GameScreen({
                 }}
                 aria-label={`Open ${drawerTitle.toLowerCase()} settings`}
                 aria-expanded={drawerOpen}
-                className="pointer-events-auto grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-ash-950/60 text-ash-200 ring-1 ring-ash-700/70 backdrop-blur-md active:bg-ash-800"
+                className="pointer-events-auto grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-ash-950/60 text-ash-200 ring-1 ring-brass-500/40 backdrop-blur-md active:bg-ash-800"
               >
                 <IconSettings className="h-5 w-5" />
               </button>
@@ -156,12 +156,12 @@ export function GameScreen({
                 animate={{ y: 0 }}
                 exit={{ y: "100%" }}
                 transition={{ type: "spring", stiffness: 380, damping: 38 }}
-                className="absolute inset-x-0 bottom-0 z-50 max-h-[82dvh] overflow-y-auto rounded-t-3xl border-t border-ash-700/80 bg-ash-900/95 pb-[calc(env(safe-area-inset-bottom)+16px)] shadow-[0_-20px_60px_rgba(0,0,0,0.6)] backdrop-blur-xl lg:inset-x-auto lg:inset-y-0 lg:right-0 lg:max-h-none lg:w-[380px] lg:rounded-none lg:rounded-l-3xl lg:border-l lg:border-t-0"
+                className="absolute inset-x-0 bottom-0 z-50 max-h-[82dvh] overflow-y-auto rounded-t-3xl border-t border-brass-500/45 bg-ash-900/95 pb-[calc(env(safe-area-inset-bottom)+16px)] shadow-[0_-20px_60px_rgba(0,0,0,0.6)] backdrop-blur-xl lg:inset-x-auto lg:inset-y-0 lg:right-0 lg:max-h-none lg:w-[380px] lg:rounded-none lg:rounded-l-3xl lg:border-l lg:border-t-0"
               >
                 <div className="sticky top-0 z-10 bg-ash-900/95 px-5 pb-2 pt-3 backdrop-blur-xl lg:pt-[calc(env(safe-area-inset-top)+20px)]">
                   <span className="mx-auto mb-2 block h-1 w-10 rounded-full bg-ash-600 lg:hidden" aria-hidden />
                   <div className="flex items-center justify-between">
-                    <h2 className="font-display text-lg font-bold">{drawerTitle}</h2>
+                    <h2 className="font-display text-lg tracking-[0.05em] text-brass-100">{drawerTitle}</h2>
                     <button
                       onClick={() => onDrawerChange(false)}
                       aria-label="Close"
@@ -184,10 +184,10 @@ export function GameScreen({
 /** A card-like group inside the drawer. */
 export function DrawerSection({ title, action, children }: { title?: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl bg-ash-950/60 p-4 ring-1 ring-ash-700/60">
+    <div className="rounded-2xl border border-brass-500/25 bg-ash-950/60 p-4 shadow-[inset_0_0_0_3px_rgb(10_7_5/0.5),inset_0_0_0_4px_rgb(174_147_93/0.1)]">
       {(title || action) && (
         <div className="mb-3 flex items-center justify-between gap-3">
-          {title && <h3 className="font-display text-sm font-bold">{title}</h3>}
+          {title && <h3 className="caps-label text-brass-300">{title}</h3>}
           {action}
         </div>
       )}

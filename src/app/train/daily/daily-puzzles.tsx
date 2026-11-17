@@ -150,14 +150,14 @@ export function BlackjackPuzzle({ pz, graded, onAnswer }: { pz: Pick<Extract<Dai
   const moves = (["hit", "stand", "double", "split", "surrender"] as Move[]).filter((m) => pz.legal.includes(m));
   return (
     <>
-      <div className="felt rounded-[28px] px-4 py-6 sm:px-8">
+      <div className="felt rounded-3xl px-4 py-6 sm:px-8">
         <div className="flex flex-col items-center">
-          <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-ash-500">Dealer shows</span>
+          <span className="caps-label">Dealer shows</span>
           <div className="mt-2 flex">
             <PlayingCardStatic card={pz.spot.up} />
             <div className="-ml-10 h-[120px] w-[86px] rounded-[10px] bg-gradient-to-br from-ember-600 to-ember-900 ring-1 ring-ember-300/30" />
           </div>
-          <span className="mt-5 text-[10px] font-bold uppercase tracking-[0.3em] text-ash-500">You have · {info.label}</span>
+          <span className="mt-5 caps-label">You have · {info.label}</span>
           <div className="mt-2 flex">
             {pz.spot.cards.map((c, i) => (
               <div key={i} className={i ? "-ml-8" : ""}>
@@ -203,7 +203,7 @@ export function PokerPuzzle({
   const choices = choicesFor(pz.spot);
   return (
     <>
-      <div className="felt rounded-[28px] px-4 py-6 sm:px-8">
+      <div className="felt rounded-3xl px-4 py-6 sm:px-8">
         <SpotView spot={pz.spot} grade={graded} />
       </div>
       <div className="panel mt-3 rounded-3xl p-4">

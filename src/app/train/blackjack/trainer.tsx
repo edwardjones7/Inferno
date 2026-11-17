@@ -134,7 +134,7 @@ export function Trainer({ focus }: { focus: string | null }) {
 
         {/* the spot */}
         <div className="felt relative overflow-hidden rounded-[28px] px-4 pb-6 pt-5 sm:rounded-[40px] sm:px-8">
-          <p className="text-center font-display text-[10px] font-bold uppercase tracking-[0.3em] text-ember-400/70">
+          <p className="text-center eyebrow text-ember-400/70">
             {table.name} · {table.short}
           </p>
           <AnimatePresence mode="wait">
@@ -147,7 +147,7 @@ export function Trainer({ focus }: { focus: string | null }) {
                 transition={{ duration: 0.18 }}
                 className="flex flex-col items-center"
               >
-                <span className="mt-4 text-[10px] font-bold uppercase tracking-[0.3em] text-ash-500">Dealer shows</span>
+                <span className="mt-4 caps-label">Dealer shows</span>
                 <div className="mt-2 flex">
                   <PlayingCardStatic card={spot.up} />
                   <div className="-ml-12 h-[120px] w-[86px] rounded-[10px] bg-[radial-gradient(circle_at_50%_60%,#ff5a1f,#b3200c_40%,#3d0805_85%)] shadow-[0_24px_40px_-16px_rgba(0,0,0,.95)] ring-1 ring-ember-300/40" />
@@ -316,7 +316,7 @@ function EvBreakdown({ evs, decision }: { evs: MoveEVs; decision: Decision }) {
   if (rows.length < 2) return null;
   return (
     <div className="mt-2">
-      <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-ash-500">EV of each play</span>
+      <span className="caps-label">EV of each play</span>
       <ul className="mt-1 flex flex-wrap justify-center gap-1.5 sm:justify-start">
         {rows.map(([m, ev]) => (
           <li
