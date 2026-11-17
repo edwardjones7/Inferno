@@ -216,7 +216,7 @@ function Settings() {
         <div className="px-4 py-4 sm:px-5">
           <p className="text-sm font-bold">Graphics</p>
           <p className="mb-3 text-xs text-ash-400">
-            High adds bloom, depth of field and soft shadows. Low runs smoothly on phones. Flat uses the 2D tables.
+            High adds bloom, depth of field and soft shadows. Low runs smoothly on phones.
             {graphics === "auto" && ` Auto picked ${auto} for this device.`}
           </p>
           <Segmented<Graphics>
@@ -227,7 +227,6 @@ function Settings() {
               { id: "auto", label: "Auto" },
               { id: "high", label: "High" },
               { id: "low", label: "Low" },
-              { id: "flat", label: "Flat" },
             ]}
           />
         </div>

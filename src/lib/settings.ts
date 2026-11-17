@@ -6,11 +6,10 @@ import { useStored } from "./use-stored";
  * Graphics quality for the 3D tables.
  * - high: full post-processing (bloom, depth of field, grading), soft shadows, retina DPR
  * - low: no post-processing, cheaper shadows, capped DPR: smooth on phones
- * - flat: the 2D tables, no WebGL at all
  * - auto: low on phones and small/low-memory devices, high elsewhere
  */
-export type Graphics = "auto" | "high" | "low" | "flat";
-export const isGraphics = (v: unknown): v is Graphics => v === "auto" || v === "high" || v === "low" || v === "flat";
+export type Graphics = "auto" | "high" | "low";
+export const isGraphics = (v: unknown): v is Graphics => v === "auto" || v === "high" || v === "low";
 export const GRAPHICS_KEY = "inferno:graphics";
 
 export function useGraphics() {
@@ -30,7 +29,7 @@ export function autoQuality(): "high" | "low" {
   return autoTier;
 }
 
-export function resolveQuality(g: Graphics): "high" | "low" | "flat" {
+export function resolveQuality(g: Graphics): "high" | "low" {
   return g === "auto" ? autoQuality() : g;
 }
 

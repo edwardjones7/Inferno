@@ -402,7 +402,8 @@ export function PokerTable(props: PokerMode) {
     setEpoch((e) => e + 1);
   };
 
-  const flat = quality === "flat" || !webglOk;
+  // 2D table only when the device cannot run WebGL
+  const flat = !webglOk;
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_300px] lg:gap-5">

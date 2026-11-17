@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { Chip, CHIP_VALUES, chipsFor } from "@/components/chip";
 import { EmberBurst } from "@/components/ember-burst";
 import { PlayingCard } from "@/components/playing-card";
-import { Segmented, Switch } from "@/components/ui";
+import { Switch } from "@/components/ui";
 import { HeatMeter, OutcomeBanner, ResultTag, TotalBadge } from "./parts";
 import { outcome, playerKey, schedule, type Timing } from "./timing";
 import type { ActionType, RoundView } from "@/lib/blackjack/engine";
@@ -40,7 +40,6 @@ function hasWebGL() {
   return webgl;
 }
 const noopSubscribe = () => () => {};
-const VIEW_KEY = "inferno:view";
 
 /** Streak heat: wins push it toward +1 (on fire), losses toward -1 (ice cold), pushes cool it toward 0. */
 function nextHeat(h: number, tone: "win" | "push" | "lose", blackjack: boolean) {
@@ -48,7 +47,6 @@ function nextHeat(h: number, tone: "win" | "push" | "lose", blackjack: boolean) 
   if (tone === "lose") return Math.max(-1, Math.min(0, h) - 0.28);
   return h * 0.7;
 }
-const isViewMode = (v: unknown): v is "3d" | "2d" => v === "3d" || v === "2d";
 
 /** Run a local game call, turning rule violations into a toast. */
 function attempt<T>(fn: () => T): T | null {
@@ -104,9 +102,9 @@ export function BlackjackTable() {
   const [betStack, setBetStack] = useState<number[]>([]);
   const busy = false;
   const [epoch, setEpoch] = useState(0);
-  const [viewMode, setViewMode] = useStored(VIEW_KEY, "3d", isViewMode);
   const webglOk = useSyncExternalStore(noopSubscribe, hasWebGL, () => true);
-  const use3d = viewMode === "3d" && webglOk && quality !== "flat";
+  // 2D table only when the device cannot run WebGL
+  const use3d = webglOk;
 
   // Next keeps visited pages alive in a hidden <Activity> so they reopen instantly. Hiding
   // runs effect cleanups (WebGL renderer, Rapier physics world are freed) but keeps state,
@@ -317,7 +315,7 @@ export function BlackjackTable() {
             {sceneOn ? (
             <Table3D
               key={`${sceneKey}-${quality}`}
-              quality={quality === "low" ? "low" : "high"}
+              quality={quality}
               view={view}
               roundId={round?.id ?? null}
               timing={timing}
@@ -556,17 +554,6 @@ export function BlackjackTable() {
             >
               Refill
             </button>
-          </div>
-          <div className="mt-4">
-            <Segmented
-              label="Table view"
-              value={use3d ? "3d" : "2d"}
-              onChange={(m) => setViewMode(m)}
-              options={[
-                { id: "3d", label: "3D table", disabled: !webglOk || quality === "flat" },
-                { id: "2d", label: "Classic" },
-              ]}
-            />
           </div>
         </div>
 
