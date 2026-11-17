@@ -3,14 +3,13 @@
 import { buildShoe } from "@/lib/blackjack/cards";
 import { cardBack, cardFace, cardFoilMask, isFoil, paperGrain } from "./card-textures";
 import { chipSide, chipTop } from "./chip-textures";
-import { crackMaskTexture } from "./felt-cracks";
 import { feltTexture } from "./felt-texture";
 import { feltNormalTexture, leatherNormalTexture } from "./table-textures";
 
 let started = false;
 
 /**
- * Paints every procedural texture the table needs (felt, crack mask, fabric/leather
+ * Paints every procedural texture the table needs (felt, fabric/leather
  * normals, chips, all 52 card faces) in small idle-time slices. They're cached by the
  * painters, so when the table later mounts nothing has to be painted on the main thread.
  */
@@ -19,7 +18,6 @@ export function prewarmTableAssets() {
   started = true;
   const jobs: (() => unknown)[] = [
     feltTexture,
-    crackMaskTexture,
     feltNormalTexture,
     leatherNormalTexture,
     cardBack,

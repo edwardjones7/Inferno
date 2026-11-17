@@ -10,7 +10,7 @@ import { createContext, useContext } from "react";
 export interface SceneFx {
   /**
    * Session heat from the win/loss streak, -1 (ice cold, losing streak) .. 0 (neutral)
-   * .. +1 (on fire, winning streak). Drives lava speed/brightness, embers, light
+   * .. +1 (on fire, winning streak). Drives the rail glow, lamp light, dust, light
    * temperature and colour grading.
    */
   heat: number;
@@ -20,9 +20,9 @@ export interface SceneFx {
    * false once the dealer has finished drawing.
    */
   drama: boolean;
-  /** Increments each time a player blackjack is revealed (fire the flame jet / gold flash). */
+  /** Increments each time a player blackjack is revealed (sparks off the cards, lamp flare, gold flash). */
   blackjackKey: number;
-  /** Increments on every winning result (win flash, ember burst). */
+  /** Increments on every winning result (lamp flare, spark burst). */
   winKey: number;
   /** Increments on every losing result. */
   loseKey: number;

@@ -1,5 +1,5 @@
 /**
- * Shared GLSL snippets and constants for the atmosphere (lamp beam, haze, embers, flame jet).
+ * Shared GLSL snippets and constants for the atmosphere (lamp beam, haze, dust, smoke, sparks).
  */
 import * as THREE from "three";
 

@@ -51,7 +51,7 @@ Native setup, once per machine: install Xcode (full app, not just the command li
 | `src/lib/economy.ts`, `challenges.ts`, `earn.ts` | Chips: one balance for blackjack and the cash game, every amount and cap (with the tuning rationale), check-ins, challenges, rewarded ads, Pro grants, the comeback grant, cash-game buy-ins, and `grantChips()` with its ledger. Chips screen at `/chips/`. |
 | `src/lib/daily.ts` | Three puzzles per day, generated from the date so everyone gets the same set. |
 | `src/lib/settings.ts`, `haptics.ts` | Graphics tiers (auto/high/low/flat) and haptics (Capacitor Haptics natively, `navigator.vibrate` on the web). |
-| `src/game/three/`, `src/game/poker-three/` | The 3D tables (React Three Fiber). The low tier skips post-processing and uses cheaper shadows for phones. |
+| `src/game/three/`, `src/game/poker-three/` | The 3D tables (React Three Fiber) in a speakeasy back room (`environment.tsx`, `env-room.tsx`, `env-air.tsx`). The low tier skips post-processing, the lamp haze and the smoke, keeps far fewer dust motes and uses cheaper shadows for phones. |
 | `src/components/app-shell.tsx` | Sidebar on desktop; top bar and bottom tab bar on phones, respecting safe areas. Game screens hide the tab bar. |
 | `src/components/native-bridge.tsx` | Status bar, splash screen, Android back button and ads start-up in the native app; service worker on the web. |
 | `src/lib/ads.ts`, `ad-policy.ts` | AdMob: consent (UMP), App Tracking Transparency, interstitials at natural breaks, rewarded ads. `ad-policy.ts` holds the frequency caps. |

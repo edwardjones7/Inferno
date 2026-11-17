@@ -205,7 +205,7 @@ function Scene({
 
   return (
     <>
-      <Environment />
+      <Environment room="poker" />
       <PokerTableBody />
       <ShaderWarmup />
       <DealerButton to={buttonPos(P(game.button))} />

@@ -5,7 +5,7 @@ import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { canvas, display, prng, sans, texture } from "@/game/three/canvas-utils";
 import { leatherNormalTexture } from "@/game/three/table-textures";
-import { lavaSeamFragment, lavaSeamUniforms, lavaSeamVertex } from "@/game/three/table-lava";
+import { railGlowFragment, railGlowUniforms, railGlowVertex } from "@/game/three/rail-glow";
 import { ChipStack, StandingCard } from "./props";
 
 /* The training corner: a round drill table with the spot of the moment floating over it
@@ -186,26 +186,23 @@ export function TrainingStation({ animate }: { animate: boolean }) {
     }
     return new THREE.CatmullRomCurve3(pts, true);
   }, []);
-  const uniforms = useMemo(() => lavaSeamUniforms(ring.getLength()), [ring]);
-  const seam = useRef<THREE.ShaderMaterial>(null);
-  useFrame((state, dt) => {
-    const u = seam.current?.uniforms;
-    if (!u) return;
-    u.uFlow.value += 0.12 * Math.min(dt, 0.1) * (animate ? 1 : 0);
-    u.uTime.value = animate ? state.clock.elapsedTime : 0;
-    u.uPulse.value = animate ? 1 : 0;
+  const uniforms = useMemo(() => railGlowUniforms(ring.getLength()), [ring]);
+  const glow = useRef<THREE.ShaderMaterial>(null);
+  useFrame((state) => {
+    const u = glow.current?.uniforms;
+    if (u) u.uTime.value = animate ? state.clock.elapsedTime : 0;
   });
 
   return (
     <group>
-      {/* drill table: leather top, brass edge, lava ring, dark pedestal */}
+      {/* drill table: oxblood leather top, brass edge, a warm glow at the rim, dark pedestal */}
       <mesh position-y={-0.08}>
         <cylinderGeometry args={[1.62, 1.62, 0.16, 64]} />
-        <meshPhysicalMaterial color="#2a120a" roughness={0.5} normalMap={leather} normalScale={[0.6, 0.6]} clearcoat={0.5} clearcoatRoughness={0.3} />
+        <meshPhysicalMaterial color="#3a1009" roughness={0.52} normalMap={leather} normalScale={[0.6, 0.6]} clearcoat={0.45} clearcoatRoughness={0.35} />
       </mesh>
       <mesh position-y={-0.005} rotation-x={-Math.PI / 2}>
         <circleGeometry args={[1.5, 64]} />
-        <meshStandardMaterial color="#3a150b" roughness={0.95} />
+        <meshStandardMaterial color="#174a31" roughness={0.95} />
       </mesh>
       <mesh rotation-x={Math.PI / 2} position-y={0.002}>
         <torusGeometry args={[1.6, 0.035, 10, 96]} />
@@ -213,7 +210,7 @@ export function TrainingStation({ animate }: { animate: boolean }) {
       </mesh>
       <mesh>
         <tubeGeometry args={[ring, 160, 0.02, 8, true]} />
-        <shaderMaterial ref={seam} uniforms={uniforms} vertexShader={lavaSeamVertex} fragmentShader={lavaSeamFragment} toneMapped={false} />
+        <shaderMaterial ref={glow} uniforms={uniforms} vertexShader={railGlowVertex} fragmentShader={railGlowFragment} toneMapped={false} />
       </mesh>
       <mesh position-y={-0.8}>
         <cylinderGeometry args={[0.22, 0.5, 1.3, 24]} />
