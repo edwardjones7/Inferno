@@ -6,6 +6,7 @@ import type { RoundView } from "@/lib/blackjack/engine";
 import type { TableId } from "@/lib/blackjack/tables";
 import type { Timing } from "@/app/play/blackjack/timing";
 import { useGameInsets } from "@/components/game-screen";
+import { DealerFigure } from "@/game/characters/dealer-figure";
 import { CameraRig } from "./camera";
 import { Card3D } from "./cards";
 import { Stakes, ChipTray } from "./chips";
@@ -78,6 +79,7 @@ function Scene(props: Table3DProps & { labelEls: React.RefObject<Map<string, HTM
     <>
       <Environment />
       <TableBody tableId={tableId} />
+      <DealerFigure view={view} roundId={roundId} tableId={tableId} revealed={revealed} />
       <Shoe />
       <ChipTray />
       <ShaderWarmup />
