@@ -9,7 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "cap:sync": "next build && cap sync",
+    "cap:sync": "next build && node scripts/admob-app-ids.mjs && cap sync",
     "ios": "npm run cap:sync && cap open ios",
     "android": "npm run cap:sync && cap open android",
     "assets": "capacitor-assets generate --ios --android --iconBackgroundColor '#0a0705' --splashBackgroundColor '#0a0705'"

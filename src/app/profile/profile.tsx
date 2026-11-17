@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { BotAvatar } from "@/components/bot-avatar";
 import { IconFlame, IconTrophy } from "@/components/icons";
 import { Eyebrow, Meter, Segmented, SectionTitle, Sparkline, Stat, Switch } from "@/components/ui";
+import { showPrivacyChoices, usePrivacyChoicesAvailable } from "@/lib/ads";
 import { MOVE_LABEL, type Move } from "@/lib/blackjack/strategy";
 import { formatChips, unitsToChips } from "@/lib/chips";
 import { POKER_DRILLS } from "@/lib/poker/drills";
@@ -183,6 +184,7 @@ function Settings() {
   const muted = useSyncExternalStore(onMuteChange, isMuted, () => false);
   const [name, setName] = useState(p.name);
   const [confirmReset, setConfirmReset] = useState(false);
+  const privacyChoices = usePrivacyChoicesAvailable();
   const auto = useSyncExternalStore(
     () => () => {},
     () => autoQuality(),
@@ -236,6 +238,16 @@ function Settings() {
         <Row title="Haptics" sub="Vibration on chips, wins and big moments (phones).">
           <Switch label="Haptics" on={haptics === "1"} onChange={(v) => setHaptics(v ? "1" : "0")} />
         </Row>
+        {privacyChoices && (
+          <Row title="Privacy choices" sub="Change how ads may use your data.">
+            <button
+              onClick={() => void showPrivacyChoices().catch(() => toast.error("Couldn't open privacy choices. Try again when online."))}
+              className="btn-ash h-10 rounded-xl px-3 text-xs font-bold"
+            >
+              Manage
+            </button>
+          </Row>
+        )}
         <Row title="Reset progress" sub="Clears ratings, history, beaten bots and chips on this device.">
           {confirmReset ? (
             <div className="flex gap-2">
@@ -261,6 +273,14 @@ function Settings() {
         </Row>
       </div>
       <p className="mt-4 text-center text-[11px] text-ash-600">Inferno is for practice and learning. Chips have no real-world value.</p>
+      <p className="mt-2 flex justify-center gap-4 text-[11px] font-semibold text-ash-500">
+        <Link href="/legal/privacy/" className="underline-offset-2 hover:text-bone hover:underline">
+          Privacy policy
+        </Link>
+        <Link href="/legal/terms/" className="underline-offset-2 hover:text-bone hover:underline">
+          Terms of use
+        </Link>
+      </p>
     </section>
   );
 }
