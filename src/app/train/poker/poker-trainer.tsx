@@ -3,14 +3,18 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { PlayingCardStatic } from "@/components/playing-card-static";
+import { ResponseChart, ResponseLegend } from "@/components/response-chart";
 import { cardLabel, type Card } from "@/lib/blackjack/cards";
 import {
   EQUITY_BUCKETS,
   genPoker,
   genPreflop,
+  genVs3bet,
+  genVsOpen,
   gradePoker,
   HANDREAD_BUCKETS,
   POKER_DRILLS,
+  responsePrompt,
   type PokerDrill,
   type PokerGrade,
   type PokerSpot,
@@ -18,6 +22,7 @@ import {
 import { outs } from "@/lib/poker/equity";
 import { describe } from "@/lib/poker/eval";
 import { flopInfo, HAND_CLASS_NAME, handClass, LINES, TEXTURE_NAME, TEXTURES } from "@/lib/poker/postflop";
+import { isPosition, isSeat, SEAT_NAME, SEATS, vs3betChart, vsOpenChart, type Seat } from "@/lib/poker/preflop";
 import { BEHIND, GRID, handCode, OPEN_RANGES, POSITION_NAME, POSITIONS, rangePercent, type Position } from "@/lib/poker/ranges";
 import { play } from "@/lib/sound";
 import { bestStreak, leaksOf, recordDrills, useProgress } from "@/lib/store";
@@ -31,6 +36,16 @@ interface Choice {
 export const CHOICES: Record<PokerDrill, Choice[]> = {
   preflop: [
     { id: "raise", label: "Raise", key: "R" },
+    { id: "fold", label: "Fold", key: "F" },
+  ],
+  vsopen: [
+    { id: "3bet", label: "3-bet", key: "3" },
+    { id: "call", label: "Call", key: "C" },
+    { id: "fold", label: "Fold", key: "F" },
+  ],
+  vs3bet: [
+    { id: "4bet", label: "4-bet", key: "4" },
+    { id: "call", label: "Call", key: "C" },
     { id: "fold", label: "Fold", key: "F" },
   ],
   potodds: [
@@ -70,7 +85,7 @@ export const choicesFor = (spot: PokerSpot): Choice[] => (spot.kind === "texture
 export const choiceCols = (n: number) => (n === 2 ? "grid-cols-2" : n === 5 ? "grid-cols-2 sm:grid-cols-5" : n === 3 ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4");
 
 /** Drills that move on by themselves after a right answer (the rest have numbers worth reading). */
-const AUTO_NEXT: PokerDrill[] = ["preflop", "equity", "texture"];
+const AUTO_NEXT: PokerDrill[] = ["preflop", "vsopen", "vs3bet", "equity", "texture"];
 
 const GROUPS = [
   { id: "pre", label: "Pre-flop & maths" },
@@ -78,10 +93,16 @@ const GROUPS = [
 ] as const;
 
 
-/** `lockPos` pins the opening-ranges drill to one seat (from `?pos=BTN`). */
-export function PokerTrainer({ initialDrill = "preflop", initialPos }: { initialDrill?: PokerDrill; initialPos?: Position }) {
+/**
+ * `initialPos` pins the opening-ranges drill to one seat (from `?pos=BTN`). For the response
+ * drills, `?pos=` is your seat and `?vs=` the opener (facing an open) or the 3-bettor.
+ */
+export function PokerTrainer({ initialDrill = "preflop", initialPos, initialVs }: { initialDrill?: PokerDrill; initialPos?: string; initialVs?: string }) {
   const [drill, setDrill] = useState<PokerDrill>(initialDrill);
-  const [lockPos, setLockPos] = useState<Position | null>(initialPos ?? null);
+  const [lockPos, setLockPos] = useState<Position | null>(initialDrill === "preflop" && isPosition(initialPos) ? initialPos : null);
+  const [lockSpot, setLockSpot] = useState<{ pos?: string; vs?: string } | null>(
+    (initialDrill === "vsopen" || initialDrill === "vs3bet") && (initialPos || initialVs) ? { pos: initialPos, vs: initialVs } : null,
+  );
   const [spot, setSpot] = useState<(PokerSpot & { n: number }) | null>(null);
   const [grade, setGrade] = useState<(PokerGrade & { answer: string }) | null>(null);
   const [session, setSession] = useState({ n: 0, correct: 0, streak: 0, best: 0 });
@@ -94,17 +115,24 @@ export function PokerTrainer({ initialDrill = "preflop", initialPos }: { initial
     });
     return { byDrill, leaks: leaksOf(progress, "poker", 8), bestStreak: bestStreak(mine) };
   }, [progress]);
-  const [chartPos, setChartPos] = useState<Position>(initialPos ?? "BTN");
+  const [chartPos, setChartPos] = useState<Position>(isPosition(initialPos) ? initialPos : "BTN");
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
 
   const deal = useCallback((kind: PokerDrill) => {
     clearTimeout(timer.current);
-    const s = kind === "preflop" && lockPos ? genPreflop(Math.random, lockPos) : genPoker(kind, Math.random);
+    const s =
+      kind === "preflop" && lockPos
+        ? genPreflop(Math.random, lockPos)
+        : kind === "vsopen" && lockSpot
+          ? genVsOpen(Math.random, { hero: isSeat(lockSpot.pos) ? lockSpot.pos : undefined, opener: isPosition(lockSpot.vs) ? lockSpot.vs : undefined })
+          : kind === "vs3bet" && lockSpot
+            ? genVs3bet(Math.random, { hero: isPosition(lockSpot.pos) ? lockSpot.pos : undefined, villain: isSeat(lockSpot.vs) ? lockSpot.vs : undefined })
+            : genPoker(kind, Math.random);
     setSpot((prev) => ({ ...s, n: (prev?.n ?? 0) + 1 }));
     setGrade(null);
     if (s.kind === "preflop") setChartPos(s.pos);
-  }, [lockPos]);
+  }, [lockPos, lockSpot]);
 
   useEffect(() => {
     queueMicrotask(() => deal(initialDrill));
@@ -191,6 +219,18 @@ export function PokerTrainer({ initialDrill = "preflop", initialPos }: { initial
           </div>
         )}
 
+        {(drill === "vsopen" || drill === "vs3bet") && lockSpot && (
+          <div className="mb-3 flex items-center gap-2 text-xs text-ash-300">
+            <span className="rounded-full bg-ember-500/15 px-3 py-1 font-bold text-ember-200 ring-1 ring-ember-500/40">
+              Only {lockSpot.pos ?? "any seat"}
+              {lockSpot.vs ? ` vs ${lockSpot.vs}` : ""} spots
+            </span>
+            <button onClick={() => setLockSpot(null)} className="text-ash-400 underline underline-offset-2 hover:text-bone">
+              All spots
+            </button>
+          </div>
+        )}
+
         <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
           <Pill label="Answered" value={String(session.n)} />
           <Pill label="Accuracy" value={session.n ? `${acc}%` : "–"} hot={session.n >= 5 && acc >= 90} />
@@ -258,8 +298,9 @@ export function PokerTrainer({ initialDrill = "preflop", initialPos }: { initial
 
       {/* sidebar */}
       <aside className="flex min-w-0 flex-col gap-4">
-        {/* the opening chart only helps pre-flop drills */}
-        {POKER_DRILLS.find((d) => d.id === drill)?.group === "pre" && (<div className="panel rounded-3xl p-5">
+        {spot && (spot.kind === "vsopen" || spot.kind === "vs3bet") && <ResponsePanel spot={spot} reveal={grade ? handCode(spot.cards[0], spot.cards[1]) : null} />}
+        {/* the opening chart only helps the other pre-flop drills */}
+        {POKER_DRILLS.find((d) => d.id === drill)?.group === "pre" && drill !== "vsopen" && drill !== "vs3bet" && (<div className="panel rounded-3xl p-5">
           <div className="flex items-center justify-between">
             <h2 className="font-display text-sm font-bold">Opening chart</h2>
             <span className="tabular text-xs text-ash-400">{Math.round(rangePercent(OPEN_RANGES[chartPos]))}% of hands</span>
@@ -331,7 +372,9 @@ export function PokerTrainer({ initialDrill = "preflop", initialPos }: { initial
 
 export function Prompt({ spot }: { spot: PokerSpot }) {
   const text =
-    spot.kind === "preflop"
+    spot.kind === "vsopen" || spot.kind === "vs3bet"
+      ? responsePrompt(spot)
+      : spot.kind === "preflop"
       ? `Folded to you in the ${POSITION_NAME[spot.pos].toLowerCase()} (${spot.pos}). Raise or fold?`
       : spot.kind === "potodds"
         ? `Pot is ${spot.pot}. Villain shoves ${spot.bet}. Call ${spot.bet} to win ${spot.pot + spot.bet}?`
@@ -365,6 +408,21 @@ function Cards({ cards, dim = false, label }: { cards: readonly Card[]; dim?: bo
 }
 
 export function SpotView({ spot, grade }: { spot: PokerSpot; grade: PokerGrade | null }) {
+  if (spot.kind === "vsopen" || spot.kind === "vs3bet") {
+    const word: Record<string, string> = { "3bet": "3-bet", "4bet": "4-bet", call: "Call", fold: "Fold" };
+    return (
+      <div className="flex flex-col items-center gap-5">
+        <ActionSeats spot={spot} />
+        <Cards cards={spot.cards} label="Your hand" />
+        {grade && (
+          <span className="rounded-full bg-ash-950/80 px-3 py-1 text-xs font-bold text-ember-200 ring-1 ring-ash-700">
+            {String(grade.detail?.code)} · {word[grade.correct] ?? grade.correct}
+            {grade.detail?.mixed === "yes" ? " (mixed)" : ""}
+          </span>
+        )}
+      </div>
+    );
+  }
   if (spot.kind === "preflop") {
     return (
       <div className="flex flex-col items-center gap-5">
@@ -547,6 +605,67 @@ function Seats({ pos }: { pos: Position }) {
           </span>
         );
       })}
+    </div>
+  );
+}
+
+/** The six seats with the betting so far: who opened, who 3-bet, who folded. */
+function ActionSeats({ spot }: { spot: { kind: "vsopen"; hero: Seat; opener: Position } | { kind: "vs3bet"; hero: Position; villain: Seat } }) {
+  const tag = (p: Seat): { text: string; state: "you" | "raise" | "folded" | "waiting" } => {
+    if (spot.kind === "vsopen") {
+      if (p === spot.hero) return { text: `You · ${p}`, state: "you" };
+      if (p === spot.opener) return { text: `${p} · ${p === "SB" ? "3bb" : "2.5bb"}`, state: "raise" };
+      return SEATS.indexOf(p) < SEATS.indexOf(spot.hero) ? { text: p, state: "folded" } : { text: p, state: "waiting" };
+    }
+    if (p === spot.hero) return { text: `You · ${p} · open`, state: "you" };
+    if (p === spot.villain) return { text: `${p} · 3-bet`, state: "raise" };
+    return { text: p, state: "folded" };
+  };
+  return (
+    <div className="relative h-24 w-64 sm:w-80">
+      <div className="absolute inset-x-6 inset-y-3 rounded-[999px] border border-ember-500/30 bg-ember-900/20" />
+      {SEATS.map((p, i) => {
+        const angle = Math.PI * (0.85 + (i / 5) * 1.3);
+        const t = tag(p);
+        return (
+          <span
+            key={p}
+            className={`absolute -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold ${
+              t.state === "you"
+                ? "bg-ember-500 text-ash-950 shadow-[0_0_14px_rgba(255,90,31,0.8)]"
+                : t.state === "raise"
+                  ? "bg-sky-400 text-ash-950"
+                  : t.state === "folded"
+                    ? "bg-ash-900 text-ash-600 line-through"
+                    : "bg-ash-800 text-ash-200 ring-1 ring-ash-600"
+            }`}
+            style={{ left: `${50 + Math.cos(angle) * 46}%`, top: `${50 + Math.sin(angle) * 42}%` }}
+          >
+            {t.text}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Sidebar chart for the response drills; the dealt hand is outlined once answered. */
+function ResponsePanel({ spot, reveal }: { spot: { kind: "vsopen"; hero: Seat; opener: Position } | { kind: "vs3bet"; hero: Position; villain: Seat }; reveal: string | null }) {
+  const vsOpen = spot.kind === "vsopen";
+  const chart = vsOpen ? vsOpenChart(spot.hero, spot.opener)! : vs3betChart(spot.hero, spot.villain)!;
+  const raiseLabel = vsOpen ? "3-bet" : "4-bet";
+  const title = vsOpen ? `${SEAT_NAME[spot.hero]} vs ${spot.opener} open` : `${POSITION_NAME[spot.hero]} open vs ${spot.villain} 3-bet`;
+  return (
+    <div className="panel rounded-3xl p-5">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="font-display text-sm font-bold">{title}</h2>
+        <span className="tabular shrink-0 text-xs text-ash-400">
+          {raiseLabel} {Math.round(rangePercent(chart.raise))}% · call {Math.round(rangePercent(chart.call))}%
+        </span>
+      </div>
+      <ResponseChart chart={chart} raiseLabel={raiseLabel} label={title} selected={reveal} small className="mt-3" />
+      <ResponseLegend raiseLabel={raiseLabel} className="mt-2" />
+      <p className="mt-2 text-[11px] leading-relaxed text-ash-500">{chart.spec.note}</p>
     </div>
   );
 }

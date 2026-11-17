@@ -19,7 +19,8 @@ describe("lesson content", () => {
       "bj-insurance",
       "bj-counting",
     ]);
-    expect(TRACKS.poker.lessons).toHaveLength(9);
+    expect(TRACKS.poker.lessons.map((l) => l.id).slice(-5)).toEqual(["pk-hand-reading", "pk-bb-defence", "pk-3bet", "pk-vs-3bet", "pk-ranges-later"]);
+    expect(TRACKS.poker.lessons).toHaveLength(13);
     expect(new Set(LESSONS.map((l) => l.id)).size).toBe(LESSONS.length);
   });
 
@@ -55,6 +56,11 @@ describe("lesson content", () => {
     expect(checks("pk-equity").map((c) => c.answer)).toEqual(["pair", "70"]);
     expect(checks("pk-board-texture").map((c) => c.answer)).toEqual(["dry", "wet", "paired"]);
     expect(checks("pk-hand-reading").map((c) => c.answer)).toEqual(["76o", "16", "6"]);
+    // response-chart lessons: answers come from preflop.ts
+    expect(checks("pk-bb-defence").map((c) => c.answer)).toEqual(["call", "fold", "raise", "fold"]);
+    expect(checks("pk-3bet").map((c) => c.answer)).toEqual(["3", "raise", "fold", "raise"]);
+    expect(checks("pk-vs-3bet").map((c) => c.answer)).toEqual(["call", "raise", "fold", "call"]);
+    expect(checks("pk-ranges-later").map((c) => c.answer)).toEqual(["air", "33", "wider"]);
   });
 
   it("lists hand rankings strongest first", () => {

@@ -25,6 +25,8 @@ export const SPOT_DIFFICULTY: Record<string, number> = {
   surrender: 1350,
   // poker drills
   preflop: 1000,
+  vsopen: 1250,
+  vs3bet: 1400,
   potodds: 1300,
   showdown: 1050,
   equity: 1400,

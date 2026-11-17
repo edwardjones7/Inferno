@@ -30,12 +30,28 @@ import {
   type SizeId,
   type Texture,
 } from "./postflop";
-import { BEHIND, codeName, handCode, OPEN_RANGES, POSITION_NAME, POSITIONS, rangePercent, type Position } from "./ranges";
+import {
+  explainVs3bet,
+  explainVsOpen,
+  isPosition,
+  isSeat,
+  SEAT_NAME,
+  vs3betChart,
+  VS_3BET_SPOTS,
+  vsOpenChart,
+  VS_OPEN_SPOTS,
+  type ResponseAction,
+  type ResponseChart,
+  type Seat,
+} from "./preflop";
+import { BEHIND, codeName, GRID, handCode, OPEN_RANGES, POSITION_NAME, POSITIONS, rangePercent, type Position } from "./ranges";
 
-export type PokerDrill = "preflop" | "potodds" | "showdown" | "equity" | "texture" | "handread" | "sizing" | "cbet";
+export type PokerDrill = "preflop" | "vsopen" | "vs3bet" | "potodds" | "showdown" | "equity" | "texture" | "handread" | "sizing" | "cbet";
 
 export const POKER_DRILLS: { id: PokerDrill; label: string; blurb: string; group: "pre" | "post" }[] = [
   { id: "preflop", label: "Opening ranges", blurb: "Raise or fold first in, from every 6-max seat.", group: "pre" },
+  { id: "vsopen", label: "Facing an open", blurb: "3-bet, call or fold, including big-blind defence.", group: "pre" },
+  { id: "vs3bet", label: "Facing a 3-bet", blurb: "You opened and got 3-bet: 4-bet, call or fold?", group: "pre" },
   { id: "potodds", label: "Pot odds", blurb: "Facing an all-in with a draw: is the price right?", group: "pre" },
   { id: "showdown", label: "Showdowns", blurb: "Read the board and kickers: who takes the pot?", group: "pre" },
   { id: "equity", label: "Equity sense", blurb: "Guess how often a hand wins all-in pre-flop.", group: "pre" },
@@ -46,6 +62,10 @@ export const POKER_DRILLS: { id: PokerDrill; label: string; blurb: string; group
 ];
 
 export type PreflopSpot = { kind: "preflop"; pos: Position; cards: [Card, Card] };
+/** `opener` raised first in (2.5bb, SB 3bb) and it folded to `hero`. */
+export type VsOpenSpot = { kind: "vsopen"; hero: Seat; opener: Position; cards: [Card, Card] };
+/** `hero` opened and `villain` 3-bet; everyone else folded. */
+export type Vs3betSpot = { kind: "vs3bet"; hero: Position; villain: Seat; cards: [Card, Card] };
 export type PotOddsSpot = { kind: "potodds"; hero: [Card, Card]; villain: [Card, Card]; board: Card[]; pot: number; bet: number };
 export type ShowdownSpot = { kind: "showdown"; board: Card[]; hands: [Card, Card][] };
 export type EquitySpot = { kind: "equity"; hero: [Card, Card]; villain: [Card, Card] };
@@ -56,7 +76,7 @@ export type HandReadSpot = { kind: "handread"; line: LineId; hero: [Card, Card];
 export type SizingSpot = { kind: "sizing"; hero: [Card, Card]; board: Card[]; pot: number };
 /** You opened from `pos`, the big blind called, the flop is out and checked to you. `pot` in big blinds. */
 export type CbetSpot = { kind: "cbet"; pos: Position; hero: [Card, Card]; board: [Card, Card, Card]; pot: number };
-export type PokerSpot = PreflopSpot | PotOddsSpot | ShowdownSpot | EquitySpot | TextureSpot | HandReadSpot | SizingSpot | CbetSpot;
+export type PokerSpot = PreflopSpot | VsOpenSpot | Vs3betSpot | PotOddsSpot | ShowdownSpot | EquitySpot | TextureSpot | HandReadSpot | SizingSpot | CbetSpot;
 
 export interface PokerGrade {
   ok: boolean;
@@ -132,6 +152,92 @@ export function gradePreflop(s: PreflopSpot, answer: string): PokerGrade {
     ? `${codeName(code)} is inside the ~${width}% opening range from the ${POSITION_NAME[s.pos].toLowerCase()}. ${behind <= 2 ? "Few players left to act, so open wide and steal the blinds." : "Strong enough to open even with players left to act."}`
     : `${codeName(code)} is outside the ~${width}% ${s.pos} range. With ${behind} player${behind > 1 ? "s" : ""} still to act, it gets dominated or out of position too often.`;
   return { ok: answer === correct, correct, key: `pre-${s.pos}-${code}`, label: `${s.pos}: ${code}`, why, detail: { width, code } };
+}
+
+/* ------------------------------------------------------------------ facing an open / a 3-bet */
+
+export const VSOPEN_ANSWERS = ["3bet", "call", "fold"] as const;
+export const VS3BET_ANSWERS = ["4bet", "call", "fold"] as const;
+const toAnswer = (a: ResponseAction, raise: string) => (a === "raise" ? raise : a);
+
+/**
+ * Hands worth dealing for a chart: everything it plays, plus folds next to a played hand in
+ * the grid (the boundary), restricted to `within` when given (facing a 3-bet you only hold
+ * hands you opened).
+ */
+const interesting = new Map<ResponseChart, string[]>();
+function interestingCodes(chart: ResponseChart, within?: Set<string>): string[] {
+  const hit = interesting.get(chart);
+  if (hit && !within) return hit;
+  const played = (c: string) => chart.raise.has(c) || chart.call.has(c);
+  const out: string[] = [];
+  GRID.forEach((row, i) =>
+    row.forEach((code, j) => {
+      if (within && !within.has(code)) return;
+      const near = [GRID[i - 1]?.[j], GRID[i + 1]?.[j], row[j - 1], row[j + 1]].some((n) => n && played(n));
+      if (played(code) || near) out.push(code);
+    }),
+  );
+  if (!within) interesting.set(chart, out);
+  return out;
+}
+
+/** Big-blind defence comes up most at real tables, so BB spots are dealt twice as often. */
+export function genVsOpen(rand: Rand, want?: { hero?: Seat; opener?: Position }): VsOpenSpot {
+  const pairs = VS_OPEN_SPOTS.filter((x) => (!want?.hero || x.hero === want.hero) && (!want?.opener || x.opener === want.opener));
+  const pool = pairs.length ? pairs : VS_OPEN_SPOTS;
+  const weighted = pool.flatMap((x) => (x.hero === "BB" ? [x, x] : [x]));
+  const { hero, opener } = pick(rand, weighted);
+  const chart = vsOpenChart(hero, opener)!;
+  const code = rand() < 0.8 ? pick(rand, interestingCodes(chart)) : pick(rand, GRID.flat());
+  return { kind: "vsopen", hero, opener, cards: cardsFor(code, rand)! };
+}
+
+export function genVs3bet(rand: Rand, want?: { hero?: Position; villain?: Seat }): Vs3betSpot {
+  const pairs = VS_3BET_SPOTS.filter((x) => (!want?.hero || x.hero === want.hero) && (!want?.villain || x.villain === want.villain));
+  const { hero, villain } = pick(rand, pairs.length ? pairs : VS_3BET_SPOTS);
+  const chart = vs3betChart(hero, villain)!;
+  const open = OPEN_RANGES[hero];
+  const code = rand() < 0.8 ? pick(rand, interestingCodes(chart, open)) : pick(rand, [...open]);
+  return { kind: "vs3bet", hero, villain, cards: cardsFor(code, rand)! };
+}
+
+export function gradeVsOpen(s: VsOpenSpot, answer: string): PokerGrade {
+  const code = handCode(s.cards[0], s.cards[1]);
+  const { action, why, mixed } = explainVsOpen(s.hero, s.opener, code);
+  const correct = toAnswer(action, "3bet");
+  return {
+    ok: answer === correct,
+    correct,
+    key: `vo-${s.hero}-${s.opener}-${code}`,
+    label: `${s.hero} vs ${s.opener} open: ${code}`,
+    why,
+    detail: { code, mixed: mixed ? "yes" : "no" },
+  };
+}
+
+export function gradeVs3bet(s: Vs3betSpot, answer: string): PokerGrade {
+  const code = handCode(s.cards[0], s.cards[1]);
+  const { action, why, mixed } = explainVs3bet(s.hero, s.villain, code);
+  const correct = toAnswer(action, "4bet");
+  return {
+    ok: answer === correct,
+    correct,
+    key: `v3-${s.hero}-${s.villain}-${code}`,
+    label: `${s.hero} open vs ${s.villain} 3-bet: ${code}`,
+    why,
+    detail: { code, mixed: mixed ? "yes" : "no" },
+  };
+}
+
+/** Plain-English prompt for the two response drills (also used by the review queue). */
+export function responsePrompt(s: VsOpenSpot | Vs3betSpot): string {
+  if (s.kind === "vsopen") {
+    const size = s.opener === "SB" ? "3bb" : "2.5bb";
+    const opener = s.opener === "SB" ? "The small blind" : `The ${POSITION_NAME[s.opener].toLowerCase()}`;
+    return `${opener} opens to ${size} and it folds to you in the ${SEAT_NAME[s.hero].toLowerCase()}. 3-bet, call or fold?`;
+  }
+  return `You opened the ${POSITION_NAME[s.hero].toLowerCase()} and the ${SEAT_NAME[s.villain].toLowerCase()} 3-bets. 4-bet, call or fold?`;
 }
 
 /* ------------------------------------------------------------------ pot odds */
@@ -246,8 +352,8 @@ function matchup(h: [Card, Card], v: [Card, Card]): { key: string; label: string
   if (hv.some((x) => vv.includes(x))) return { key: "dominated", label: "Shared card (domination)", tip: "When you share a card, the better kicker wins about 70% of the time." };
   const [hHi, hLo] = [Math.max(...hv), Math.min(...hv)];
   const [vHi, vLo] = [Math.max(...vv), Math.min(...vv)];
-  if (hLo > vHi || vLo > hHi) return { key: "two-over-two", label: "Two overs vs two unders", tip: "Two higher cards vs two lower cards is roughly 60/40." };
-  return { key: "interleaved", label: "Mixed unpaired hands", tip: "Overlapping unpaired hands are usually within 55/45." };
+  if (hLo > vHi || vLo > hHi) return { key: "two-over-two", label: "Two overs vs two unders", tip: "Two higher cards vs two lower cards runs roughly 60/40 to 65/35 (less when the low hand is suited and connected)." };
+  return { key: "interleaved", label: "Mixed unpaired hands", tip: "Overlapping unpaired hands are close: anywhere from about 50/50 to 65/35, with the highest card usually ahead." };
 }
 
 export function genEquity(rand: Rand, wantMatchup?: string): EquitySpot {
@@ -527,6 +633,10 @@ export function gradePoker(spot: PokerSpot, answer: string): PokerGrade {
   switch (spot.kind) {
     case "preflop":
       return gradePreflop(spot, answer);
+    case "vsopen":
+      return gradeVsOpen(spot, answer);
+    case "vs3bet":
+      return gradeVs3bet(spot, answer);
     case "potodds":
       return gradePotOdds(spot, answer);
     case "showdown":
@@ -548,6 +658,10 @@ export function genPoker(kind: PokerDrill, rand: Rand): PokerSpot {
   switch (kind) {
     case "preflop":
       return genPreflop(rand);
+    case "vsopen":
+      return genVsOpen(rand);
+    case "vs3bet":
+      return genVs3bet(rand);
     case "potodds":
       return genPotOdds(rand);
     case "showdown":
@@ -570,6 +684,10 @@ export const answersFor = (kind: PokerDrill): readonly string[] => {
   switch (kind) {
     case "preflop":
       return PREFLOP_ANSWERS;
+    case "vsopen":
+      return VSOPEN_ANSWERS;
+    case "vs3bet":
+      return VS3BET_ANSWERS;
     case "potodds":
       return POTODDS_ANSWERS;
     case "showdown":
@@ -593,7 +711,8 @@ export const answersForSpot = (s: PokerSpot): readonly string[] =>
 
 /**
  * Rebuild a spot of the same concept from a stored grade key (for spaced repetition).
- * `pre-POS-CODE` is rebuilt exactly (fresh suits); everything else deals a new spot of the
+ * `pre-POS-CODE`, `vo-HERO-OPENER-CODE` and `v3-HERO-VILLAIN-CODE` are rebuilt exactly
+ * (fresh suits); everything else deals a new spot of the
  * same concept. Returns null for keys this module doesn't recognise.
  */
 export function genPokerForKey(key: string, rand: Rand): PokerSpot | null {
@@ -605,6 +724,18 @@ export function genPokerForKey(key: string, rand: Rand): PokerSpot | null {
       if (!POSITIONS.includes(pos as Position) || !code) return null;
       const cards = cardsFor(code, rand);
       return cards ? { kind: "preflop", pos: pos as Position, cards } : null;
+    }
+    case "vo": {
+      const [hero, opener, code] = rest;
+      if (!isSeat(hero) || !isPosition(opener) || !vsOpenChart(hero, opener) || !code) return null;
+      const cards = cardsFor(code, rand);
+      return cards ? { kind: "vsopen", hero, opener, cards } : null;
+    }
+    case "v3": {
+      const [hero, villain, code] = rest;
+      if (!isPosition(hero) || !isSeat(villain) || !vs3betChart(hero, villain) || !code) return null;
+      const cards = cardsFor(code, rand);
+      return cards ? { kind: "vs3bet", hero, villain, cards } : null;
     }
     case "po":
       if (rest[0] !== "flop" && rest[0] !== "turn") return null;
@@ -649,6 +780,14 @@ export function validSpot(s: unknown): s is PokerSpot {
   switch (o.kind) {
     case "preflop":
       if (!POSITIONS.includes(o.pos as Position) || !cards(o.cards, 2)) return false;
+      all = o.cards as unknown[];
+      break;
+    case "vsopen":
+      if (!isSeat(o.hero) || !isPosition(o.opener) || !vsOpenChart(o.hero, o.opener) || !cards(o.cards, 2)) return false;
+      all = o.cards as unknown[];
+      break;
+    case "vs3bet":
+      if (!isPosition(o.hero) || !isSeat(o.villain) || !vs3betChart(o.hero, o.villain) || !cards(o.cards, 2)) return false;
       all = o.cards as unknown[];
       break;
     case "potodds":

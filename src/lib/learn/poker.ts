@@ -1,10 +1,12 @@
 /**
  * Poker (6-max No-Limit Hold'em) lessons. Hand strength comes from `evaluate`, equity and
- * outs from `equity.ts`, opening ranges from `ranges.ts`, so every answer matches the drills.
+ * outs from `equity.ts`, opening ranges from `ranges.ts` and response charts from `preflop.ts`,
+ * so every answer matches the drills.
  */
 import type { Card } from "../blackjack/cards";
 import { equity, outs } from "../poker/equity";
 import { describe } from "../poker/eval";
+import { bbPrice, explainVs3bet, explainVsOpen, SEAT_NAME, vs3betChart, vsOpenChart, type Seat } from "../poker/preflop";
 import { BEHIND, codeName, combosOf, handCode, OPEN_RANGES, POSITION_NAME, POSITIONS, rangePercent, type Position } from "../poker/ranges";
 import { bluffBreakEven, combosLeft, hitChance, potOddsNeeded, textureOf, type Texture } from "./math";
 import type { CheckOption, CheckStep, Lesson, Visual } from "./types";
@@ -74,6 +76,43 @@ function openCheck(pos: Position, cards: [Card, Card]): CheckStep {
     ],
     answer: inRange ? "raise" : "fold",
     why: `${cap(codeName(code))} (${code}) is ${inRange ? "inside" : "outside"} the ${SHORT[pos]} opening range, which plays about ${Math.round(rangePercent(OPEN_RANGES[pos]))}% of hands.`,
+  };
+}
+
+/** 3-bet / call / fold question graded with the response chart for `hero` facing `opener`. */
+function vsOpenCheck(hero: Seat, opener: Position, cards: [Card, Card]): CheckStep {
+  const code = handCode(cards[0], cards[1]);
+  const { action, why } = explainVsOpen(hero, opener, code);
+  const size = opener === "SB" ? "3bb" : "2.5bb";
+  return {
+    kind: "check",
+    prompt: `The ${POSITION_NAME[opener].toLowerCase()} opens to ${size} and it folds to you in the ${SEAT_NAME[hero].toLowerCase()}. Your play?`,
+    visual: { kind: "cards", size: "small", rows: [{ label: hero, cards }] },
+    options: [
+      { id: "raise", label: "3-bet" },
+      { id: "call", label: "Call" },
+      { id: "fold", label: "Fold" },
+    ],
+    answer: action,
+    why: `${cap(codeName(code))}: ${why}`,
+  };
+}
+
+/** 4-bet / call / fold question for the opener `hero` facing a 3-bet from `villain`. */
+function vs3betCheck(hero: Position, villain: Seat, cards: [Card, Card]): CheckStep {
+  const code = handCode(cards[0], cards[1]);
+  const { action, why } = explainVs3bet(hero, villain, code);
+  return {
+    kind: "check",
+    prompt: `You open the ${POSITION_NAME[hero].toLowerCase()} and the ${SEAT_NAME[villain].toLowerCase()} 3-bets. Your play?`,
+    visual: { kind: "cards", size: "small", rows: [{ label: hero, cards }] },
+    options: [
+      { id: "raise", label: "4-bet" },
+      { id: "call", label: "Call" },
+      { id: "fold", label: "Fold" },
+    ],
+    answer: action,
+    why: `${cap(codeName(code))}: ${why}`,
   };
 }
 
@@ -233,7 +272,7 @@ export const POKER_LESSONS: Lesson[] = [
           { id: "BTN", label: "Button" },
         ],
         answer: "BTN",
-        why: "The button. The blinds act last only before the flop; after it they act first.",
+        why: "The button. Before the flop the big blind acts last; after it the blinds act first on every street.",
       },
     ],
   },
@@ -685,5 +724,236 @@ export const POKER_LESSONS: Lesson[] = [
         },
       ];
     },
+  },
+  {
+    id: "pk-bb-defence",
+    track: "poker",
+    title: "Defending the big blind",
+    blurb: "You already paid a blind: which hands call, 3-bet or fold.",
+    minutes: 4,
+    practice: [
+      { href: "/train/poker/?drill=vsopen&pos=BB", label: "Big-blind defence drill" },
+      { href: "/train/charts/?tab=poker&view=vsopen", label: "Response charts" },
+    ],
+    steps: () => {
+      const openers: Position[] = ["UTG", "HJ", "CO", "BTN", "SB"];
+      const defend = (o: Position) => rangePercent(vsOpenChart("BB", o)!.raise) + rangePercent(vsOpenChart("BB", o)!.call);
+      return [
+        {
+          kind: "explain",
+          title: "You get a discount",
+          body: [
+            "The big blind already has 1bb in the pot. When the button opens to 2.5bb and the small blind folds, you call 1.5bb to win 4bb: you need only about **27%** equity, and you close the action, so nobody can raise behind you.",
+            "That price is why the big blind defends far more hands than any other seat would call with.",
+          ],
+          visual: { kind: "formula", text: `1.5 ÷ (4 + 1.5) = ${pct(bbPrice("BTN"))}`, note: "Call 1.5bb into a 4bb pot (2.5bb open + small blind + your big blind)." },
+        },
+        {
+          kind: "explain",
+          title: "Defend wider against later seats",
+          body: [
+            "Late openers raise more hands, so more of yours are good enough. Out of position you won't realise all your equity, so you still fold the weakest offsuit hands.",
+          ],
+          visual: {
+            kind: "bars",
+            caption: "Share of hands the big blind continues with (call + 3-bet), 100bb",
+            bars: openers.map((o) => ({ label: `vs ${o}`, value: defend(o), hot: o === "BTN" })),
+          },
+        },
+        {
+          kind: "explain",
+          title: "What defends",
+          body: [
+            "**Call** with pairs, suited hands (they make flushes and draws, so they realise equity out of position) and connected or high offsuit cards.",
+            "**3-bet** your best hands for value, plus some bluffs that block strong hands: suited wheel aces like A5s block AA and AK.",
+            "**Fold** weak, disconnected offsuit hands like 9-4 or 7-2: they rarely make a strong hand and play badly out of position.",
+          ],
+        },
+        vsOpenCheck("BB", "BTN", ["QS", "8D"]),
+        vsOpenCheck("BB", "UTG", ["KS", "5D"]),
+        vsOpenCheck("BB", "BTN", ["AH", "5H"]),
+        vsOpenCheck("BB", "CO", ["9S", "4D"]),
+      ];
+    },
+  },
+  {
+    id: "pk-3bet",
+    track: "poker",
+    title: "3-betting: value and bluffs",
+    blurb: "Re-raise the hands that are ahead, and the right bluffs.",
+    minutes: 4,
+    practice: [
+      { href: "/train/poker/?drill=vsopen", label: "Facing an open drill" },
+      { href: "/train/charts/?tab=poker&view=vsopen", label: "Response charts" },
+    ],
+    steps: () => {
+      const width = (h: Seat, o: Position) => rangePercent(vsOpenChart(h, o)!.raise);
+      const aaWithAce = combosLeft("AA", ["AS"]);
+      return [
+        {
+          kind: "explain",
+          title: "Why re-raise",
+          body: [
+            "A 3-bet is a re-raise of an open. **Value** 3-bets are ahead of the hands that continue and build a bigger pot. **Bluff** 3-bets win the pot right away often enough, and still have equity when called.",
+            "Size about 3x the open in position (7.5bb) and 3.5–4x out of position (10–11bb), so the opener can't call cheaply with position on you.",
+          ],
+        },
+        {
+          kind: "explain",
+          title: "Width depends on the opener",
+          body: ["Against a tight early open you 3-bet mostly premiums. Against a wide late open, far more hands are ahead, so your 3-bet range widens with it."],
+          visual: {
+            kind: "table",
+            head: ["Spot", "3-bet"],
+            rows: [
+              { left: "Hijack vs UTG", right: `${width("HJ", "UTG").toFixed(1)}%` },
+              { left: "Button vs cutoff", right: `${width("BTN", "CO").toFixed(1)}%` },
+              { left: "Small blind vs button", right: `${width("SB", "BTN").toFixed(1)}%`, hot: true },
+              { left: "Big blind vs button", right: `${width("BB", "BTN").toFixed(1)}%` },
+            ],
+          },
+        },
+        {
+          kind: "explain",
+          title: "Pick bluffs with blockers",
+          body: [
+            "Good 3-bet bluffs are hands too weak to call but with something going for them. A5s is the classic: the ace **blocks** AA and AK (the hands that would 4-bet you), and it can still make a straight or a flush.",
+            "From the small blind there's no flatting: 3-bet or fold, because a call out of position with the big blind still to act loses money.",
+          ],
+          visual: { kind: "cards", size: "small", rows: [{ label: "Bluff", cards: ["AS", "5S"], note: "blocks AA, AK" }] },
+        },
+        {
+          kind: "check",
+          prompt: "You hold A♠ 5♠. How many combinations of pocket aces can your opponent still have?",
+          options: numberOptions([aaWithAce, 4, 6], String),
+          answer: String(aaWithAce),
+          why: `Three aces are left, which make ${aaWithAce} pairs instead of 6. Holding an ace halves their AA, so they 4-bet less often.`,
+        },
+        vsOpenCheck("SB", "BTN", ["KS", "QD"]),
+        vsOpenCheck("SB", "CO", ["7S", "6S"]),
+        vsOpenCheck("CO", "HJ", ["AD", "4D"]),
+      ];
+    },
+  },
+  {
+    id: "pk-vs-3bet",
+    track: "poker",
+    title: "Facing a 3-bet",
+    blurb: "You opened and got re-raised: 4-bet, call or let it go.",
+    minutes: 4,
+    practice: [
+      { href: "/train/poker/?drill=vs3bet", label: "Facing a 3-bet drill" },
+      { href: "/train/charts/?tab=poker&view=vs3bet", label: "Response charts" },
+    ],
+    steps: () => {
+      const keep = (hero: Position, v: Seat) => {
+        const c = vs3betChart(hero, v)!;
+        return ((rangePercent(c.raise) + rangePercent(c.call)) / rangePercent(OPEN_RANGES[hero])) * 100;
+      };
+      return [
+        {
+          kind: "explain",
+          title: "Folding is part of the plan",
+          body: [
+            "You open a wide range, so most of it can't continue against a 3-bet. Strong players keep roughly 40–50% of their opening range and fold the rest without regret.",
+            "In position (the 3-bet came from a blind) you can call more, because you act last on every street. Out of position, call less and 4-bet or fold more.",
+          ],
+          visual: {
+            kind: "bars",
+            caption: "Share of your opening range that continues against a 3-bet",
+            bars: [
+              { label: "UTG vs BTN", value: keep("UTG", "BTN"), note: "out of position" },
+              { label: "CO vs BTN", value: keep("CO", "BTN"), note: "out of position" },
+              { label: "CO vs BB", value: keep("CO", "BB"), note: "in position" },
+              { label: "BTN vs BB", value: keep("BTN", "BB"), note: "in position", hot: true },
+            ],
+          },
+        },
+        {
+          kind: "explain",
+          title: "4-bet, call, fold",
+          body: [
+            "**4-bet** (about 2.2–2.5x the 3-bet) with the top of your range, QQ+ and AK against a wide 3-bet, plus a few blocker bluffs like A5s and A4s.",
+            "**Call** with pairs and strong suited hands that play well after the flop.",
+            "**Fold** offsuit hands from the bottom of your range, like KJo or A9o: they're dominated by the hands that 3-bet.",
+          ],
+        },
+        vs3betCheck("CO", "BTN", ["JS", "JD"]),
+        vs3betCheck("CO", "BTN", ["KS", "KD"]),
+        vs3betCheck("UTG", "BTN", ["KS", "JD"]),
+        vs3betCheck("BTN", "BB", ["8S", "7S"]),
+      ];
+    },
+  },
+  {
+    id: "pk-ranges-later",
+    track: "poker",
+    title: "Thinking in ranges on later streets",
+    blurb: "Every call and every bet size tells you what's left in their range.",
+    minutes: 4,
+    practice: [
+      { href: "/train/poker/?drill=handread", label: "Hand reading drill" },
+      { href: "/train/poker/?drill=potodds", label: "Pot odds drill" },
+    ],
+    steps: () => [
+      {
+        kind: "explain",
+        title: "Each street removes hands",
+        body: [
+          "Start from the pre-flop range, then update it on every street. A **call** removes most hands with nothing: people rarely call a bet with no pair and no draw. A **check** removes some of their strongest hands, which usually bet.",
+          "By the river, a player who has called twice holds mostly pairs and missed or made draws.",
+        ],
+      },
+      {
+        kind: "check",
+        prompt: "The big blind called your bets on the flop and the turn. Which of these is least likely to be in their range now?",
+        options: [
+          { id: "pair", label: "A pair" },
+          { id: "draw", label: "A flush draw" },
+          { id: "air", label: "No pair and no draw since the flop" },
+        ],
+        answer: "air",
+        why: "Calling twice with nothing is rare. Pairs and draws call; pure air folds early.",
+      },
+      {
+        kind: "explain",
+        title: "River bets are value or bluffs",
+        body: [
+          "On the river nothing is left to draw to, so a bet is either **value** (they want a call from worse) or a **bluff** (they want a fold from better). Medium hands mostly check.",
+          "A balanced bettor uses just enough bluffs to make your bluff-catchers break even. That share depends on the size:",
+        ],
+        visual: {
+          kind: "table",
+          head: ["River bet", "Bluffs in a balanced range"],
+          rows: SIZES.map(([label, f]) => ({ left: label, right: pct(potOddsNeeded(1, f)), hot: f === 1 })),
+        },
+      },
+      {
+        kind: "check",
+        prompt: "Villain bets the size of the pot on the river. In a balanced range, what share of those bets are bluffs?",
+        options: numberOptions([20, Math.round(potOddsNeeded(1, 1) * 100), 50], (n) => `${n}%`),
+        answer: String(Math.round(potOddsNeeded(1, 1) * 100)),
+        why: `Pot ÷ (pot + pot + pot) = ${pct(potOddsNeeded(1, 1))}, the same as the price you're getting. With more bluffs, calling profits; with fewer, folding does.`,
+      },
+      {
+        kind: "explain",
+        title: "Big bets are value-heavy in practice",
+        body: [
+          "Most players bluff big river bets **less** than balanced. Against an unknown player, a large river bet usually means value: fold bluff-catchers that beat only bluffs, and call with hands that also beat their thinner value bets.",
+          "Small bets are the opposite: they get called by more hands, so they're used with thinner value and more bluffs.",
+        ],
+      },
+      {
+        kind: "check",
+        prompt: "Villain bets a third of the pot on the river instead of the full pot. Compared with the pot-size bet, their range is usually:",
+        options: [
+          { id: "stronger", label: "Stronger: more value" },
+          { id: "wider", label: "Wider: thinner value and more bluffs" },
+          { id: "same", label: "About the same" },
+        ],
+        answer: "wider",
+        why: `A third-pot bet only needs ${pct(potOddsNeeded(1, 1 / 3))} equity from a caller, so it gets called by more hands. Thinner value bets and cheap bluffs both use it.`,
+      },
+    ],
   },
 ];

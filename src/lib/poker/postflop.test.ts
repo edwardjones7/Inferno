@@ -69,10 +69,14 @@ group("ranges and combos", () => {
     expect(parseRangeWithDashes("22-JJ").size).toBe(10);
     expect([...parseRangeWithDashes("A2s-AQs")]).toContain("A2s");
     expect(parseRangeWithDashes("A2s-AQs").has("AKs")).toBe(false);
+    expect(parseRangeWithDashes("JJ-77").size).toBe(5); // either order
+    // BB_DEFEND is the flat-call half of the BB vs BTN chart: 88+/AJo+ 3-bet instead
     expect(BB_DEFEND.has("QQ")).toBe(false);
-    expect(BB_DEFEND.has("JJ")).toBe(true);
-    expect(BB_DEFEND.has("AQo")).toBe(true);
-    expect(BB_DEFEND.has("AKo")).toBe(false);
+    expect(BB_DEFEND.has("88")).toBe(false);
+    expect(BB_DEFEND.has("77")).toBe(true);
+    expect(BB_DEFEND.has("ATo")).toBe(true);
+    expect(BB_DEFEND.has("AQo")).toBe(false);
+    expect(BB_DEFEND.has("K2s")).toBe(true);
   });
 
   it("expands combos", () => {

@@ -36,10 +36,10 @@ export function blackjackRecords(p: Pick<Progress, "drills" | "bjRounds">): Reco
   return map;
 }
 
-/** Poker pre-flop opening answers, keyed "pre-BTN-AKs". */
+/** Poker pre-flop chart answers: opening ("pre-BTN-AKs"), facing an open ("vo-BB-BTN-AKs") and facing a 3-bet ("v3-CO-BTN-AKs"). */
 export function pokerRecords(p: Pick<Progress, "drills">): Records {
   const map: Records = new Map();
-  for (const d of p.drills) if (d.game === "poker" && d.key.startsWith("pre-")) add(map, d.key, d.ok);
+  for (const d of p.drills) if (d.game === "poker" && /^(pre|vo|v3)-/.test(d.key)) add(map, d.key, d.ok);
   return map;
 }
 

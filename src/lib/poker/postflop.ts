@@ -6,10 +6,13 @@
  * Everything here is a deterministic rule of thumb, written down so the grading can be
  * explained in one sentence. None of it is solver output.
  */
-import { rankOf, suitOf, type Card, type Suit } from "../blackjack/cards";
+import { rankOf, suitOf, type Card } from "../blackjack/cards";
 import { hasDraw } from "./bots";
 import { CATEGORIES, categoryOf, evaluate, RANK_VALUE } from "./eval";
-import { FOUR_BET_NOTATION, parseRange, RANKS, THREE_BET_NOTATION } from "./ranges";
+import { FOUR_BET_NOTATION, THREE_BET_NOTATION, VS_OPEN_SPECS } from "./preflop";
+import { combosOfCode, OPEN_NOTATION, parseRange } from "./ranges";
+
+export { combosOfCode };
 
 const val = (c: Card) => RANK_VALUE[rankOf(c)];
 
@@ -130,50 +133,13 @@ export function handClass(hole: readonly Card[], board: readonly Card[]): HandCl
 
 /* ------------------------------------------------------------------ ranges */
 
-/** The big blind's flat-call range against a late-position open (3-bets QQ+/AK removed). */
-export const BB_DEFEND_NOTATION =
-  "22-JJ, A2s-AQs, K2s+, Q4s+, J6s+, T6s+, 96s+, 85s+, 74s+, 63s+, 53s+, 43s, A2o-AQo, K8o+, Q9o+, J9o+, T8o+, 98o, 87o";
+/** The big blind's flat-call range against a button open (its 3-bets removed), from the BB vs BTN chart in preflop.ts. */
+export const BB_DEFEND_NOTATION = VS_OPEN_SPECS.BBvBTN.call;
 
-/** `parseRange` plus "22-JJ" / "A2s-AQs" style closed intervals. */
-export function parseRangeWithDashes(notation: string): Set<string> {
-  const out = new Set<string>();
-  for (const part of notation.split(",").map((s) => s.trim()).filter(Boolean)) {
-    const m = /^(\w\w\w?)-(\w\w\w?)$/.exec(part);
-    if (!m) {
-      for (const c of parseRange(part)) out.add(c);
-      continue;
-    }
-    const [lo, hi] = [m[1], m[2]];
-    if (lo[0] === lo[1]) {
-      const [i, j] = [RANKS.indexOf(hi[0]), RANKS.indexOf(lo[0])];
-      for (let k = i; k <= j; k++) out.add(RANKS[k] + RANKS[k]);
-    } else {
-      const [i, j] = [RANKS.indexOf(hi[1]), RANKS.indexOf(lo[1])];
-      for (let k = i; k <= j; k++) out.add(lo[0] + RANKS[k] + (lo[2] ?? ""));
-    }
-  }
-  return out;
-}
+/** `parseRange` already understands "22-JJ" / "A2s-AQs" style intervals; kept for older callers. */
+export const parseRangeWithDashes = parseRange;
 
-export const BB_DEFEND = parseRangeWithDashes(BB_DEFEND_NOTATION);
-
-const SUITS: Suit[] = ["S", "H", "D", "C"];
-
-/** Every two-card combo of a hand code ("AKs" = 4, "AKo" = 12, "77" = 6). */
-export function combosOfCode(code: string): [Card, Card][] {
-  const [r1, r2] = [code[0], code[1]];
-  const out: [Card, Card][] = [];
-  if (r1 === r2) {
-    for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) out.push([`${r1}${SUITS[i]}` as Card, `${r2}${SUITS[j]}` as Card]);
-    return out;
-  }
-  for (const s1 of SUITS)
-    for (const s2 of SUITS) {
-      if ((code[2] === "s") !== (s1 === s2)) continue;
-      out.push([`${r1}${s1}` as Card, `${r2}${s2}` as Card]);
-    }
-  return out;
-}
+export const BB_DEFEND = parseRange(BB_DEFEND_NOTATION);
 
 /** Villain's hand "connects": improves on the board (pair or better with a hole card) or holds a draw. */
 export const connects = (v: readonly Card[], board: readonly Card[]) =>
@@ -217,7 +183,7 @@ export function readRange(hero: readonly Card[], board: readonly Card[], range: 
 export const LINES = {
   utg: {
     text: "UTG opened, you called on the button. UTG bets the flop.",
-    notation: "55+, A2s+, KTs+, Q9s+, J9s+, T9s, 98s, 87s, 76s, ATo+, KJo+, QJo",
+    notation: OPEN_NOTATION.UTG,
     street: 3,
     filter: null,
     filterText: "",
@@ -230,7 +196,7 @@ export const LINES = {
     filterText: "",
   },
   fourbet: {
-    text: "You 3-bet, villain 4-bet and you called. Villain bets the flop.",
+    text: "You 3-bet the cutoff from the button, the cutoff 4-bet and you called. He bets the flop.",
     notation: FOUR_BET_NOTATION,
     street: 3,
     filter: null,
@@ -256,7 +222,7 @@ export const LINE_IDS = Object.keys(LINES) as LineId[];
 
 export function lineRange(id: LineId): { range: Set<string>; filter?: (v: [Card, Card], board: readonly Card[]) => boolean } {
   const l = LINES[id];
-  const range = parseRangeWithDashes(l.notation);
+  const range = parseRange(l.notation);
   if (l.filter === "connects") return { range, filter: (v, b) => connects(v, b) };
   if (l.filter === "pair") return { range, filter: (v, b) => categoryOf(evaluate([...v, ...b])) > categoryOf(evaluate(b)) };
   return { range };

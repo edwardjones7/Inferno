@@ -21,12 +21,11 @@ import { DECK, evaluate } from "./eval";
 import { positionOf, type TablePosition } from "./game";
 import type { PokerState, Street } from "./game-types";
 import { BB_DEFEND, combosOfCode, handClass, parseRangeWithDashes, type HandClass } from "./postflop";
-import { FOUR_BET_NOTATION, GRID, OPEN_RANGES, THREE_BET_NOTATION, type Position } from "./ranges";
+import { FOUR_BET, LINE_RANGES, THREE_BET, vs3betChart, vsOpenChart, type Seat } from "./preflop";
+import { GRID, OPEN_RANGES, type Position } from "./ranges";
 
-/** 3-bet range (~9%): value 99+/AQ+/KQ, plus suited broadways and A5s/A4s as bluffs. */
-export const THREE_BET = parseRangeWithDashes(THREE_BET_NOTATION);
-/** 4-bet range: QQ+/AK for value, A5s/A4s as blocker bluffs. */
-export const FOUR_BET = parseRangeWithDashes(FOUR_BET_NOTATION);
+/** Typical 3-bet (~10%) and 4-bet (QQ+/AK, A5s/A4s) ranges when the seats don't pick a chart; defined in preflop.ts. */
+export { FOUR_BET, THREE_BET };
 /** Calling an open from a seat other than the big blind (the strongest hands 3-bet instead). */
 export const COLD_CALL = parseRangeWithDashes("22-JJ, AJs-AQs, KTs+, QTs+, JTs, T9s, 98s, 87s, 76s, 65s, AQo, KQo");
 /** The opener calling a 3-bet. */
@@ -88,21 +87,47 @@ export function actionsBySeat(s: PokerState): Map<number, SeatAction[]> {
   return out;
 }
 
-/** Pre-flop range implied by a seat's last pre-flop action, with a short label. */
+/** Seats that raised pre-flop, in order (opener first), and whether someone limped before the open. */
+export function preflopRaisers(s: PokerState): { raisers: number[]; limpedFirst: boolean } {
+  const raisers: number[] = [];
+  let limpedFirst = false;
+  for (const e of s.log) {
+    if (e.kind !== "action" || e.street !== "preflop" || e.seat === undefined) continue;
+    const rest = e.text.slice(s.seats[e.seat].name.length);
+    if (rest.startsWith(" raises to ") || rest.startsWith(" bets ")) raisers.push(e.seat);
+    else if (rest.startsWith(" calls ") && raisers.length === 0) limpedFirst = true;
+  }
+  return { raisers, limpedFirst };
+}
+
+/**
+ * Pre-flop range implied by a seat's last pre-flop action, with a short label. When the
+ * seats are known (an unlimped pot), 3-bets, flats, BB defence and responses to a 3-bet come
+ * from the per-seat charts in preflop.ts; otherwise from the typical ranges.
+ */
 export function preflopRange(s: PokerState, seatId: number, acts = actionsBySeat(s)): { range: Set<string>; label: string } {
   const pre = (acts.get(seatId) ?? []).filter((a) => a.street === "preflop");
   const last = pre[pre.length - 1];
   const pos: TablePosition = positionOf(s, seatId);
+  const { raisers, limpedFirst } = preflopRaisers(s);
+  const openerPos = raisers.length && !limpedFirst ? positionOf(s, raisers[0]) : null;
+  const opener: Position | null = openerPos && openerPos !== "BB" ? openerPos : null;
+  const vsOpen = opener ? vsOpenChart(pos as Seat, opener) : null;
+  const vs3bet = opener && raisers.length >= 2 && seatId === raisers[0] ? vs3betChart(opener, positionOf(s, raisers[1]) as Seat) : null;
   if (!last || last.kind === "check") return { range: ALL_CODES, label: "any two cards" };
   if (last.kind === "raise" || last.kind === "bet") {
-    if (last.level >= 3) return { range: FOUR_BET, label: "a 4-bet range" };
-    if (last.level === 2) return { range: THREE_BET, label: "a 3-bet range" };
+    if (last.level >= 4) return { range: LINE_RANGES.fiveBet, label: "a 5-bet range" };
+    if (last.level === 3) return vs3bet ? { range: vs3bet.raise, label: `a ${pos} 4-bet range` } : { range: FOUR_BET, label: "a 4-bet range" };
+    if (last.level === 2) return vsOpen?.raise.size ? { range: vsOpen.raise, label: `a ${pos} 3-bet vs ${opener}` } : { range: THREE_BET, label: "a 3-bet range" };
     const p: Position = pos === "BB" ? "CO" : pos;
     return { range: OPEN_RANGES[p], label: `a ${pos} opening range` };
   }
   if (last.level === 0) return { range: ALL_CODES, label: "a limping range" };
-  if (last.level === 1) return pos === "BB" ? { range: BB_DEFEND, label: "a big-blind defence" } : { range: COLD_CALL, label: "a flat-calling range" };
-  if (last.level === 2) return { range: CALL_3BET, label: "a range that calls 3-bets" };
+  if (last.level === 1) {
+    if (vsOpen?.call.size) return { range: vsOpen.call, label: pos === "BB" ? `a BB defence vs ${opener}` : `a ${pos} flat vs ${opener}` };
+    return pos === "BB" ? { range: BB_DEFEND, label: "a big-blind defence" } : { range: COLD_CALL, label: "a flat-calling range" };
+  }
+  if (last.level === 2) return vs3bet ? { range: vs3bet.call, label: `a ${pos} call vs a 3-bet` } : { range: CALL_3BET, label: "a range that calls 3-bets" };
   return { range: CALL_4BET, label: "a range that calls 4-bets" };
 }
 

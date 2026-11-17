@@ -10,7 +10,8 @@ import { BOT_ROSTER } from "./bots";
 import { seeded } from "./equity";
 import { act, newTable, positionOf, rigDeck, startHand } from "./game";
 import type { CoachNote, PlayerAction, PokerState } from "./game-types";
-import { BB_DEFEND, nearNuts, sizingAnswer } from "./postflop";
+import { nearNuts, sizingAnswer } from "./postflop";
+import { vsOpenChart } from "./preflop";
 import { combosOf, GRID, OPEN_RANGES } from "./ranges";
 import { coachHero } from "./table-coach";
 import { actionsBySeat, bluffShare, equityVsHoldings, FOUR_BET, holdingOf, isValue, preflopRange, THREE_BET } from "./villain";
@@ -232,7 +233,8 @@ group("villain ranges", () => {
     expect(preflopRange(t, 4).range).toBe(OPEN_RANGES.BTN);
     const u = spot("BB", "AS KD", [R(25), F, F, F, F, C, K, R(20)], "KC 7H 2D 3S 4C");
     expect(u.street).toBe("flop");
-    expect(preflopRange(u, 0).range).toBe(BB_DEFEND);
+    // the big blind's call comes from its chart against this opener (BB_DEFEND is the vs-BTN one)
+    expect(preflopRange(u, 0).range).toBe(vsOpenChart("BB", "UTG")!.call);
     expect(preflopRange(u, 1).range).toBe(OPEN_RANGES.UTG);
   });
 

@@ -7,9 +7,12 @@
  *
  * - Pre-flop, folded to you: the opening charts in ranges.ts (raise or fold; the small
  *   blind may also limp). Behind limpers: iso-raise playable hands, fold weak ones.
- * - Facing a raise: equity against the raiser's range, compared with the price adjusted for
- *   how much of that equity you can realise (position, suitedness, players left to act).
- *   Hands in the standard re-raise range should re-raise rather than call.
+ * - Facing a raise heads-up at ~100bb (an open, a 3-bet after you opened, a 4-bet after you
+ *   3-bet): the per-seat response charts in preflop.ts.
+ * - Other raises (multiway, limped pots, short stacks, all-ins): equity against the raiser's
+ *   range, compared with the price adjusted for how much of that equity you can realise
+ *   (position, suitedness, players left to act). Hands in the standard re-raise range
+ *   should re-raise rather than call.
  * - Facing a post-flop bet: equity against the bettor's range as narrowed by their actions,
  *   compared with the price.
  * - Nobody has bet post-flop: the textbook c-bet / sizing heuristics in postflop.ts, with
@@ -34,7 +37,8 @@ import {
   type HandClass,
 } from "./postflop";
 import { handCode, OPEN_RANGES, parseRange, POSITION_NAME, rangePercent, type Position } from "./ranges";
-import { actionsBySeat, equityVsHoldings, FOUR_BET, holdingOf, THREE_BET } from "./villain";
+import { actionOf, isValue3bet, vs3betChart, VS_4BET, vsOpenChart, type ResponseAction, type ResponseChart, type Seat } from "./preflop";
+import { actionsBySeat, equityVsHoldings, FOUR_BET, holdingOf, preflopRaisers, THREE_BET } from "./villain";
 
 /** Hands that re-raise for value rather than call, by the number of raises faced. */
 const VALUE_RERAISE = [parseRange("QQ+, AKs, AKo"), parseRange("QQ+, AKs, AKo"), parseRange("KK+, AKs")];
@@ -132,7 +136,10 @@ export function coachHero(state: PokerState, action: PlayerAction): CoachNote {
     const limpers = state.seats.filter((x) => x.id !== seatId && x.hole.length > 0 && !x.folded && x.lastAction?.startsWith("Call")).length;
     if (pos === "BB" && L.canCheck) {
       if (action.kind === "check") return note(null, "Free flop", "Nobody raised, so checking your option is fine; raise strong hands for value.");
-      if (isRaise) return note(true, "Raising your option", `Raising ${code} from the big blind punishes the limp${limpers > 1 ? "ers" : ""}.`);
+      if (isRaise)
+        return ISO_VALUE.has(code)
+          ? note(true, "Raising your option", `Raising ${code} from the big blind punishes the limp${limpers > 1 ? "ers" : ""}.`)
+          : note(null, "Raising light", `${code} is a thin raise out of position against the limp${limpers > 1 ? "ers" : ""}; checking for a free flop is fine.`);
     }
     if (pos !== "BB") return limpers ? coachBehindLimpers(action, pos, code, limpers) : coachOpen(action, pos, code);
   }
@@ -187,8 +194,101 @@ function coachBehindLimpers(action: PlayerAction, pos: Position, code: string, l
   return note(true, "Good fold", `${code} isn't in the ${pos} range.`);
 }
 
+/* ------------------------------------------------------------------ pre-flop, charted spots */
+
+/** Shortest effective stack (in big blinds) at which the 100bb charts still apply. */
+const CHART_MIN_BB = 60;
+
+interface ChartSpot {
+  chart: ResponseChart;
+  /** "3-bet", "4-bet" or "5-bet": what "raise" means here */
+  word: string;
+  /** "vs a CO open", "vs a BTN 3-bet", "vs a 4-bet" */
+  ctx: string;
+  /** the opener, when hero faces an open (value vs bluff wording) */
+  opener: Position | null;
+}
+
+/**
+ * The preflop.ts chart for this decision, or null when none applies: only heads-up spots
+ * (nobody else in for the bet), unlimped pots, ~100bb stacks and decisions that don't put
+ * hero all-in. Covers facing an open, the opener facing a 3-bet, and the 3-bettor facing a 4-bet.
+ */
+function chartSpot(s: PokerState, seatId: number, opps: number[], raises: number): ChartSpot | null {
+  const me = s.seats[seatId];
+  const L = legal(s);
+  if (opps.length !== 1 || L.toCall >= me.stack) return null;
+  const effBb = Math.min(me.stack + me.committed, s.seats[opps[0]].stack + s.seats[opps[0]].committed) / s.bb;
+  if (effBb < CHART_MIN_BB) return null;
+  const { raisers, limpedFirst } = preflopRaisers(s);
+  if (limpedFirst || raisers.length !== raises) return null;
+  const openerPos = positionOf(s, raisers[0]);
+  if (openerPos === "BB") return null;
+  const pos = positionOf(s, seatId) as Seat;
+  if (raises === 1) {
+    const chart = vsOpenChart(pos, openerPos);
+    return chart ? { chart, word: "3-bet", ctx: `vs a ${openerPos} open`, opener: openerPos } : null;
+  }
+  if (raises === 2 && raisers[0] === seatId) {
+    const tb = positionOf(s, raisers[1]) as Seat;
+    const chart = vs3betChart(openerPos, tb);
+    return chart ? { chart, word: "4-bet", ctx: `vs a ${tb} 3-bet`, opener: null } : null;
+  }
+  if (raises === 3 && raisers[1] === seatId) return { chart: VS_4BET, word: "5-bet", ctx: "vs a 4-bet", opener: null };
+  return null;
+}
+
+/** Grade a pre-flop response against the chart. `evCall` (bb, realisation-adjusted) only sizes the cost. */
+function coachVsChart(s: PokerState, seatId: number, action: PlayerAction, code: string, spot: ChartSpot, vs: string, evCall: number, ip: boolean): CoachNote {
+  const pos = positionOf(s, seatId);
+  const want = actionOf(spot.chart, code);
+  const did: ResponseAction = action.kind === "raise" ? "raise" : action.kind === "call" ? "call" : "fold";
+  const say = (a: ResponseAction) => (a === "raise" ? spot.word : a);
+  const value = spot.opener ? isValue3bet(spot.opener, code) : VALUE_RERAISE[0].has(code);
+  const sb3betOrFold = pos === "SB" && spot.word === "3-bet";
+  const reason =
+    want === "raise"
+      ? value
+        ? "For value: it's ahead of their range."
+        : "As a bluff: it blocks strong hands and plays well when called."
+      : want === "call"
+        ? pos === "BB" && spot.word === "3-bet"
+          ? "Good price closing the action, even out of position; not a value 3-bet."
+          : `Good enough to continue ${ip ? "in position" : "out of position"}, not to raise.`
+        : sb3betOrFold
+          ? "Small blind: 3-bet or fold."
+          : `Dominated too often by their range${ip ? "" : ", and out of position"}.`;
+  const head = `${code} ${spot.ctx}: the chart says ${say(want)}. ${reason}`;
+  if (did === want) {
+    const title = want === "raise" ? `Good ${spot.word}` : want === "call" ? (pos === "BB" && spot.word === "3-bet" ? "Good defend" : "Good call") : "Good fold";
+    return note(true, title, `${head} ${vs}.`);
+  }
+  if (spot.chart.mixed.has(code)) return note(null, "Mixed spot", `${head} Solvers play it both ways. ${vs}.`);
+  // A small-blind flat is a strategy error, not a hand-strength one, when the hand is playable
+  // (the chart 3-bets it, or the big blind would defend it): flag it softly. Junk is a mistake.
+  if (sb3betOrFold && did === "call" && spot.opener && (spot.chart.raise.has(code) || vsOpenChart("BB", spot.opener)?.call.has(code)))
+    return note(spot.chart.raise.has(code) && value ? false : null, "3-bet or fold from the SB", `${head} Flatting out of position with the big blind behind loses money.`);
+  if (want === "raise") {
+    if (did === "call") {
+      return note(null, value ? `${spot.word[0].toUpperCase()}${spot.word.slice(1)} for value` : "Calling is OK", `${head} ${value ? "Calling lets worse hands in cheaply." : "Calling instead of the bluff is reasonable."}`);
+    }
+    return value ? note(false, `Don't fold ${code}`, head, evCall) : note(null, "Folding is OK", `${head} It's a bluff, so folding gives up little.`);
+  }
+  if (want === "call") {
+    if (did === "fold") return note(false, pos === "BB" ? "Defend this hand" : "Too tight", `${head} ${vs}.`, evCall);
+    return note(null, `Light ${spot.word}`, `${head} Raising instead is a style choice, not a clear mistake.`);
+  }
+  if (did === "call") return note(false, "Too weak to call", `${head} ${vs}.`, -evCall);
+  return note(false, `${code} is too loose to ${spot.word}`, `${head} Save ${spot.word}s for value hands and the best bluffs.`);
+}
+
 function coachVsRaise(s: PokerState, seatId: number, action: PlayerAction, code: string, eq: number, vs: string, opps: number[], raises: number): CoachNote {
   const L = legal(s);
+  const spot = chartSpot(s, seatId, opps, raises);
+  if (spot) {
+    const { r, ip } = realisation(s, seatId, opps, code, eq);
+    return coachVsChart(s, seatId, action, code, spot, vs, (eq * r * (s.pot + L.toCall) - L.toCall) / s.bb, ip);
+  }
   const lvl = Math.min(raises, 3) - 1;
   const word = RERAISE_WORD[lvl];
   const { r, ip } = realisation(s, seatId, opps, code, eq);
