@@ -90,7 +90,7 @@ export function actionsBySeat(s: PokerState): Map<number, SeatAction[]> {
 }
 
 /** Seats that raised pre-flop, in order (opener first), and whether someone limped before the open. */
-function preflopRaisers(s: PokerState): { raisers: number[]; limpedFirst: boolean } {
+export function preflopRaisers(s: PokerState): { raisers: number[]; limpedFirst: boolean } {
   const raisers: number[] = [];
   let limpedFirst = false;
   for (const e of s.log) {

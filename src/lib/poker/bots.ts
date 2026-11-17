@@ -1,6 +1,7 @@
 /**
- * Bot opponents for the practice table. Pre-flop play follows the opening charts in
- * ranges.ts, bent by each bot's style; post-flop play combines a quick Monte-Carlo
+ * Bot opponents for the practice table. Pre-flop play follows the opening charts in ranges.ts
+ * and the response charts in preflop.ts (facing an open, a 3-bet or a 4-bet at ~100bb),
+ * bent by each bot's style; post-flop play combines a quick Monte-Carlo
  * equity estimate against random hands with pot odds. Every decision is checked against
  * `legal()` before it is returned.
  */
@@ -8,6 +9,7 @@ import { rankOf, suitOf, type Card } from "../blackjack/cards";
 import { DECK, evaluate, RANK_VALUE } from "./eval";
 import { legal, opponentsOf, positionOf, raisesThisStreet, type TablePosition } from "./game";
 import type { BotStyle, LegalOptions, PlayerAction, PokerState } from "./game-types";
+import { actionOf, vs3betChart, VS_4BET, vsOpenChart, type ResponseChart, type Seat } from "./preflop";
 import { handCode, OPEN_RANGES, type Position } from "./ranges";
 
 export const BOT_ROSTER: { name: string; style: BotStyle }[] = [
@@ -174,6 +176,35 @@ const BLUFF_3BET = new Set(["A5s", "A4s", "A3s", "KJs", "QJs", "JTs", "T9s", "76
 const PREMIUM = new Set(["AA", "KK", "AKs", "AKo"]);
 const STRONG = new Set(["QQ", "JJ", "AQs", "TT", "AQo"]);
 
+/**
+ * The response chart for this pre-flop decision: facing an open, the opener facing a 3-bet,
+ * or the 3-bettor facing a 4-bet. Null in limped pots and other uncharted lines. `level`
+ * is what a raise would be (3 = 3-bet, 4 = 4-bet, 5 = 5-bet).
+ */
+function chartFor(s: PokerState, seatId: number, raises: number): { chart: ResponseChart; level: number } | null {
+  const raisers: number[] = [];
+  for (const e of s.log) {
+    if (e.kind !== "action" || e.street !== "preflop" || e.seat === undefined) continue;
+    const rest = e.text.slice(s.seats[e.seat].name.length);
+    if (rest.startsWith(" raises to ")) raisers.push(e.seat);
+    else if (rest.startsWith(" calls ") && raisers.length === 0) return null; // limped first
+  }
+  if (raisers.length !== raises || raises === 0) return null;
+  const opener = positionOf(s, raisers[0]);
+  if (opener === "BB") return null;
+  const pos = positionOf(s, seatId) as Seat;
+  if (raises === 1) {
+    const chart = vsOpenChart(pos, opener);
+    return chart ? { chart, level: 3 } : null;
+  }
+  if (raises === 2 && raisers[0] === seatId) {
+    const chart = vs3betChart(opener, positionOf(s, raisers[1]) as Seat);
+    return chart ? { chart, level: 4 } : null;
+  }
+  if (raises === 3 && raisers[1] === seatId) return { chart: VS_4BET, level: 5 };
+  return null;
+}
+
 function preflop(s: PokerState, seatId: number, L: LegalOptions, style: BotStyle, rand: () => number): PlayerAction {
   const me = s.seats[seatId];
   const [a, b] = me.hole;
@@ -206,6 +237,33 @@ function preflop(s: PokerState, seatId: number, L: LegalOptions, style: BotStyle
   // cheaper calls with more money in the middle widen the range a little
   const priceBonus = Math.max(-3, Math.min(2, 2 - priceBB / 3));
   const deep = stackBB > 25;
+
+  // ~100bb, unlimped pots: the per-seat response charts (preflop.ts), bent by style
+  const spot = stackBB >= 40 ? chartFor(s, seatId, raises) : null;
+  if (spot) {
+    let act = actionOf(spot.chart, code);
+    const premium = PREMIUM.has(code) || code === "QQ";
+    if (style === "nit") {
+      if (act === "raise" && !premium) act = spot.chart.call.has(code) || chen >= 9 ? "call" : "fold";
+      else if (act === "call" && chen < 7 && rand() < 0.5) act = "fold";
+    } else if (style === "lag") {
+      if (act === "call" && rand() < 0.3) act = "raise";
+      else if (act === "fold" && raises === 1 && chen >= 7 && rand() < 0.2) act = "raise";
+    } else if (style === "station") {
+      if (act === "raise" && (raises === 1 ? rand() < 0.5 : !premium)) act = "call";
+      else if (act === "fold" && raises <= 2 && chen >= 6 && rand() < 0.6) act = "call";
+    }
+    if (act === "fold") return passive(L);
+    if (act === "call") return { kind: "call" };
+    const ip = !(pos === "SB" || pos === "BB");
+    const to =
+      spot.level === 3
+        ? s.currentBet * (pos === "SB" || pos === "BB" ? 3.5 : 3) + (s.pot - s.currentBet - me.committed) * 0.5
+        : spot.level === 4 && L.maxRaiseTo > s.currentBet * 3
+          ? s.currentBet * (ip ? 2.3 : 2.5)
+          : L.maxRaiseTo;
+    return raiseTo(L, to, s.pot);
+  }
 
   if (raises === 1) {
     const threeBetSize = s.currentBet * (pos === "SB" || pos === "BB" ? 3.5 : 3) + (s.pot - s.currentBet - me.committed) * 0.5;
