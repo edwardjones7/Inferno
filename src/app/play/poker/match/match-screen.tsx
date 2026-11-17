@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { ProLock } from "@/components/pro/pro-badge";
+import { botLocked, paywallReason } from "@/lib/gates";
 import { botById, isUnlocked } from "@/lib/poker/roster";
+import { useIsPro } from "@/lib/pro";
 import { useHydrated, useProgress } from "@/lib/store";
 import { PokerTable } from "../poker-table";
 
@@ -11,6 +14,7 @@ export function MatchScreen() {
   const bot = botById(id);
   const p = useProgress();
   const hydrated = useHydrated();
+  const pro = useIsPro();
   if (!hydrated) return <div className="felt absolute inset-0 animate-pulse" />;
   if (!bot || !isUnlocked(bot.id, p.beaten)) {
     return (
@@ -20,6 +24,23 @@ export function MatchScreen() {
         <Link href="/play/poker/" className="btn-fire mt-5 inline-flex h-11 items-center rounded-xl px-5 font-bold">
           Choose a bot
         </Link>
+      </div>
+    );
+  }
+  if (botLocked(bot.id, pro)) {
+    return (
+      <div className="mx-auto mt-[calc(env(safe-area-inset-top)+64px)] max-w-md px-4">
+        <ProLock
+          reason={paywallReason.bot(bot.id)}
+          title={`${bot.name} plays for members`}
+          secondary={
+            <Link href="/play/poker/" className="flex h-10 items-center justify-center rounded-xl text-xs font-semibold text-ash-400 hover:text-bone">
+              Back to the ladder
+            </Link>
+          }
+        >
+          {bot.tier} bots, the top of the ladder, come with Pro. Every other bot and the 6-max cash game stay free.
+        </ProLock>
       </div>
     );
   }

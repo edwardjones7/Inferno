@@ -2,12 +2,15 @@
 
 import Link from "next/link";
 import { IconBolt, IconCalendar, IconChevron, IconFlame, IconReview, IconSpade, IconTrain } from "@/components/icons";
+import { ProBadge } from "@/components/pro/pro-badge";
 import { Meter, PageHeader, Ring, SectionTitle, Sparkline } from "@/components/ui";
 import { DRILL_CATEGORIES } from "@/lib/blackjack/drill";
+import { countingLocked } from "@/lib/gates";
 import { MOVE_LABEL, type Move } from "@/lib/blackjack/strategy";
 import { nextLesson, trackProgress, TRACK_IDS, TRACKS } from "@/lib/learn";
 import { isCountingKind, leakHref } from "@/lib/leak-links";
 import { POKER_DRILLS } from "@/lib/poker/drills";
+import { useIsPro } from "@/lib/pro";
 import { ratingTitle } from "@/lib/rating";
 import { dueCards } from "@/lib/srs";
 import { accuracy, leaksOf, today, useHydrated, useProgress } from "@/lib/store";
@@ -22,6 +25,7 @@ export function TrainHub() {
   const due = hydrated ? dueCards(p.srs, today()).length : 0;
   const pk = p.drills.filter((d) => d.game === "poker");
   const leaks = hydrated ? leaksOf(p, undefined, 5) : [];
+  const pro = useIsPro();
 
   return (
     <div className="mx-auto max-w-5xl px-4 pb-10 pt-5 sm:px-6 lg:pt-10">
@@ -125,6 +129,7 @@ export function TrainHub() {
           acc={hydrated ? accuracy(counting) : null}
           count={counting.length}
           topics={["Running count", "Deck countdown", "True count", "Index plays"]}
+          pro={hydrated && countingLocked(pro)}
         />
         <Link href="/train/charts/" className="panel pressable flex flex-col rounded-[28px] p-5 sm:p-6">
           <div className="flex items-center gap-3">
@@ -187,6 +192,7 @@ function DrillCard({
   acc,
   count,
   topics,
+  pro,
 }: {
   href: string;
   icon: React.ReactNode;
@@ -195,13 +201,18 @@ function DrillCard({
   acc: number | null;
   count: number;
   topics: string[];
+  /** needs Pro: show the badge */
+  pro?: boolean;
 }) {
   return (
     <Link href={href} className="panel pressable flex flex-col rounded-[28px] p-5 sm:p-6">
       <div className="flex items-center gap-3">
         <span className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-ember-500/25 to-ember-800/20 text-ember-300 ring-1 ring-ember-500/30">{icon}</span>
         <div className="min-w-0 flex-1">
-          <h3 className="font-display text-lg font-bold">{title}</h3>
+          <h3 className="flex items-center gap-2 font-display text-lg font-bold">
+            {title}
+            {pro && <ProBadge />}
+          </h3>
           <p className="tabular text-xs text-ash-400">{acc === null ? "Not started" : `${acc}% accuracy · ${count} answers`}</p>
         </div>
         <IconChevron className="h-5 w-5 text-ash-500" />

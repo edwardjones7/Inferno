@@ -5,8 +5,11 @@ import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { EmberBurst } from "@/components/ember-burst";
 import { IconCheck, IconChevron, IconLock, IconX } from "@/components/icons";
+import { ProBadge, ProLock } from "@/components/pro/pro-badge";
 import { Eyebrow, Ring } from "@/components/ui";
+import { FREE_LESSONS_PER_TRACK, lessonLocked, paywallReason } from "@/lib/gates";
 import { lessonAfter, lessonById, lessonDone, lessonUnlocked, TRACKS, type CheckStep, type Lesson, type Step } from "@/lib/learn";
+import { useIsPro } from "@/lib/pro";
 import { play } from "@/lib/sound";
 import { completeLesson, useHydrated, useProgress } from "@/lib/store";
 import { Rich, VisualView } from "../visual";
@@ -15,9 +18,29 @@ export function LessonPlayer({ id }: { id: string }) {
   const lesson = lessonById(id)!;
   const p = useProgress();
   const hydrated = useHydrated();
+  const pro = useIsPro();
   const [override, setOverride] = useState(false);
 
   if (!hydrated) return <Frame><div className="panel h-[520px] animate-pulse rounded-[28px]" /></Frame>;
+
+  if (lessonLocked(id, pro)) {
+    return (
+      <Frame>
+        <Header lesson={lesson} />
+        <ProLock
+          reason={paywallReason.lesson(id)}
+          title="Part of the full course"
+          secondary={
+            <Link href="/train/learn/" className="flex h-10 items-center justify-center rounded-xl text-xs font-semibold text-ash-400 hover:text-bone">
+              Back to lessons
+            </Link>
+          }
+        >
+          {lesson.blurb} The first {FREE_LESSONS_PER_TRACK} lessons of each track are free; the rest of the course comes with Pro.
+        </ProLock>
+      </Frame>
+    );
+  }
 
   if (!lessonUnlocked(p, id) && !override) {
     const list = TRACKS[lesson.track].lessons;
@@ -271,6 +294,8 @@ function CheckView({ step, picked, onPick }: { step: CheckStep; picked: string |
 
 function Finish({ lesson, right, checks, alreadyDone }: { lesson: Lesson; right: number; checks: number; alreadyDone: boolean }) {
   const next = lessonAfter(lesson.id);
+  const pro = useIsPro();
+  const nextLocked = !!next && lessonLocked(next.id, pro);
   const [main, ...more] = lesson.practice;
   return (
     <div className="panel relative overflow-hidden rounded-[28px] p-6 text-center sm:p-8">
@@ -304,7 +329,7 @@ function Finish({ lesson, right, checks, alreadyDone }: { lesson: Lesson; right:
           {next ? (
             <Link href={`/train/learn/${next.id}/`} className="btn-ash flex h-11 items-center justify-center gap-1 rounded-xl text-sm font-bold">
               Next lesson: {next.title}
-              <IconChevron className="h-4 w-4" />
+              {nextLocked ? <ProBadge className="ml-1" /> : <IconChevron className="h-4 w-4" />}
             </Link>
           ) : (
             <p className="mt-1 text-xs font-semibold text-ember-300">That&apos;s the whole {TRACKS[lesson.track].title} track.</p>

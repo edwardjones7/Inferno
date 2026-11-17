@@ -5,8 +5,11 @@ import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { BotAvatar, TierBadge } from "@/components/bot-avatar";
 import { IconLock, IconTrophy } from "@/components/icons";
+import { ProBadge } from "@/components/pro/pro-badge";
 import { PageHeader } from "@/components/ui";
+import { botLocked, paywallReason } from "@/lib/gates";
 import { isUnlocked, MATCH, ROSTER, STYLE_BLURB, STYLE_LABEL, type BotProfile } from "@/lib/poker/roster";
+import { openPaywall, useIsPro } from "@/lib/pro";
 import { expected } from "@/lib/rating";
 import { play } from "@/lib/sound";
 import { useHydrated, useProgress } from "@/lib/store";
@@ -14,10 +17,12 @@ import { useHydrated, useProgress } from "@/lib/store";
 export function BotLobby() {
   const p = useProgress();
   const hydrated = useHydrated();
+  const pro = useIsPro();
   const firstOpen = ROSTER.find((b) => !p.beaten.includes(b.id) && isUnlocked(b.id, p.beaten)) ?? ROSTER[0];
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = ROSTER.find((b) => b.id === (selectedId ?? firstOpen.id))!;
   const open = isUnlocked(selected.id, p.beaten);
+  const needsPro = hydrated && botLocked(selected.id, pro);
   const record = p.matches.filter((m) => m.botId === selected.id);
   const wins = record.filter((m) => m.result === "win").length;
   const losses = record.filter((m) => m.result === "loss").length;
@@ -57,6 +62,7 @@ export function BotLobby() {
                     <IconLock className="h-4 w-4" />
                   </span>
                 )}
+                {hydrated && botLocked(b.id, pro) && <ProBadge className="absolute left-2.5 top-2.5" />}
                 {beaten && (
                   <span className="absolute right-2.5 top-2.5 grid h-6 w-6 place-items-center rounded-full bg-ember-500 text-ash-950">
                     <IconTrophy className="h-3.5 w-3.5" />
@@ -114,7 +120,18 @@ export function BotLobby() {
               )}
 
               <div className="relative mt-5">
-                {open || !hydrated ? (
+                {open && needsPro ? (
+                  <button
+                    onClick={() => {
+                      play("click");
+                      openPaywall(paywallReason.bot(selected.id));
+                    }}
+                    className="btn-fire flex h-14 w-full items-center justify-center gap-2.5 rounded-2xl font-display text-sm font-bold uppercase tracking-wider"
+                  >
+                    Play {selected.name}
+                    <ProBadge className="bg-ash-950/30 text-bone ring-ash-950/40" />
+                  </button>
+                ) : open || !hydrated ? (
                   <Link
                     href={`/play/poker/match/?bot=${selected.id}`}
                     onClick={() => play("chip")}

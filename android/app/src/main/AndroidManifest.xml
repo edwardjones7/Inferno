@@ -37,4 +37,6 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Google Play Billing, for the Inferno Pro subscription (RevenueCat) -->
+    <uses-permission android:name="com.android.vending.BILLING" />
 </manifest>

@@ -6,15 +6,18 @@ import { useEffect, useMemo, useState } from "react";
 import { BotAvatar } from "@/components/bot-avatar";
 import { IconCheck, IconStep, IconX } from "@/components/icons";
 import { MiniCard, PlayingCardStatic } from "@/components/playing-card-static";
+import { ProBadge } from "@/components/pro/pro-badge";
 import { Empty, PageHeader, Segmented } from "@/components/ui";
 import type { Card } from "@/lib/blackjack/cards";
 import { choiceLabel, type Decision } from "@/lib/blackjack/coach";
 import { formatCost } from "@/lib/blackjack/ev";
 import { TABLES } from "@/lib/blackjack/tables";
 import { formatChips, unitsToChips } from "@/lib/chips";
+import { FREE_REVIEW_HANDS, lockedReviewIds, paywallReason } from "@/lib/gates";
 import type { HandEvent } from "@/lib/poker/game-types";
 import { botById } from "@/lib/poker/roster";
 import { youText } from "@/lib/poker/text";
+import { openPaywall, PRO_NAME, useIsPro } from "@/lib/pro";
 import { play } from "@/lib/sound";
 import { useHydrated, useProgress, type BjRoundRecord, type PokerHandRecord, type PokerNote } from "@/lib/store";
 
@@ -33,6 +36,7 @@ export function Review() {
   const tab: Tab = isTab(tabParam) ? tabParam : "poker";
   const p = useProgress();
   const hydrated = useHydrated();
+  const pro = useIsPro();
   const [mistakesOnly, setMistakesOnly] = useState(false);
   const [sort, setSort] = useState<Sort>("recent");
 
@@ -78,9 +82,9 @@ export function Review() {
       {!hydrated ? (
         <div className="panel h-72 animate-pulse rounded-3xl" />
       ) : tab === "poker" ? (
-        <PokerReview hands={p.pokerHands} mistakesOnly={mistakesOnly} sort={sort} />
+        <PokerReview hands={p.pokerHands} mistakesOnly={mistakesOnly} sort={sort} pro={pro} />
       ) : tab === "blackjack" ? (
-        <BlackjackReview rounds={p.bjRounds} mistakesOnly={mistakesOnly} sort={sort} />
+        <BlackjackReview rounds={p.bjRounds} mistakesOnly={mistakesOnly} sort={sort} pro={pro} />
       ) : (
         <MatchList matches={p.matches} />
       )}
@@ -101,6 +105,26 @@ function DrillLink({ href, children = "Drill this spot →" }: { href: string; c
   );
 }
 
+/** One quiet line under a list with locked history. */
+function LockedNote({ count, game }: { count: number; game: "poker" | "blackjack" }) {
+  if (!count) return null;
+  return (
+    <p className="mt-3 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 px-1 text-center text-xs text-ash-500">
+      Your last {FREE_REVIEW_HANDS} {game === "poker" ? "hands" : "rounds"} are free to replay. {count} older{" "}
+      {count === 1 ? "one is" : "ones are"} kept for {PRO_NAME}.
+      <button
+        onClick={() => {
+          play("click");
+          openPaywall(paywallReason.review(game));
+        }}
+        className="font-bold text-ember-400 hover:text-ember-300"
+      >
+        See Pro
+      </button>
+    </p>
+  );
+}
+
 /* ------------------------------------------------------------------ poker */
 
 /** How costly a hand's mistakes were: estimated bb given up, then how many ✗ notes. */
@@ -111,7 +135,8 @@ function pokerScore(h: PokerHandRecord) {
 
 const pokerDrillHref = (n: PokerNote) => (n.street === "preflop" ? "/train/poker/?drill=preflop" : "/train/poker/?drill=cbet");
 
-function PokerReview({ hands, mistakesOnly, sort }: { hands: PokerHandRecord[]; mistakesOnly: boolean; sort: Sort }) {
+function PokerReview({ hands, mistakesOnly, sort, pro }: { hands: PokerHandRecord[]; mistakesOnly: boolean; sort: Sort; pro: boolean }) {
+  const locked = useMemo(() => lockedReviewIds(hands, pro), [hands, pro]);
   const list = useMemo(() => {
     const recent = [...hands].reverse().filter((h) => !mistakesOnly || h.notes.some((n) => n.ok === false));
     if (sort === "recent") return recent;
@@ -121,7 +146,7 @@ function PokerReview({ hands, mistakesOnly, sort }: { hands: PokerHandRecord[]; 
     return scored.map((x) => x.h);
   }, [hands, mistakesOnly, sort]);
   const [openId, setOpenId] = useState<string | null>(null);
-  const open = list.find((h) => h.id === openId) ?? list[0] ?? null;
+  const open = list.find((h) => h.id === openId && !locked.has(h.id)) ?? list.find((h) => !locked.has(h.id)) ?? null;
 
   if (!hands.length)
     return (
@@ -135,39 +160,53 @@ function PokerReview({ hands, mistakesOnly, sort }: { hands: PokerHandRecord[]; 
   if (!list.length) return <Empty>No mistakes in your recent hands. Nice.</Empty>;
 
   return (
+    <>
     <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
-      {open && <Replayer key={open.id} hand={open} />}
+      {open ? (
+        <Replayer key={open.id} hand={open} />
+      ) : (
+        <Empty>Hands this old are kept for {PRO_NAME}. Turn off the filter to see your recent ones.</Empty>
+      )}
       <ul className="panel max-h-[70dvh] divide-y divide-ash-800 overflow-y-auto rounded-3xl lg:order-first lg:max-h-[640px]">
         {list.map((h) => {
           const { cost, misses } = pokerScore(h);
           const on = open?.id === h.id;
           const opp = h.mode === "match" ? botById(h.bots[0]) : null;
+          const isLocked = locked.has(h.id);
           return (
             <li key={h.id}>
               <button
                 onClick={() => {
+                  if (isLocked) {
+                    play("click");
+                    return openPaywall(paywallReason.review("poker"));
+                  }
                   setOpenId(h.id);
                   play("click");
                   if (window.matchMedia("(max-width: 1023px)").matches) window.scrollTo({ top: 0, behavior: "smooth" });
                 }}
                 className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors ${on ? "bg-ember-500/10" : "hover:bg-ash-850"}`}
               >
-                <span className="flex gap-0.5">
+                <span className={`flex gap-0.5 ${isLocked ? "opacity-40 grayscale" : ""}`}>
                   {h.hole.map((c, i) => (
                     <MiniCard key={i} card={c} />
                   ))}
                 </span>
-                <span className="min-w-0 flex-1">
+                <span className={`min-w-0 flex-1 ${isLocked ? "opacity-60" : ""}`}>
                   <span className="flex items-center gap-1.5 text-xs font-semibold">
                     {opp ? <BotAvatar bot={opp} size={16} /> : null}
                     <span className="truncate text-ash-200">{opp ? `vs ${opp.name}` : "6-max table"}</span>
                   </span>
                   <span className="block text-[11px] text-ash-500">{when(h.at)}</span>
                 </span>
-                {misses > 0 && (
-                  <span className="rounded-full bg-ember-600/20 px-2 py-0.5 text-[10px] font-bold text-ember-300">
-                    {cost > 0 ? `−${bbText(cost)}` : `${misses} miss${misses > 1 ? "es" : ""}`}
-                  </span>
+                {isLocked ? (
+                  <ProBadge />
+                ) : (
+                  misses > 0 && (
+                    <span className="rounded-full bg-ember-600/20 px-2 py-0.5 text-[10px] font-bold text-ember-300">
+                      {cost > 0 ? `−${bbText(cost)}` : `${misses} miss${misses > 1 ? "es" : ""}`}
+                    </span>
+                  )
                 )}
                 <span className={`tabular w-14 text-right text-sm font-bold ${h.net > 0 ? "text-emerald-400" : h.net < 0 ? "text-ash-500" : "text-ash-300"}`}>
                   {h.net > 0 ? "+" : ""}
@@ -179,6 +218,8 @@ function PokerReview({ hands, mistakesOnly, sort }: { hands: PokerHandRecord[]; 
         })}
       </ul>
     </div>
+    <LockedNote count={locked.size} game="poker" />
+    </>
   );
 }
 
@@ -435,7 +476,8 @@ function drillableSpot(d: Decision): boolean {
   return m[1] === "pair" || (m[1] === "hard" ? v >= 5 && v <= 19 : v >= 13 && v <= 20);
 }
 
-function BlackjackReview({ rounds, mistakesOnly, sort }: { rounds: BjRoundRecord[]; mistakesOnly: boolean; sort: Sort }) {
+function BlackjackReview({ rounds, mistakesOnly, sort, pro }: { rounds: BjRoundRecord[]; mistakesOnly: boolean; sort: Sort; pro: boolean }) {
+  const locked = useMemo(() => lockedReviewIds(rounds, pro), [rounds, pro]);
   const list = useMemo(() => {
     const recent = [...rounds].reverse().filter((r) => !mistakesOnly || r.decisions.some((d) => !d.ok));
     if (sort === "recent") return recent;
@@ -454,8 +496,10 @@ function BlackjackReview({ rounds, mistakesOnly, sort }: { rounds: BjRoundRecord
     );
   if (!list.length) return <Empty>Every decision in your recent hands matched basic strategy.</Empty>;
   return (
+    <>
     <ul className="grid gap-2.5">
       {list.map((r) => {
+        if (locked.has(r.id)) return <LockedRound key={r.id} round={r} />;
         const net = unitsToChips(r.payout - r.wagered);
         const misses = r.decisions.filter((d) => !d.ok);
         const { cost } = bjScore(r);
@@ -521,6 +565,46 @@ function BlackjackReview({ rounds, mistakesOnly, sort }: { rounds: BjRoundRecord
         );
       })}
     </ul>
+    <LockedNote count={locked.size} game="blackjack" />
+    </>
+  );
+}
+
+/** An older round for a free player: the cards and when, with the coach's notes behind Pro. */
+function LockedRound({ round: r }: { round: BjRoundRecord }) {
+  return (
+    <li>
+      <button
+        onClick={() => {
+          play("click");
+          openPaywall(paywallReason.review("blackjack"));
+        }}
+        className="panel flex w-full flex-wrap items-center gap-x-4 gap-y-2 rounded-3xl p-4 text-left transition-colors hover:border-ember-500/40"
+      >
+        <span className="flex items-center gap-1.5 opacity-40 grayscale">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-ash-500">Dealer</span>
+          <span className="flex gap-0.5">
+            {r.dealer.map((c, i) => (
+              <MiniCard key={i} card={c} />
+            ))}
+          </span>
+        </span>
+        <span className="flex items-center gap-1.5 opacity-40 grayscale">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-ash-500">You</span>
+          {r.hands.map((h, i) => (
+            <span key={i} className="flex gap-0.5">
+              {h.cards.map((c, j) => (
+                <MiniCard key={j} card={c} />
+              ))}
+            </span>
+          ))}
+        </span>
+        <span className="ml-auto flex items-center gap-3">
+          <span className="text-[11px] text-ash-500">{when(r.at)}</span>
+          <ProBadge />
+        </span>
+      </button>
+    </li>
   );
 }
 
