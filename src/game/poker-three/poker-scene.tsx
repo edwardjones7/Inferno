@@ -15,7 +15,8 @@ import { ShaderWarmup } from "@/game/three/warmup";
 import type { Card } from "@/lib/blackjack/cards";
 import type { PokerState } from "@/lib/poker/game-types";
 import type { BotProfile } from "@/lib/poker/roster";
-import { BotPresence, type BotMood } from "./bot-presence";
+import { BotFigure } from "@/game/characters/bot-figure";
+import type { BotMood } from "./bot-presence";
 import { ChipPile } from "./poker-chips";
 import { betPos, boardPos, buttonPos, DEAL_ORIGIN, holePos, POT_POS, seatLabelPos } from "./poker-layout";
 import { DealerButton, PokerTableBody } from "./poker-table-body";
@@ -226,7 +227,7 @@ function Scene({
         <ChipPile key={`${game.handNo}:${game.street}:preview`} amount={preview} to={PREVIEW_POS} from={holePos(0)} />
       ) : null}
 
-      {bots?.map((b) => <BotPresence key={b.seat} bot={b.bot} place={P(b.seat)} mood={b.mood} actKey={b.actKey} />)}
+      {bots?.map((b) => <BotFigure key={b.seat} bot={b.bot} place={P(b.seat)} mood={b.mood} actKey={b.actKey} />)}
 
       <LabelProjector
         anchors={anchors ? { ...ANCHORS, ...anchors } : ANCHORS}
