@@ -28,7 +28,7 @@ export function PlayHub() {
           <div className="absolute -right-4 top-1/2 hidden -translate-y-1/2 sm:block">
             <div className="grid grid-cols-4 gap-2 opacity-90">
               {ROSTER.map((b) => (
-                <BotAvatar key={b.id} bot={b} size={52} dim={hydrated && !isUnlocked(b.id, p.beaten)} />
+                <BotAvatar key={b.id} bot={b} size={52} locked={hydrated && !isUnlocked(b.id, p.beaten)} />
               ))}
             </div>
           </div>

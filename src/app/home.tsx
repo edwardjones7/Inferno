@@ -11,7 +11,6 @@ import {
   IconCalendar,
   IconChevron,
   IconFlame,
-  IconLock,
   IconSpade,
   IconTrain,
 } from "@/components/icons";
@@ -310,12 +309,7 @@ export function Home() {
                     won ? "ring-1 ring-ember-400/50" : ""
                   }`}
                 >
-                  <BotAvatar bot={b} size={64} dim={!open} />
-                  {!open && (
-                    <span className="absolute right-3 top-3 text-ash-500">
-                      <IconLock className="h-4 w-4" />
-                    </span>
-                  )}
+                  <BotAvatar bot={b} size={64} locked={!open} />
                   {won && (
                     <span className="absolute right-3 top-3 rounded-full bg-ember-500 px-1.5 text-[9px] font-black text-ash-950">
                       WON

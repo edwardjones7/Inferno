@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
-import { BotAvatar, TierBadge } from "@/components/bot-avatar";
+import { BotAvatar, BotPortrait, TierBadge } from "@/components/bot-avatar";
 import { IconLock, IconTrophy } from "@/components/icons";
 import { ProBadge } from "@/components/pro/pro-badge";
 import { PageHeader } from "@/components/ui";
@@ -56,12 +56,7 @@ export function BotLobby() {
                   on ? "ring-2 ring-ember-400 shadow-[0_0_40px_-12px_rgba(255,90,31,0.8)]" : ""
                 }`}
               >
-                <BotAvatar bot={b} size={64} dim={hydrated && !unlocked} />
-                {hydrated && !unlocked && (
-                  <span className="absolute right-3 top-3 text-ash-500">
-                    <IconLock className="h-4 w-4" />
-                  </span>
-                )}
+                <BotAvatar bot={b} size={64} locked={hydrated && !unlocked} />
                 {hydrated && botLocked(b.id, pro) && <ProBadge className="absolute left-2.5 top-2.5" />}
                 {beaten && (
                   <span className="absolute right-2.5 top-2.5 grid h-6 w-6 place-items-center rounded-full bg-ember-500 text-ash-950">
@@ -91,7 +86,7 @@ export function BotLobby() {
                 style={{ background: `radial-gradient(closest-side, ${selected.colors[1]}, transparent)` }}
               />
               <div className="relative flex items-center gap-4">
-                <BotAvatar bot={selected} size={88} ring />
+                <BotPortrait bot={selected} width={104} ring={open || !hydrated} locked={hydrated && !open} />
                 <div className="min-w-0">
                   <TierBadge tier={selected.tier} />
                   <h2 className="mt-1.5 font-display text-2xl font-black leading-none">{selected.name}</h2>
