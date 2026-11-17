@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { BotAvatar, TierBadge } from "@/components/bot-avatar";
+import { ProBadge } from "@/components/pro/pro-badge";
+import { botLocked } from "@/lib/gates";
+import { useIsPro } from "@/lib/pro";
 import { Chip } from "@/components/chip";
 import { ChallengesCard, CheckInCard } from "@/components/earn";
 import {
@@ -49,6 +52,7 @@ export function Home() {
   useSettleLeftSeat();
   const p = useProgress();
   const hydrated = useHydrated();
+  const pro = useIsPro();
   const streak = hydrated ? streakOf(p.days) : 0;
   const daily = hydrated ? p.daily[today()] ?? [] : [];
   const dailyDone = daily.length;
@@ -142,7 +146,7 @@ export function Home() {
           </Link>
 
           <Link
-            href={`/play/poker/match/?bot=${next.id}`}
+            href={hydrated && botLocked(next.id, pro) ? "/play/poker/" : `/play/poker/match/?bot=${next.id}`}
             className="panel pressable group relative overflow-hidden rounded-3xl p-5"
           >
             <div className="flex items-center gap-4">
@@ -156,6 +160,7 @@ export function Home() {
                   <span className="tabular text-xs font-semibold text-ash-400">
                     {next.rating}
                   </span>
+                  {hydrated && botLocked(next.id, pro) && <ProBadge />}
                 </p>
                 <p className="truncate text-xs text-ash-400">{next.title}</p>
               </div>
@@ -299,7 +304,7 @@ export function Home() {
                 <Link
                   key={b.id}
                   href={
-                    open ? `/play/poker/match/?bot=${b.id}` : "/play/poker/"
+                    open && !(hydrated && botLocked(b.id, pro)) ? `/play/poker/match/?bot=${b.id}` : "/play/poker/"
                   }
                   className={`panel pressable relative flex w-36 shrink-0 snap-start flex-col items-center rounded-3xl p-4 text-center ${
                     won ? "ring-1 ring-ember-400/50" : ""

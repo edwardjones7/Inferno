@@ -8,6 +8,8 @@ import type { StationId } from "@/game/lobby/stations";
 import { isUnlocked, ROSTER } from "@/lib/poker/roster";
 import { ratingTitle } from "@/lib/rating";
 import { accuracy, today, useHydrated, useProgress } from "@/lib/store";
+import { botLocked } from "@/lib/gates";
+import { useIsPro } from "@/lib/pro";
 
 /* What each station teaches, plus one or two live numbers from your progress. */
 
@@ -59,6 +61,7 @@ function Rating({ r, show }: { r: number; show: boolean }) {
 export function StationPanel({ id, href }: { id: StationId; href: string }) {
   const p = useProgress();
   const hydrated = useHydrated();
+  const pro = useIsPro();
   const copy = COPY[id];
   const next = ROSTER.find((b) => !p.beaten.includes(b.id) && isUnlocked(b.id, p.beaten)) ?? ROSTER[ROSTER.length - 1];
   const dailyDone = hydrated ? (p.daily[today()] ?? []).length : 0;
@@ -91,7 +94,9 @@ export function StationPanel({ id, href }: { id: StationId; href: string }) {
         </Stat>
       </>
     );
-    extra = { href: `/play/poker/match/?bot=${next.id}`, label: `Challenge ${next.name}` };
+    extra = hydrated && botLocked(next.id, pro)
+      ? { href: "/play/poker/", label: `${next.name} needs Pro` }
+      : { href: `/play/poker/match/?bot=${next.id}`, label: `Challenge ${next.name}` };
   } else {
     stats = (
       <>
