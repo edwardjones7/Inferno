@@ -207,7 +207,7 @@ export function LobbyHero({ fallback }: { fallback: ReactNode }) {
 
       {/* station labels (also the dots) */}
       <div className="absolute inset-x-0 top-0 flex justify-center px-4 pt-3 lg:pt-6">
-        <div role="tablist" aria-label="Stations" className="flex rounded-2xl bg-ash-950/60 p-1 ring-1 ring-ash-700/70 backdrop-blur-md">
+        <div role="tablist" aria-label="Stations" className="flex rounded-xl bg-ash-950/60 p-1 ring-1 ring-brass-500/40 backdrop-blur-md">
           {STATIONS.map((s, i) => {
             const on = i === index;
             return (
@@ -216,13 +216,13 @@ export function LobbyHero({ fallback }: { fallback: ReactNode }) {
                 role="tab"
                 aria-selected={on}
                 onClick={() => go(i)}
-                className={`relative flex h-9 items-center rounded-xl px-3.5 text-[13px] font-bold transition-colors sm:px-5 ${on ? "text-ash-950" : "text-ash-300 hover:text-bone"}`}
+                className={`relative flex h-9 items-center rounded-md px-3.5 font-display text-[13px] tracking-[0.05em] transition-colors sm:px-5 ${on ? "text-[#fff3df]" : "text-ash-300 hover:text-bone"}`}
               >
                 {on && (
                   <motion.span
                     layoutId="lobby-tab"
                     transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 420, damping: 36 }}
-                    className="absolute inset-0 rounded-xl bg-gradient-to-b from-ember-300 to-ember-500 shadow-[0_0_18px_rgba(255,122,31,0.55)]"
+                    className="absolute inset-0 rounded-md bg-[linear-gradient(180deg,#b84f20,#7f2810)] shadow-[inset_0_0_0_1px_rgb(214_186_128/0.65),0_0_18px_-4px_rgba(255,122,31,0.6)]"
                   />
                 )}
                 <span className="relative">{s.label}</span>

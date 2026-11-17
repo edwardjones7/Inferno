@@ -72,7 +72,7 @@ export function TrueCountDrill() {
                 className="flex flex-col items-center gap-5 sm:flex-row sm:justify-center sm:gap-10"
               >
                 <div className="text-center">
-                  <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-ash-500">Running count</span>
+                  <span className="caps-label">Running count</span>
                   <p className="tabular mt-1 font-display text-6xl font-black molten-text">{fmtCount(spot.running)}</p>
                 </div>
                 <Tray spot={spot} showNumber={show === "number"} />
@@ -152,7 +152,7 @@ function Tray({ spot, showNumber }: { spot: TrueCountSpot; showNumber: boolean }
   const perDeck = H / spot.decks;
   return (
     <div className="flex flex-col items-center">
-      <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-ash-500">Discard tray</span>
+      <span className="caps-label">Discard tray</span>
       <div className="mt-2 flex items-end gap-2">
         <div className="relative w-16 overflow-hidden rounded-md bg-ash-950/80 ring-1 ring-ash-600" style={{ height: H }} aria-hidden>
           <div

@@ -30,7 +30,7 @@ export function TrainHub() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 pb-10 pt-5 sm:px-6 lg:pt-10">
-      <PageHeader eyebrow="Train" title="Sharpen every decision" />
+      <PageHeader eyebrow="School" title="Sharpen every decision" />
 
       {/* the lesson tracks lead the page, each fronted by the art of the lesson that's up next */}
       <div className="grid gap-3 md:grid-cols-2">
@@ -40,14 +40,14 @@ export function TrainHub() {
       </div>
 
       <div className="mt-3 grid gap-3 md:grid-cols-[1.25fr_1fr_1fr]">
-        <Link href="/train/daily/" className="panel pressable relative min-h-[120px] overflow-hidden rounded-[28px] p-5 ring-1 ring-ember-500/30">
+        <Link href="/train/daily/" className="panel pressable relative min-h-[120px] overflow-hidden rounded-3xl p-5 ring-1 ring-ember-500/30">
           <LessonArt id="pk-hand-reading" variant="backdrop" />
           <div className="relative flex items-center gap-4">
             <Ring value={done / 3} size={64} stroke={6}>
               <span className="tabular font-display text-base font-bold">{done}/3</span>
             </Ring>
             <div className="min-w-0">
-              <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-ember-400">
+              <p className="flex items-center gap-1.5 eyebrow">
                 <IconCalendar className="h-3.5 w-3.5" /> Daily puzzles
               </p>
               <h2 className="mt-0.5 font-display text-lg font-black">{done === 3 ? "Done for today" : "Today's three spots"}</h2>
@@ -56,8 +56,8 @@ export function TrainHub() {
           </div>
         </Link>
 
-        <div className="panel rounded-[28px] p-5">
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-ash-500">Training rating</p>
+        <div className="panel rounded-3xl p-5">
+          <p className="caps-label">Training rating</p>
           <div className="mt-0.5 flex items-baseline gap-2">
             <span className="tabular font-display text-3xl font-black">{hydrated ? t.r : "–"}</span>
             <span className="text-sm font-bold text-ember-400">{hydrated ? ratingTitle(t.r) : ""}</span>
@@ -66,12 +66,12 @@ export function TrainHub() {
           <p className="tabular mt-1 text-[11px] text-ash-500">{hydrated ? `${t.games} answers · peak ${t.peak}` : " "}</p>
         </div>
 
-        <Link href="/train/queue/" className={`panel pressable flex min-w-0 items-center gap-4 rounded-[28px] p-5 ${due ? "ring-1 ring-ember-500/40" : ""}`}>
+        <Link href="/train/queue/" className={`panel pressable flex min-w-0 items-center gap-4 rounded-3xl p-5 ${due ? "ring-1 ring-ember-500/40" : ""}`}>
           <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-ash-850 ring-1 ring-ash-700">
             <span className={`tabular font-display text-2xl font-black ${due ? "text-ember-300" : "text-ash-500"}`}>{due}</span>
           </span>
           <span className="min-w-0 flex-1">
-            <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-ember-400">
+            <span className="flex items-center gap-1.5 eyebrow">
               <IconReview className="h-3.5 w-3.5" /> Review queue
             </span>
             <span className="mt-0.5 block font-display text-base font-bold">{due ? `${due} spot${due === 1 ? "" : "s"} due` : "Nothing due"}</span>
@@ -180,11 +180,11 @@ function TrackHero({ track, hydrated }: { track: TrackId; hydrated: boolean }) {
     <>
       <LessonArt id={(next ?? info.lessons[info.lessons.length - 1]).id} variant="cover" className="transition-transform duration-700 group-hover:scale-[1.03]" />
       <span className="relative flex h-full flex-col justify-end p-5 sm:p-6">
-        <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-ember-400">
+        <span className="flex items-center gap-2 eyebrow">
           {track === "poker" ? <IconSpade className="h-3.5 w-3.5" /> : <IconTrain className="h-3.5 w-3.5" />}
           {info.title} · {label}
         </span>
-        <span className="mt-1 block font-display text-2xl font-black leading-tight sm:text-[28px]">{next ? next.title : "Every lesson done"}</span>
+        <span className="mt-1 block font-marquee text-2xl leading-tight sm:text-[28px]">{next ? next.title : "Every lesson done"}</span>
         <span className="mt-1 line-clamp-2 block max-w-md text-sm text-ash-300">{next ? next.blurb : "Revisit any lesson from the full path."}</span>
         <span className="mt-4 flex items-center gap-3">
           <span className={`inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl px-4 text-sm font-bold ${next ? "btn-fire" : "btn-ash"}`}>
@@ -204,7 +204,7 @@ function TrackHero({ track, hydrated }: { track: TrackId; hydrated: boolean }) {
     </>
   );
 
-  const cls = "group panel pressable relative block aspect-[4/3] w-full overflow-hidden rounded-[28px] text-left ring-1 ring-ash-800 sm:aspect-[16/10]";
+  const cls = "group panel deco-corners pressable relative block aspect-[4/3] w-full overflow-hidden rounded-3xl text-left sm:aspect-[16/10]";
   return locked && next ? (
     <button
       onClick={() => {
@@ -262,7 +262,7 @@ function LessonReel({ track, hydrated }: { track: TrackId; hydrated: boolean }) 
   return (
     <div>
       <div className="mb-1 flex items-center justify-between">
-        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-ash-400">{info.title}</p>
+        <p className="caps-label">{info.title}</p>
         <div className="hidden gap-1.5 sm:flex">
           <button aria-label={`Earlier ${info.title} lessons`} disabled={!edges.left} onClick={() => page(-1)} className={arrow}>
             <IconChevron className="h-4 w-4 rotate-180" />
@@ -366,7 +366,7 @@ function DrillCard({
   pro?: boolean;
 }) {
   return (
-    <Link href={href} className="group panel pressable relative flex min-h-[180px] flex-col justify-end overflow-hidden rounded-[28px] p-5 ring-1 ring-ash-800">
+    <Link href={href} className="group panel pressable relative flex min-h-[180px] flex-col justify-end overflow-hidden rounded-3xl p-5 ring-1 ring-ash-800">
       <LessonArt id={art} variant="cover" className="transition-transform duration-700 group-hover:scale-[1.03]" />
       <div className="relative">
         <div className="flex items-center gap-3">

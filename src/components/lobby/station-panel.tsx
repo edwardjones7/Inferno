@@ -44,7 +44,7 @@ const COPY: Record<StationId, Copy> = {
 function Stat({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="min-w-0 rounded-2xl bg-ash-950/50 px-3 py-2 ring-1 ring-ash-700/70">
-      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-ash-500">{label}</p>
+      <p className="caps-label">{label}</p>
       <div className="mt-0.5 truncate text-sm font-bold">{children}</div>
     </div>
   );
@@ -120,7 +120,7 @@ export function StationPanel({ id, href }: { id: StationId; href: string }) {
 
   return (
     <div>
-      <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-ember-400">{copy.kicker}</p>
+      <p className="eyebrow">{copy.kicker}</p>
       <h2 className="mt-1 font-display text-[28px] font-black leading-none tracking-tight sm:text-4xl">{copy.title}</h2>
       <p className="mt-2 text-[13px] leading-snug text-ash-300 sm:text-sm">{copy.learn}</p>
       <div className="mt-3 grid grid-cols-2 gap-2">{stats}</div>

@@ -88,7 +88,7 @@ export function CheckInCard({ className = "" }: { className?: string }) {
       {s?.available && <div className="absolute -left-10 -top-12 h-40 w-40 rounded-full bg-[radial-gradient(closest-side,rgba(255,154,46,0.25),transparent)]" />}
       <div className="relative flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-ember-400">
+          <p className="flex items-center gap-1.5 eyebrow">
             <IconCalendar className="h-3.5 w-3.5" /> Daily check-in
           </p>
           <p className="mt-1 font-display text-lg font-bold">{!s ? " " : s.available ? `Day ${s.day} is waiting` : `Day ${s.day} collected`}</p>
@@ -188,7 +188,7 @@ export function ChallengesCard({ className = "" }: { className?: string }) {
     <div className={`panel min-w-0 rounded-3xl p-5 ${className}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-ember-400">
+          <p className="flex items-center gap-1.5 eyebrow">
             <IconTrophy className="h-3.5 w-3.5" /> Today&apos;s challenges
           </p>
           <p className="mt-1 font-display text-lg font-bold">

@@ -192,7 +192,7 @@ export function PokerTrainer({ initialDrill = "preflop", initialPos, initialVs }
         <div className="mb-3 space-y-2" role="tablist" aria-label="Drill">
           {GROUPS.map((g) => (
             <div key={g.id}>
-              <p className="mb-1 px-1 text-[10px] font-bold uppercase tracking-[0.2em] text-ash-500">{g.label}</p>
+              <p className="mb-1 px-1 caps-label">{g.label}</p>
               <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
                 {POKER_DRILLS.filter((d) => d.group === g.id).map((d) => (
                   <button
@@ -397,7 +397,7 @@ export function Prompt({ spot }: { spot: PokerSpot }) {
 function Cards({ cards, dim = false, label }: { cards: readonly Card[]; dim?: boolean; label?: string }) {
   return (
     <div className="flex flex-col items-center gap-1.5">
-      {label && <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-ash-400">{label}</span>}
+      {label && <span className="caps-label">{label}</span>}
       <div className={`flex gap-1 sm:gap-1.5 ${dim ? "opacity-45 grayscale" : ""}`}>
         {cards.map((c) => (
           <PlayingCardStatic key={c} card={c} small />

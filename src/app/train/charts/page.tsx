@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export default function ChartsPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 pb-10 pt-5 sm:px-6 lg:pt-10">
-      <PageHeader eyebrow="Train · Charts" title="Know the chart cold">
+      <PageHeader eyebrow="School · Charts" title="Know the chart cold">
         <p className="hidden max-w-sm text-right text-xs text-ash-400 sm:block">
           Every correct play, colored by your own record. Tap a spot to see why, then drill it.
         </p>

@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: "Poker drills" };
 export default function PokerTrainerPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 pb-10 pt-5 sm:px-6 lg:pt-10">
-      <PageHeader eyebrow="Train · Hold'em" title="Poker drills">
+      <PageHeader eyebrow="School · Hold'em" title="Poker drills">
         <p className="hidden max-w-sm text-right text-xs text-ash-400 xl:block">
           Opening ranges, pot odds, reading showdowns and feeling equity. Every answer graded with exact maths.
         </p>

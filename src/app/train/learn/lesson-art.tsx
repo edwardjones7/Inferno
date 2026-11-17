@@ -49,7 +49,7 @@ export function LessonArt({ id, variant, className = "" }: { id: string; variant
     );
 
   return (
-    <div aria-hidden className={`relative mb-3 aspect-[16/7] overflow-hidden rounded-[28px] ring-1 ring-ash-800 ${className}`}>
+    <div aria-hidden className={`relative mb-3 aspect-[16/7] overflow-hidden rounded-3xl ring-1 ring-ash-800 ${className}`}>
       {img}
       <div className="absolute inset-0 bg-gradient-to-t from-ash-950/80 via-transparent to-transparent" />
       <div className="absolute inset-0 shadow-[inset_0_0_60px_rgba(0,0,0,0.6)]" />

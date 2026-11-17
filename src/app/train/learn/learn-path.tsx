@@ -20,7 +20,7 @@ export function LearnPath() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 pb-10 pt-5 sm:px-6 lg:pt-10">
-      <PageHeader eyebrow="Train · Learn" title="Learn the why, then drill it">
+      <PageHeader eyebrow="School · Learn" title="Learn the why, then drill it">
         <p className="tabular text-xs font-semibold text-ash-400">
           {hydrated ? `${done} of ${total} lessons done` : " "}
         </p>
@@ -48,7 +48,7 @@ function TrackColumn({ track, hydrated }: { track: TrackId; hydrated: boolean })
 
   return (
     <section>
-      <div className="panel relative overflow-hidden rounded-[28px] p-5">
+      <div className="panel relative overflow-hidden rounded-3xl p-5">
         <LessonArt id={(next ?? info.lessons[0]).id} variant="backdrop" />
         <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-[radial-gradient(closest-side,rgba(255,90,31,0.22),transparent)]" />
         <div className="relative flex items-center gap-4">

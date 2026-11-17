@@ -697,7 +697,7 @@ export function PokerTable(props: PokerMode) {
                 <BotAvatar bot={bot} size={44} />
                 <div>
                   <p className="font-display text-sm font-bold">{bot.name}</p>
-                  <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-ember-400">{STYLE_LABEL[bot.style]}</p>
+                  <p className="eyebrow">{STYLE_LABEL[bot.style]}</p>
                 </div>
               </div>
               <p className="mt-3 text-xs leading-relaxed text-ash-300">{bot.bio}</p>
@@ -773,7 +773,7 @@ export function PokerTable(props: PokerMode) {
           ) : opts ? (
             <div className="flex flex-col gap-2.5">
               {gesturesOn && (
-                <p className="text-center text-[11px] font-semibold uppercase tracking-[0.16em] text-ash-400 [@media(pointer:fine)]:hidden">
+                <p className="text-center caps-label [@media(pointer:fine)]:hidden">
                   Swipe up to {opts.isOpeningBet ? "bet" : "raise"} · swipe down to {opts.canCheck ? "check" : "fold"}
                 </p>
               )}

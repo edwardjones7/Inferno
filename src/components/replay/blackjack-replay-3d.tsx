@@ -103,7 +103,7 @@ export function BlackjackReplay3D({ round, onClose }: { round: BjRoundRecord; on
           <div className="flex flex-col gap-2.5 pb-1">
             {round.decisions.length > 0 ? (
               <div className="rounded-2xl bg-ash-950/80 p-3 ring-1 ring-ash-700/70 backdrop-blur-md" aria-live="polite">
-                <div className="flex items-center justify-between gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-ash-500">
+                <div className="flex items-center justify-between gap-2 caps-label">
                   <span>
                     Decision {step + 1} of {round.decisions.length}
                   </span>

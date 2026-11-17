@@ -31,10 +31,10 @@ Native setup, once per machine: install Xcode (full app, not just the command li
 | Tab | Route | What it is |
 |---|---|---|
 | Home | `/` | Ratings, streak, today's puzzles, next bot on the ladder, your biggest leak. |
-| Play | `/play/` | Poker vs bots (`/play/poker/` lobby, `/play/poker/match/?bot=id`), 6-max cash game (`/play/poker/table/`), blackjack (`/play/blackjack/`). |
-| Train | `/train/` | Daily puzzles (`/train/daily/`), blackjack strategy drills, poker drills. `?spot=` / `?drill=` deep-link from leak reports. |
-| Review | `/review/` | Step-through replayer for poker hands with the coach's note at each decision, blackjack hand history, match history. |
-| Profile | `/profile/` | Ratings, trophy case, accuracy, leaks, settings (graphics quality, sound, haptics, name, privacy choices, reset), links to the legal pages. |
+| Tables | `/play/` | Poker vs bots (`/play/poker/` lobby, `/play/poker/match/?bot=id`), 6-max cash game (`/play/poker/table/`), blackjack (`/play/blackjack/`). |
+| School | `/train/` | Daily puzzles (`/train/daily/`), blackjack strategy drills, poker drills. `?spot=` / `?drill=` deep-link from leak reports. |
+| The Books | `/review/` | Step-through replayer for poker hands with the coach's note at each decision, blackjack hand history, match history. |
+| Your File | `/profile/` | Ratings, trophy case, accuracy, leaks, settings (graphics quality, sound, haptics, name, privacy choices, reset), links to the legal pages. |
 | Legal | `/legal/privacy/`, `/legal/terms/` | Privacy policy and terms of use. **Drafts:** see the note at the top of each source file before launch. |
 
 ## How it fits together

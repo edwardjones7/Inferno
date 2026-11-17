@@ -25,7 +25,7 @@ export function CountingTrainer() {
   const [mode, setMode] = useStored<Mode>("inferno:count:mode", "running", isMode);
   const pro = useIsPro();
   const hydrated = useHydrated();
-  if (!hydrated) return <div className="panel h-[420px] animate-pulse rounded-[28px]" />;
+  if (!hydrated) return <div className="panel h-[420px] animate-pulse rounded-3xl" />;
   if (countingLocked(pro)) {
     return (
       <>

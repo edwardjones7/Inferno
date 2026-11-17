@@ -74,7 +74,7 @@ export function Home() {
             <p className="text-sm font-semibold text-ash-400">
               {hydrated ? `${greeting()}, ${p.name}` : " "}
             </p>
-            <h1 className="mt-1.5 font-display text-[32px] font-black leading-[0.95] tracking-tight sm:text-5xl">
+            <h1 className="mt-1.5 font-marquee text-[34px] leading-[1.02] sm:text-5xl">
               <span className="molten-text">Play sharp.</span>{" "}
               <span className="text-bone">Train hotter.</span>
             </h1>
@@ -92,7 +92,7 @@ export function Home() {
                   href={r.href}
                   className="panel pressable rounded-2xl p-3"
                 >
-                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-ash-500">
+                  <p className="caps-label">
                     {r.label}
                   </p>
                   <p className="tabular mt-1 font-display text-xl font-bold">
@@ -115,7 +115,7 @@ export function Home() {
         <section className="mt-8 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           <Link
             href="/train/daily/"
-            className="panel pressable group relative overflow-hidden rounded-3xl p-5 ring-1 ring-ember-500/25"
+            className="panel deco-corners pressable group relative overflow-hidden rounded-3xl p-5"
           >
             <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-[radial-gradient(closest-side,rgba(255,90,31,0.28),transparent)]" />
             <div className="relative flex items-center gap-4">
@@ -125,7 +125,7 @@ export function Home() {
                 </span>
               </Ring>
               <div className="min-w-0 flex-1">
-                <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-ember-400">
+                <p className="flex items-center gap-1.5 eyebrow">
                   <IconCalendar className="h-3.5 w-3.5" /> Daily puzzles
                 </p>
                 <p className="mt-1 font-display text-lg font-bold">
@@ -152,7 +152,7 @@ export function Home() {
             <div className="flex items-center gap-4">
               <BotAvatar bot={next} size={68} ring />
               <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-ember-400">
+                <p className="eyebrow">
                   Next opponent
                 </p>
                 <p className="mt-1 flex items-center gap-2 font-display text-lg font-bold">
@@ -188,7 +188,7 @@ export function Home() {
                 />
               </span>
               <div className="min-w-0">
-                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-ember-400">
+                <p className="eyebrow">
                   Streak
                 </p>
                 <p className="tabular mt-1 font-display text-lg font-bold">
@@ -215,7 +215,7 @@ export function Home() {
 
         {/* train */}
         <section className="mt-9">
-          <SectionTitle title="Train" href="/train/" cta="All drills" />
+          <SectionTitle title="School" href="/train/" cta="All drills" />
           <div className="grid gap-3 md:grid-cols-2">
             {leak ? (
               <Link
@@ -232,7 +232,7 @@ export function Home() {
                   <IconTrain className="h-6 w-6" />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[11px] font-bold uppercase tracking-[0.2em] text-ember-400">
+                  <span className="block eyebrow">
                     Your biggest leak
                   </span>
                   <span className="mt-0.5 block truncate font-bold">
@@ -358,7 +358,7 @@ function HeroArt() {
       <div className="absolute bottom-16 right-[8%] rotate-6">
         <Chip value={500} size={66} glow />
       </div>
-      <div className="absolute right-[2%] top-[12%] font-display text-7xl font-black molten-text opacity-90">
+      <div className="absolute right-[2%] top-[12%] font-marquee text-7xl molten-text opacity-90">
         21
       </div>
     </div>

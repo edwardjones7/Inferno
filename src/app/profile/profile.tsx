@@ -46,12 +46,12 @@ export function Profile() {
   return (
     <div className="mx-auto max-w-5xl px-4 pb-10 pt-5 sm:px-6 lg:pt-10">
       <div className="flex items-center gap-4">
-        <span className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-ember-300 via-ember-500 to-ember-800 font-display text-xl font-black text-ash-950 shadow-[0_0_40px_-10px_rgba(255,90,31,0.9)]">
+        <span className="grid h-16 w-16 shrink-0 place-items-center rounded-lg bg-[linear-gradient(160deg,#c95c26,#7f2810)] font-display text-xl tracking-[0.08em] text-[#fff3df] shadow-[inset_0_0_0_3px_rgb(58_12_4/0.35),0_0_40px_-12px_rgba(255,90,31,0.8)] ring-1 ring-brass-300/60">
           {p.name.slice(0, 2).toUpperCase()}
         </span>
         <div className="min-w-0">
-          <Eyebrow>Profile</Eyebrow>
-          <h1 className="truncate font-display text-2xl font-black sm:text-3xl">{p.name}</h1>
+          <Eyebrow>Your File</Eyebrow>
+          <h1 className="truncate font-marquee text-[26px] leading-tight sm:text-4xl">{p.name}</h1>
           <p className="text-xs text-ash-400">
             Since {new Date(p.createdAt).toLocaleDateString("en-US", { dateStyle: "medium" })} ·{" "}
             <span className="inline-flex items-center gap-1 font-semibold text-ember-300">
@@ -68,7 +68,7 @@ export function Profile() {
           const r = p.ratings[k];
           return (
             <div key={k} className="panel rounded-3xl p-4 sm:p-5">
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-ash-500">{RATING_LABEL[k]} rating</p>
+              <p className="caps-label">{RATING_LABEL[k]} rating</p>
               <div className="mt-1 flex items-baseline gap-2">
                 <span className="tabular font-display text-3xl font-black">{r.r}</span>
                 <span className="text-xs font-bold text-ember-400">{ratingTitle(r.r)}</span>
@@ -119,9 +119,9 @@ export function Profile() {
         <div className="panel rounded-3xl p-5">
           <h2 className="font-display text-sm font-bold">Accuracy</h2>
           <p className="mt-0.5 text-xs text-ash-400">Live play and drills combined.</p>
-          <p className="mt-4 text-[10px] font-bold uppercase tracking-[0.18em] text-ember-400">Blackjack</p>
+          <p className="mt-4 eyebrow">Blackjack</p>
           <AccList rows={kinds.map((x) => ({ label: KIND_LABEL[x.k], n: x.n, acc: x.acc }))} />
-          <p className="mt-4 text-[10px] font-bold uppercase tracking-[0.18em] text-ember-400">Poker</p>
+          <p className="mt-4 eyebrow">Poker</p>
           <AccList rows={pokerKinds.map((x) => ({ label: x.k, n: x.n, acc: x.acc }))} />
         </div>
 
