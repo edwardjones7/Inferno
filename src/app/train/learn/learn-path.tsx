@@ -5,6 +5,7 @@ import { IconCheck, IconChevron, IconLock, IconSpade, IconTrain } from "@/compon
 import { PageHeader, Ring } from "@/components/ui";
 import { lessonDone, lessonUnlocked, nextLesson, TRACK_IDS, TRACKS, trackProgress, type TrackId } from "@/lib/learn";
 import { useHydrated, useProgress } from "@/lib/store";
+import { LessonArt } from "./lesson-art";
 
 export function LearnPath() {
   const p = useProgress();
@@ -43,6 +44,7 @@ function TrackColumn({ track, hydrated }: { track: TrackId; hydrated: boolean })
   return (
     <section>
       <div className="panel relative overflow-hidden rounded-[28px] p-5">
+        <LessonArt id={(next ?? info.lessons[0]).id} variant="backdrop" />
         <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-[radial-gradient(closest-side,rgba(255,90,31,0.22),transparent)]" />
         <div className="relative flex items-center gap-4">
           <Ring value={hydrated ? done / total : 0} size={64} stroke={6}>
@@ -96,6 +98,7 @@ function TrackColumn({ track, hydrated }: { track: TrackId; hydrated: boolean })
                 </span>
                 <span className="mt-0.5 block text-xs text-ash-400">{l.blurb}</span>
               </span>
+              <LessonArt id={l.id} variant="thumb" className={`mt-1 ${open ? "" : "opacity-40 grayscale"}`} />
               {open && <IconChevron className="mt-2 h-4 w-4 shrink-0 text-ash-500" />}
             </>
           );

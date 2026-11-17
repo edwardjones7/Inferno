@@ -29,7 +29,7 @@ self.addEventListener("activate", (event) => {
 });
 
 const isStatic = (url) =>
-  url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/sfx/") || url.pathname.startsWith("/icons/") || /\.(woff2?|png|svg|ico|ogg|mp3)$/.test(url.pathname);
+  url.pathname.startsWith("/_next/static/") || url.pathname.startsWith("/sfx/") || url.pathname.startsWith("/icons/") || url.pathname.startsWith("/lessons/") || /\.(woff2?|png|svg|ico|ogg|mp3|webp)$/.test(url.pathname);
 
 self.addEventListener("fetch", (event) => {
   const req = event.request;
