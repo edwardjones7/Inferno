@@ -13,7 +13,16 @@ import type { Anchors } from "./table-layout";
  * Projects label anchors to screen space every frame and moves plain DOM nodes that
  * live in an overlay owned by the main React tree (no extra React roots in the canvas).
  */
-export function LabelProjector({ anchors, els }: { anchors: Anchors; els: React.RefObject<Map<string, HTMLDivElement>> }) {
+export function LabelProjector({
+  anchors,
+  els,
+  clamp,
+}: {
+  anchors: Anchors;
+  els: React.RefObject<Map<string, HTMLDivElement>>;
+  /** keep each label's box at least this many px inside the canvas edges (off-screen seats stay visible) */
+  clamp?: { x: number; top: number; bottom: number };
+}) {
   const v = useMemo(() => new THREE.Vector3(), []);
   useFrame((state) => {
     const { width, height } = state.size;
@@ -21,7 +30,16 @@ export function LabelProjector({ anchors, els }: { anchors: Anchors; els: React.
       const a = anchors[id];
       if (!a) continue;
       v.set(a[0], a[1], a[2]).project(state.camera);
-      el.style.setProperty("transform", `translate3d(${((v.x + 1) / 2) * width}px, ${((1 - v.y) / 2) * height}px, 0) translate(-50%, -50%)`);
+      let x = ((v.x + 1) / 2) * width;
+      let y = ((1 - v.y) / 2) * height;
+      if (clamp) {
+        // labels are centred on their anchor, so keep half their size inside the margin
+        const hw = (el.firstElementChild as HTMLElement | null)?.offsetWidth ?? el.offsetWidth;
+        const half = Math.min(hw / 2, width / 2 - clamp.x);
+        x = Math.min(width - clamp.x - half, Math.max(clamp.x + half, x));
+        y = Math.min(height - clamp.bottom, Math.max(clamp.top, y));
+      }
+      el.style.setProperty("transform", `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`);
       el.style.setProperty("opacity", "1");
     }
   });

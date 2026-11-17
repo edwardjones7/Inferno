@@ -6,11 +6,12 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { BotAvatar } from "@/components/bot-avatar";
+import { DrawerSection, GameScreen, useGameInsets } from "@/components/game-screen";
 import { IconTrophy } from "@/components/icons";
 import { Switch } from "@/components/ui";
 import { cardLabel } from "@/lib/blackjack/cards";
 import { botDecide, botThinkMs } from "@/lib/poker/bots";
-import { act, legal, newTable, positionOf, startHand } from "@/lib/poker/game";
+import { act, legal, newTable, positionOf, potOdds, startHand } from "@/lib/poker/game";
 import type { CoachNote, PlayerAction, PokerState } from "@/lib/poker/game-types";
 import { describe } from "@/lib/poker/eval";
 import { blindsFor, botById, MATCH, ROSTER, STYLE_LABEL, TABLE_LINEUP, type BotProfile } from "@/lib/poker/roster";
@@ -21,10 +22,11 @@ import { play } from "@/lib/sound";
 import { applyRating, getProgress, touchDay, update, type PokerNote } from "@/lib/store";
 import { isBoolString, useStored } from "@/lib/use-stored";
 import { boardKey, holeKey } from "@/game/poker-three/poker-scene";
+import type { BotMood } from "@/game/poker-three/bot-presence";
 
 const PokerScene = dynamic(() => import("@/game/poker-three/poker-scene"), {
   ssr: false,
-  loading: () => <div className="felt h-[min(58dvh,460px)] animate-pulse rounded-[28px] sm:h-[560px] sm:rounded-[44px]" />,
+  loading: () => <div className="felt absolute inset-0 animate-pulse" />,
 });
 
 const TABLE_STACK = 1000;
@@ -95,6 +97,10 @@ export function PokerTable(props: PokerMode) {
   const [coach, setCoach] = useState<(CoachNote & { n: number }) | null>(null);
   const [coachPref, setCoachPref] = useStored("inferno:poker-coach", "1", isBoolString);
   const [autoPref, setAutoPref] = useStored("inferno:poker-auto", "1", isBoolString);
+  const [gesturePref, setGesturePref] = useStored("inferno:poker-gestures", "1", isBoolString);
+  const [drawer, setDrawer] = useState(false);
+  /** the raise has been sized this turn (shows the chips on your bet spot) */
+  const [raiseTouched, setRaiseTouched] = useState(false);
   const [session, setSession] = useState({ hands: 0, net: 0, won: 0, biggest: 0 });
   const [winKey, setWinKey] = useState(0);
   const [raiseTo, setRaiseTo] = useState(0);
@@ -276,7 +282,10 @@ export function PokerTable(props: PokerMode) {
     const marker = game.log.length;
     if (lastTurn.current === marker) return;
     lastTurn.current = marker;
-    queueMicrotask(() => setRaiseTo(opts.minRaiseTo));
+    queueMicrotask(() => {
+      setRaiseTo(opts.minRaiseTo);
+      setRaiseTouched(false);
+    });
   }, [opts, game.log.length]);
 
   const heroAct = useCallback(
@@ -296,7 +305,7 @@ export function PokerTable(props: PokerMode) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
-      if (el?.closest?.("input[type=text], textarea, select, [contenteditable]") || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (el?.closest?.("input[type=text], textarea, select, [contenteditable]") || e.metaKey || e.ctrlKey || e.altKey || drawer) return;
       const k = e.key.toLowerCase();
       if (game.street === "done" && (k === "enter" || k === " ")) {
         e.preventDefault();
@@ -311,7 +320,7 @@ export function PokerTable(props: PokerMode) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [opts, heroAct, raiseTo, game.street, deal]);
+  }, [opts, heroAct, raiseTo, game.street, deal, drawer]);
 
   // showdown: reveal everyone who got to the end
   const revealed = useMemo(() => {
@@ -337,7 +346,7 @@ export function PokerTable(props: PokerMode) {
     const profile = s.isHero ? null : lineup[s.id - 1];
     const bubble = chat && chat.seat === s.id ? chat : null;
     labels[`seat${place ? place(s.id) : s.id}`] = (
-      <div className="relative w-max -translate-x-1/2 -translate-y-1/2">
+      <div className="relative w-max">
         <AnimatePresence>
           {bubble && (
             <motion.div
@@ -381,7 +390,7 @@ export function PokerTable(props: PokerMode) {
   }
   labels.pot =
     game.pot > 0 && game.street !== "done" ? (
-      <div className="-translate-x-1/2 -translate-y-1/2 rounded-full bg-ash-950/85 px-3 py-1 text-xs font-bold text-ember-200 ring-1 ring-ember-500/40">Pot {game.pot.toLocaleString()}</div>
+      <div className="w-max rounded-full bg-ash-950/85 px-3 py-1 text-xs font-bold text-ember-200 ring-1 ring-ember-500/40">Pot {game.pot.toLocaleString()}</div>
     ) : null;
 
   const lastEvents = game.log.slice(-6);
@@ -405,73 +414,170 @@ export function PokerTable(props: PokerMode) {
   // 2D table only when the device cannot run WebGL
   const flat = !webglOk;
 
+  /* table gestures: swipe up to bet/raise the sized amount, swipe down to check or fold */
+  const gesture = useRef<{ x: number; y: number; id: number } | null>(null);
+  const gesturesOn = gesturePref === "1" && !!opts;
+  const clampedRaise = opts ? Math.min(opts.maxRaiseTo, Math.max(opts.minRaiseTo, raiseTo)) : 0;
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (!gesturesOn || !e.isPrimary) return;
+    gesture.current = { x: e.clientX, y: e.clientY, id: e.pointerId };
+  };
+  const onPointerUp = (e: React.PointerEvent) => {
+    const g = gesture.current;
+    gesture.current = null;
+    if (!g || g.id !== e.pointerId || !opts) return;
+    const dx = e.clientX - g.x;
+    const dy = e.clientY - g.y;
+    if (Math.abs(dy) < 70 || Math.abs(dy) < Math.abs(dx) * 1.4) return;
+    if (dy < 0 && opts.canRaise) heroAct({ kind: "raise", to: clampedRaise });
+    else if (dy > 0) heroAct(opts.canCheck ? { kind: "check" } : { kind: "fold" });
+  };
+
+  /* bots at the table, and what each is doing */
+  const bots = lineup.map((b, i) => {
+    const seat = game.seats[i + 1];
+    const won = game.street === "done" && game.winners.some((w) => w.seat === seat.id);
+    const mood: BotMood = won
+      ? "won"
+      : seat.folded && game.street !== "done"
+        ? "folded"
+        : game.toAct === seat.id && game.street !== "done"
+          ? "thinking"
+          : seat.lastAction && /^(Bet|Raise|All)/.test(seat.lastAction)
+            ? "aggressive"
+            : "idle";
+    const actKey = game.log.reduce((n, e) => n + (e.kind === "action" && e.seat === seat.id ? 1 : 0), 0);
+    return { seat: seat.id, bot: b, mood, actKey };
+  });
+
+  /* teaching callouts on the felt: the coach's note, your hand, the price of a call */
+  const anchors: Record<string, [number, number, number]> = {};
+  if (coach) {
+    labels.coach = <PokerCoachBubble note={coach} />;
+    anchors.coach = [0, 0.05, 1.02];
+  }
+  if (opts && hero.hole.length === 2) {
+    const odds = opts.toCall > 0 ? potOdds(game) : 0;
+    labels.read = (
+      <div>
+        <HandRead hand={heroHand} odds={odds} toCall={opts.toCall} />
+      </div>
+    );
+    // beside your name tag, clear of your cards and bet
+    anchors.read = [1.35, 0.25, 3.0];
+  }
+
+  const preview = opts && raiseTouched && opts.canRaise ? Math.max(0, clampedRaise - hero.committed) : 0;
+
+  const hud = bot ? (
+    <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl bg-ash-950/60 py-1 pl-1 pr-3 ring-1 ring-ash-700/70 backdrop-blur-md sm:flex-none">
+      <BotAvatar bot={bot} size={32} />
+      <div className="min-w-0 leading-tight">
+        <p className="flex items-center gap-1.5 truncate text-sm font-bold">
+          {bot.name} <span className="tabular text-[11px] font-semibold text-ash-400">{bot.rating}</span>
+        </p>
+        <p className="tabular truncate text-[11px] text-ash-400">
+          Hand {Math.max(1, game.handNo)}/{MATCH.hands} · {game.sb}/{game.bb}
+        </p>
+      </div>
+      <div className="ml-auto hidden h-1.5 w-20 overflow-hidden rounded-full bg-ash-800 sm:block" aria-hidden>
+        <div className="h-full rounded-full bg-gradient-to-r from-ember-600 to-ember-300 transition-all" style={{ width: `${(hero.stack / (MATCH.stack * 2)) * 100}%` }} />
+      </div>
+    </div>
+  ) : (
+    <div className="rounded-xl bg-ash-950/60 px-3 py-2 text-xs font-bold text-ash-200 ring-1 ring-ash-700/70 backdrop-blur-md">
+      6-max · {game.sb}/{game.bb}
+    </div>
+  );
+
   return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_300px] lg:gap-5">
-      <div className="min-w-0">
-        {/* match strip */}
-        {bot && (
-          <div className="mb-3 flex items-center gap-3">
-            <BotAvatar bot={bot} size={40} ring />
-            <div className="min-w-0 flex-1">
-              <p className="flex items-center gap-2 font-display text-sm font-bold">
-                {bot.name} <span className="tabular text-xs font-semibold text-ash-400">{bot.rating}</span>
-              </p>
-              <p className="text-[11px] text-ash-400">
-                Hand {Math.max(1, game.handNo)} of {MATCH.hands} · Blinds {game.sb}/{game.bb}
-              </p>
-            </div>
-            <div className="h-1.5 w-24 overflow-hidden rounded-full bg-ash-800 sm:w-40" aria-hidden>
-              <div className="h-full rounded-full bg-gradient-to-r from-ember-600 to-ember-300 transition-all" style={{ width: `${(game.seats[0].stack / (MATCH.stack * 2)) * 100}%` }} />
-            </div>
-          </div>
-        )}
-
-        {flat ? (
-          <FlatPokerTable game={game} revealed={revealed} labels={labels} place={place} />
-        ) : sceneOn ? (
-          <PokerScene
-            key={`${sceneKey}-${quality}`}
-            game={game}
-            epoch={epoch}
-            delays={delays}
-            revealed={revealed}
-            fx={{ heat: 0, drama: false, blackjackKey: 0, winKey, loseKey: 0 }}
-            labels={labels}
-            place={place}
-            quality={quality}
-          />
-        ) : (
-          <div className="felt h-[min(58dvh,460px)] rounded-[28px] sm:h-[560px]" />
-        )}
-
-        <div className="mt-2 min-h-11" aria-live="polite">
-          <AnimatePresence mode="wait">
-            {coach && (
-              <motion.div
-                key={coach.n}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                className={`flex flex-wrap items-baseline gap-x-2 rounded-2xl px-4 py-2.5 text-sm ring-1 ${
-                  coach.ok === false
-                    ? "bg-ember-500/10 text-ember-100 ring-ember-500/40"
-                    : coach.ok
-                      ? "bg-emerald-500/10 text-emerald-200 ring-emerald-500/30"
-                      : "bg-ash-900 text-ash-200 ring-ash-700"
-                }`}
-              >
-                <span className="font-bold">{coach.title}</span>
-                <span className="text-ash-300">{coach.detail}</span>
-              </motion.div>
+    <GameScreen
+      title={bot ? `Heads-up against ${bot.name}` : "6-max cash game"}
+      backHref="/play/poker/"
+      hud={hud}
+      drawerTitle={bot ? "Match" : "Cash game"}
+      drawerOpen={drawer}
+      onDrawerChange={setDrawer}
+      drawer={
+        <>
+          <DrawerSection title={bot ? "Match" : "Session"}>
+            <dl className="grid grid-cols-4 gap-3 text-xs">
+              <SessionStat label="Hands" value={String(session.hands)} />
+              <SessionStat label="Won" value={String(session.won)} />
+              <SessionStat label="Net" value={`${session.net >= 0 ? "+" : ""}${session.net}`} hot={session.net > 0} />
+              <SessionStat label="Top pot" value={String(session.biggest)} />
+            </dl>
+            {bot ? (
+              <div className="mt-4 flex gap-2">
+                <button
+                  onClick={() => {
+                    setDrawer(false);
+                    if (!result) finishMatch(gameRef.current, true);
+                  }}
+                  disabled={!!result}
+                  className="btn-ash h-10 flex-1 rounded-xl text-xs font-bold"
+                >
+                  Resign
+                </button>
+                <Link href="/play/poker/" className="btn-ash grid h-10 flex-1 place-items-center rounded-xl text-xs font-bold">
+                  Change bot
+                </Link>
+              </div>
+            ) : (
+              <p className="mt-3 text-[11px] text-ash-500">Blinds 5/10, 100 big blinds deep. Bots rebuy when they bust.</p>
             )}
-          </AnimatePresence>
-        </div>
+          </DrawerSection>
 
-        {/* controls: pinned to the thumb zone on phones */}
-        <div className="panel sticky bottom-[calc(env(safe-area-inset-bottom)+8px)] z-20 mt-1 rounded-3xl p-3 sm:p-4 lg:static [@media(max-height:520px)]:static">
+          <DrawerSection title="Coach">
+            <div className="flex flex-col gap-4">
+              <ToggleRow title="Coach" sub="Grades your opens and calls on the table as you play." on={coachPref === "1"} set={(v) => setCoachPref(v ? "1" : "0")} />
+              <ToggleRow title="Auto-deal" sub="Deal the next hand automatically." on={autoPref === "1"} set={(v) => setAutoPref(v ? "1" : "0")} />
+              <ToggleRow title="Table gestures" sub="Swipe up to bet the sized amount, swipe down to check or fold." on={gesturePref === "1"} set={(v) => setGesturePref(v ? "1" : "0")} />
+            </div>
+          </DrawerSection>
+
+          {bot ? (
+            <DrawerSection>
+              <div className="flex items-center gap-3">
+                <BotAvatar bot={bot} size={44} />
+                <div>
+                  <p className="font-display text-sm font-bold">{bot.name}</p>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-ember-400">{STYLE_LABEL[bot.style]}</p>
+                </div>
+              </div>
+              <p className="mt-3 text-xs leading-relaxed text-ash-300">{bot.bio}</p>
+            </DrawerSection>
+          ) : (
+            <DrawerSection title="Opponents">
+              <ul className="space-y-2 text-xs text-ash-400">
+                {lineup.map((b) => (
+                  <li key={b.id} className="flex items-center gap-2">
+                    <BotAvatar bot={b} size={24} />
+                    <span className="flex-1 text-ash-200">{b.name}</span>
+                    <span className="text-[10px] uppercase tracking-wider">{STYLE_LABEL[b.style]}</span>
+                  </li>
+                ))}
+              </ul>
+            </DrawerSection>
+          )}
+
+          <DrawerSection title={`Hand #${game.handNo}`}>
+            <ul className="space-y-1 text-xs">
+              {lastEvents.map((e, i) => (
+                <li key={`${game.handNo}-${game.log.length - lastEvents.length + i}`} className={e.seat === 0 ? "text-ember-200" : "text-ash-300"}>
+                  {youText(e.text)}
+                </li>
+              ))}
+            </ul>
+            {game.board.length > 0 && <p className="mt-2 text-[11px] text-ash-500">Board: {game.board.map(cardLabel).join(" ")}</p>}
+          </DrawerSection>
+        </>
+      }
+      bottom={
+        <div className="pb-1">
           {game.street === "done" ? (
             <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
-              <p className="text-center text-sm text-ash-300 sm:text-left">{winnerLine}</p>
+              <p className="text-center text-sm text-ash-200 sm:text-left">{winnerLine}</p>
               {result ? null : hero.stack === 0 && !bot ? (
                 <button onClick={() => deal(true)} className="btn-fire h-12 w-full rounded-xl px-6 font-bold sm:w-auto">
                   Rebuy 1,000
@@ -480,12 +586,17 @@ export function PokerTable(props: PokerMode) {
                 <p className="text-sm font-bold text-ember-300">Match over…</p>
               ) : (
                 <button onClick={() => deal()} className="btn-fire h-12 w-full rounded-xl px-6 font-bold sm:w-auto">
-                  Next hand <kbd className="ml-1 hidden rounded bg-ash-950/20 px-1.5 py-0.5 font-mono text-[10px] sm:inline">Enter</kbd>
+                  Next hand <kbd className="ml-1 hidden rounded bg-ash-950/20 px-1.5 py-0.5 font-mono text-[10px] lg:inline">Enter</kbd>
                 </button>
               )}
             </div>
           ) : opts ? (
             <div className="flex flex-col gap-2.5">
+              {gesturesOn && (
+                <p className="text-center text-[11px] font-semibold uppercase tracking-[0.16em] text-ash-400 [@media(pointer:fine)]:hidden">
+                  Swipe up to {opts.isOpeningBet ? "bet" : "raise"} · swipe down to {opts.canCheck ? "check" : "fold"}
+                </p>
+              )}
               {opts.canRaise && (
                 <div className="flex items-center gap-1.5">
                   <input
@@ -494,128 +605,87 @@ export function PokerTable(props: PokerMode) {
                     min={opts.minRaiseTo}
                     max={opts.maxRaiseTo}
                     step={1}
-                    value={Math.min(opts.maxRaiseTo, Math.max(opts.minRaiseTo, raiseTo))}
-                    onChange={(e) => setRaiseTo(Number(e.target.value))}
+                    value={clampedRaise}
+                    onChange={(e) => {
+                      setRaiseTo(Number(e.target.value));
+                      setRaiseTouched(true);
+                    }}
                     className="h-2 min-w-0 flex-1 accent-ember-500"
                   />
                   {potPresets.map((p) => (
-                    <button key={p.label} onClick={() => setRaiseTo(p.to)} className="btn-ash h-9 rounded-lg px-2.5 text-xs font-bold">
+                    <button
+                      key={p.label}
+                      onClick={() => {
+                        setRaiseTo(p.to);
+                        setRaiseTouched(true);
+                        play("chip");
+                      }}
+                      className="btn-ash h-9 rounded-lg px-2.5 text-xs font-bold"
+                    >
                       {p.label}
                     </button>
                   ))}
-                  <button onClick={() => setRaiseTo(opts.maxRaiseTo)} className="btn-ash h-9 rounded-lg px-2.5 text-xs font-bold">
+                  <button
+                    onClick={() => {
+                      setRaiseTo(opts.maxRaiseTo);
+                      setRaiseTouched(true);
+                      play("chip");
+                    }}
+                    className="btn-ash h-9 rounded-lg px-2.5 text-xs font-bold"
+                  >
                     Max
                   </button>
                 </div>
               )}
               <div className="grid grid-cols-3 gap-2">
                 <button disabled={!opts.canFold || opts.canCheck} onClick={() => heroAct({ kind: "fold" })} className="btn-ash h-14 rounded-2xl font-bold">
-                  Fold <kbd className="ml-1 hidden font-mono text-[10px] sm:inline">F</kbd>
+                  Fold <kbd className="ml-1 hidden font-mono text-[10px] lg:inline">F</kbd>
                 </button>
                 <button onClick={() => heroAct(opts.canCheck ? { kind: "check" } : { kind: "call" })} className="btn-fire h-14 rounded-2xl font-bold">
-                  {opts.canCheck ? "Check" : `Call ${opts.toCall}`} <kbd className="ml-1 hidden font-mono text-[10px] sm:inline">C</kbd>
+                  {opts.canCheck ? "Check" : `Call ${opts.toCall}`} <kbd className="ml-1 hidden font-mono text-[10px] lg:inline">C</kbd>
                 </button>
                 <button
                   disabled={!opts.canRaise}
-                  onClick={() => heroAct({ kind: "raise", to: Math.min(opts.maxRaiseTo, Math.max(opts.minRaiseTo, raiseTo)) })}
+                  onClick={() => heroAct({ kind: "raise", to: clampedRaise })}
                   className="btn-fire flex h-14 flex-col items-center justify-center rounded-2xl font-bold leading-tight"
                 >
-                  <span className="text-xs opacity-80">{raiseTo >= opts.maxRaiseTo ? "All-in" : opts.isOpeningBet ? "Bet" : "Raise to"}</span>
-                  <span className="tabular">{Math.min(opts.maxRaiseTo, Math.max(opts.minRaiseTo, raiseTo))}</span>
+                  <span className="text-xs opacity-80">{clampedRaise >= opts.maxRaiseTo ? "All-in" : opts.isOpeningBet ? "Bet" : "Raise to"}</span>
+                  <span className="tabular">{clampedRaise}</span>
                 </button>
               </div>
-              {heroHand && game.board.length > 0 && (
-                <p className="text-center text-xs text-ash-400">
-                  You have <span className="font-semibold text-bone">{heroHand}</span>
-                </p>
-              )}
             </div>
           ) : (
-            <p className="py-4 text-center text-sm text-ash-400">
+            <p className="py-3 text-center text-sm text-ash-300">
               {hero.folded ? "You folded. Watching the hand play out…" : `Waiting for ${game.toAct !== null ? game.seats[game.toAct].name : "the deal"}…`}
             </p>
           )}
         </div>
-      </div>
-
-      <aside className="flex min-w-0 flex-col gap-3 lg:gap-4">
-        <div className="panel rounded-3xl p-4 sm:p-5">
-          <h2 className="font-display text-sm font-bold">{bot ? "Match" : "Session"}</h2>
-          <dl className="mt-3 grid grid-cols-4 gap-3 text-xs lg:grid-cols-2">
-            <SessionStat label="Hands" value={String(session.hands)} />
-            <SessionStat label="Won" value={String(session.won)} />
-            <SessionStat label="Net" value={`${session.net >= 0 ? "+" : ""}${session.net}`} hot={session.net > 0} />
-            <SessionStat label="Top pot" value={String(session.biggest)} />
-          </dl>
-          {bot ? (
-            <div className="mt-4 flex gap-2">
-              <button
-                onClick={() => {
-                  if (!result) finishMatch(gameRef.current, true);
-                }}
-                disabled={!!result}
-                className="btn-ash h-10 flex-1 rounded-xl text-xs font-bold"
-              >
-                Resign
-              </button>
-              <Link href="/play/poker/" className="btn-ash grid h-10 flex-1 place-items-center rounded-xl text-xs font-bold">
-                Change bot
-              </Link>
-            </div>
-          ) : (
-            <p className="mt-3 text-[11px] text-ash-500">Blinds 5/10, 100 big blinds deep. Bots rebuy when they bust.</p>
-          )}
-        </div>
-
-        <div className="panel rounded-3xl p-4 sm:p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="font-display text-sm font-bold">Coach</h2>
-              <p className="text-xs text-ash-400">Grades your opens and calls as you play.</p>
-            </div>
-            <Switch label="Coach" on={coachPref === "1"} onChange={(v) => setCoachPref(v ? "1" : "0")} />
-          </div>
-          <div className="mt-4 flex items-center justify-between">
-            <div>
-              <h2 className="font-display text-sm font-bold">Auto-deal</h2>
-              <p className="text-xs text-ash-400">Deal the next hand automatically.</p>
-            </div>
-            <Switch label="Auto-deal" on={autoPref === "1"} onChange={(v) => setAutoPref(v ? "1" : "0")} />
-          </div>
-        </div>
-
-        {bot ? (
-          <div className="panel rounded-3xl p-4 sm:p-5">
-            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-ember-400">{STYLE_LABEL[bot.style]}</p>
-            <p className="mt-1 text-xs leading-relaxed text-ash-300">{bot.bio}</p>
-          </div>
+      }
+    >
+      <PokerSceneArea flat={flat} onPointerDown={onPointerDown} onPointerUp={onPointerUp} onPointerCancel={() => (gesture.current = null)}>
+        {flat ? (
+          <FlatPokerTable game={game} revealed={revealed} labels={labels} place={place} />
+        ) : sceneOn ? (
+          <PokerScene
+            key={`${sceneKey}-${quality}`}
+            fill
+            game={game}
+            epoch={epoch}
+            delays={delays}
+            revealed={revealed}
+            fx={{ heat: 0, drama: false, blackjackKey: 0, winKey, loseKey: 0 }}
+            labels={labels}
+            anchors={anchors}
+            place={place}
+            quality={quality}
+            focus={heroTurn ? "hand" : "table"}
+            bots={bots}
+            preview={preview}
+          />
         ) : (
-          <div className="panel rounded-3xl p-4 sm:p-5 text-xs text-ash-400">
-            <h2 className="mb-2 font-display text-sm font-bold text-bone">Opponents</h2>
-            <ul className="space-y-2">
-              {lineup.map((b) => (
-                <li key={b.id} className="flex items-center gap-2">
-                  <BotAvatar bot={b} size={24} />
-                  <span className="flex-1 text-ash-200">{b.name}</span>
-                  <span className="text-[10px] uppercase tracking-wider">{STYLE_LABEL[b.style]}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
+          <div className="felt absolute inset-0" />
         )}
-
-        <div className="panel hidden rounded-3xl p-5 lg:block">
-          <h2 className="font-display text-sm font-bold">Hand #{game.handNo}</h2>
-          <ul className="mt-2 space-y-1 text-xs">
-            {lastEvents.map((e, i) => (
-              <li key={`${game.handNo}-${game.log.length - lastEvents.length + i}`} className={e.seat === 0 ? "text-ember-200" : "text-ash-300"}>
-                {youText(e.text)}
-              </li>
-            ))}
-          </ul>
-          {game.board.length > 0 && <p className="mt-2 text-[11px] text-ash-500">Board: {game.board.map(cardLabel).join(" ")}</p>}
-        </div>
-      </aside>
+      </PokerSceneArea>
 
       <AnimatePresence>
         {result && bot && (
@@ -628,6 +698,79 @@ export function PokerTable(props: PokerMode) {
           />
         )}
       </AnimatePresence>
+    </GameScreen>
+  );
+}
+
+/** The scene layer; its pointer handlers are the table gestures. */
+function PokerSceneArea({
+  flat,
+  children,
+  ...handlers
+}: {
+  flat: boolean;
+  children: React.ReactNode;
+  onPointerDown: (e: React.PointerEvent) => void;
+  onPointerUp: (e: React.PointerEvent) => void;
+  onPointerCancel: () => void;
+}) {
+  const insets = useGameInsets();
+  return (
+    <div className="absolute inset-0" {...handlers} style={flat ? { paddingTop: insets.top, paddingBottom: insets.bottom } : undefined}>
+      {children}
+    </div>
+  );
+}
+
+function PokerCoachBubble({ note }: { note: CoachNote & { n: number } }) {
+  const tone =
+    note.ok === false
+      ? "bg-ash-950/90 text-ember-50 ring-ember-400/60"
+      : note.ok
+        ? "bg-emerald-950/85 text-emerald-100 ring-emerald-400/40"
+        : "bg-ash-950/85 text-ash-100 ring-ash-600/70";
+  return (
+    <motion.div
+      key={note.n}
+      initial={{ opacity: 0, y: 8, scale: 0.94 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ type: "spring", stiffness: 380, damping: 26 }}
+      aria-live="polite"
+      className={`w-[min(80vw,320px)] whitespace-normal rounded-2xl px-3.5 py-2.5 text-[13px] leading-snug shadow-[0_12px_30px_rgba(0,0,0,0.55)] ring-1 backdrop-blur-md ${tone}`}
+    >
+      <span className="font-bold">{note.title}</span> <span className="opacity-80">{note.detail}</span>
+    </motion.div>
+  );
+}
+
+/** What you're holding, and when facing a bet, the equity a call needs. */
+function HandRead({ hand, odds, toCall }: { hand: string | null; odds: number; toCall: number }) {
+  return (
+    <div className="flex w-max flex-col items-center gap-1">
+      {hand && (
+        <span className="rounded-xl bg-ash-950/80 px-2.5 py-1 text-center leading-tight ring-1 ring-ash-600/70 backdrop-blur-md">
+          <span className="block text-[9px] font-bold uppercase tracking-[0.14em] text-ash-400">You have</span>
+          <span className="block font-display text-xs font-bold text-bone">{hand}</span>
+        </span>
+      )}
+      {toCall > 0 && (
+        <span className="rounded-xl bg-ash-950/80 px-2.5 py-1 text-center leading-tight ring-1 ring-ember-500/40 backdrop-blur-md">
+          <span className="block text-[9px] font-bold uppercase tracking-[0.14em] text-ash-400">To call you need</span>
+          <span className="tabular block font-display text-sm font-black text-ember-300">{Math.round(odds * 100)}% equity</span>
+        </span>
+      )}
+    </div>
+  );
+}
+
+function ToggleRow({ title, sub, on, set }: { title: string; sub: string; on: boolean; set: (v: boolean) => void }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div>
+        <p className="text-sm font-bold">{title}</p>
+        <p className="text-xs text-ash-400">{sub}</p>
+      </div>
+      <Switch label={title} on={on} onChange={set} />
     </div>
   );
 }
@@ -752,7 +895,7 @@ function FlatPokerTable({
           <MiniFace key={`${game.handNo}-${i}`} card={c} />
         ))}
       </div>
-      {labels.pot && <div className="absolute left-1/2 top-[60%]">{labels.pot}</div>}
+      {labels.pot && <div className="absolute left-1/2 top-[60%] -translate-x-1/2 -translate-y-1/2">{labels.pot}</div>}
       {game.seats.map((s) => {
         const pos = P(s.id);
         const showCards = s.hole.length === 2 && !s.folded && (s.isHero || revealed.has(s.id));
@@ -764,7 +907,7 @@ function FlatPokerTable({
                 {s.hole.map((c, i) => (showCards ? <MiniFace key={i} card={c} /> : <span key={i} className="h-10 w-7 rounded-md bg-gradient-to-b from-ember-600 to-ember-900 ring-1 ring-ember-300/30" />))}
               </div>
             )}
-            {labels[`seat${pos}`]}
+            <div className="absolute left-0 top-0 -translate-x-1/2 -translate-y-1/2">{labels[`seat${pos}`]}</div>
           </div>
         );
       })}

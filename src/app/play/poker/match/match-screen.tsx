@@ -11,10 +11,10 @@ export function MatchScreen() {
   const bot = botById(id);
   const p = useProgress();
   const hydrated = useHydrated();
-  if (!hydrated) return <div className="felt h-[min(58dvh,460px)] animate-pulse rounded-[28px]" />;
+  if (!hydrated) return <div className="felt absolute inset-0 animate-pulse" />;
   if (!bot || !isUnlocked(bot.id, p.beaten)) {
     return (
-      <div className="panel mx-auto mt-10 max-w-sm rounded-3xl p-6 text-center">
+      <div className="panel mx-auto mt-[calc(env(safe-area-inset-top)+80px)] max-w-sm rounded-3xl p-6 text-center">
         <p className="font-display text-lg font-bold">{bot ? `${bot.name} is locked` : "Pick an opponent"}</p>
         <p className="mt-1 text-sm text-ash-400">{bot ? "Beat the bot before them on the ladder first." : "That bot doesn't exist."}</p>
         <Link href="/play/poker/" className="btn-fire mt-5 inline-flex h-11 items-center rounded-xl px-5 font-bold">

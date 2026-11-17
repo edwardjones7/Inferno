@@ -2,16 +2,20 @@
 
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type * as THREE from "three";
+import * as THREE from "three";
+import { useGameInsets } from "@/components/game-screen";
+import { stepSpring, type Spring } from "@/game/three/camera-spring";
 import { Card3D } from "@/game/three/cards";
 import { Effects } from "@/game/three/effects";
 import { Environment } from "@/game/three/environment";
-import { SceneFxContext, type SceneFx } from "@/game/three/fx-context";
+import { SceneFxContext, useSceneFx, type SceneFx } from "@/game/three/fx-context";
 import { LabelProjector } from "@/game/three/labels";
 import type { Anchors, CardSlot } from "@/game/three/table-layout";
 import { ShaderWarmup } from "@/game/three/warmup";
 import type { Card } from "@/lib/blackjack/cards";
 import type { PokerState } from "@/lib/poker/game-types";
+import type { BotProfile } from "@/lib/poker/roster";
+import { BotPresence, type BotMood } from "./bot-presence";
 import { ChipPile } from "./poker-chips";
 import { betPos, boardPos, buttonPos, DEAL_ORIGIN, holePos, POT_POS, seatLabelPos } from "./poker-layout";
 import { DealerButton, PokerTableBody } from "./poker-table-body";
@@ -31,6 +35,16 @@ export interface PokerSceneProps {
   labels: Record<string, React.ReactNode>;
   /** table position (0..5) for a seat id; heads-up maps seat 1 across the table */
   place?: (seatId: number) => number;
+  /** fill the parent (full-screen game) instead of the framed card */
+  fill?: boolean;
+  /** "hand" leans the camera in over your cards while it's your decision */
+  focus?: "table" | "hand";
+  /** the bots seated at the table, with what they're doing */
+  bots?: { seat: number; bot: BotProfile; mood: BotMood; actKey: number }[];
+  /** chips you're about to bet, shown on your bet spot while sizing a raise */
+  preview?: number;
+  /** extra label anchors (world space) for overlay content in `labels` */
+  anchors?: Anchors;
 }
 
 const identity = (i: number) => i;
@@ -68,12 +82,74 @@ function labelAnchors(): Anchors {
     const p = seatLabelPos(i);
     a[`seat${i}`] = [p.x, p.y, p.z];
   }
-  a.pot = [POT_POS.x, 0.05, POT_POS.z + 0.42];
+  // beside the pot chips, leaving the space above your cards for the coach
+  a.pot = [POT_POS.x - 1.0, 0.05, POT_POS.z];
   return a;
 }
 const ANCHORS = labelAnchors();
 
-function PokerCamera() {
+/**
+ * The view from your chair: behind your cards, looking across the felt at the board and the
+ * other players. The distance is fitted to the screen (a tall phone sits higher and further
+ * back so the board still fits), the image is centred between the HUD and the controls, and
+ * the camera leans in over your cards while it's your decision.
+ */
+function PokerCamera({ focus, span, insets }: { focus: "table" | "hand"; span: number; insets: { top: number; bottom: number } }) {
+  const fx = useSceneFx();
+  const lean = useRef<Spring>({ x: 0, v: 0 });
+  const shift = useRef<Spring>({ x: 0, v: 0 });
+  const look = useMemo(() => new THREE.Vector3(), []);
+  useFrame((state, delta) => {
+    const cam = state.camera as THREE.PerspectiveCamera;
+    const dt = Math.min(delta, 0.1);
+    const { width, height } = state.size;
+    const usable = Math.max(120, height - insets.top - insets.bottom);
+    const aspect = width / usable;
+    const portrait = aspect < 1.15;
+    const fov = portrait ? 54 : 44;
+    // phones sit a little lower so the hanging lamp clears the line to the far seats
+    const elev = THREE.MathUtils.degToRad(portrait ? 43 : 36);
+    const half = Math.tan(THREE.MathUtils.degToRad(fov / 2));
+    const dist = Math.max(portrait ? 6.4 : 6.6, span / (half * aspect));
+    const still = fx.reducedMotion;
+    const step = (sp: Spring, target: number, omega: number) => {
+      if (still) {
+        sp.x = target;
+        sp.v = 0;
+      } else stepSpring(sp, target, omega, dt);
+      return sp.x;
+    };
+    const t = THREE.MathUtils.clamp(step(lean.current, focus === "hand" ? 1 : 0, 5), 0, 1);
+    const px = step(shift.current, (insets.bottom - insets.top) / 2, 10);
+
+    // lean: a little closer and lower, looking slightly nearer (your cards and the board)
+    const d = dist * (1 - 0.12 * t);
+    const e = elev - THREE.MathUtils.degToRad(5) * t;
+    look.set(0, 0, (portrait ? 0.05 : -0.25) + 0.25 * t);
+    cam.position.set(0, look.y + Math.sin(e) * d, look.z + Math.cos(e) * d);
+    cam.lookAt(look);
+    cam.fov = fov;
+    if (height > usable) cam.fov = THREE.MathUtils.radToDeg(Math.atan(half * (height / usable)) * 2);
+    cam.updateProjectionMatrix();
+    if (px !== 0) {
+      cam.projectionMatrix.elements[9] -= (2 * px) / height;
+      cam.projectionMatrixInverse.copy(cam.projectionMatrix).invert();
+    }
+  });
+  return null;
+}
+
+/** Half-width of what must be in frame: the board heads-up, the whole table at 6-max. */
+const spanFor = (seats: number, portrait: boolean) => (seats <= 2 ? 2.1 : portrait ? 2.6 : 4.4);
+
+function FramedCamera({ focus, seats, insets }: { focus: "table" | "hand"; seats: number; insets: { top: number; bottom: number } }) {
+  const size = useThree((st) => st.size);
+  const portrait = size.width / Math.max(1, size.height - insets.top - insets.bottom) < 1.15;
+  return <PokerCamera focus={focus} span={spanFor(seats, portrait)} insets={insets} />;
+}
+
+/** The original fixed camera, for the framed (non full-screen) table. */
+function ClassicCamera() {
   useFrame((state) => {
     const cam = state.camera as THREE.PerspectiveCamera;
     const narrow = state.size.width / state.size.height < 1.15;
@@ -89,7 +165,23 @@ function PokerCamera() {
   return null;
 }
 
-function Scene({ game, epoch, delays, revealed, labelEls, place }: PokerSceneProps & { labelEls: React.RefObject<Map<string, HTMLDivElement>> }) {
+const PREVIEW_POS = new THREE.Vector3(0.55, 0, 1.08);
+const NO_INSETS = { top: 0, bottom: 0 };
+
+function Scene({
+  game,
+  epoch,
+  delays,
+  revealed,
+  labelEls,
+  place,
+  focus,
+  bots,
+  preview,
+  anchors,
+  insets,
+  fill,
+}: PokerSceneProps & { labelEls: React.RefObject<Map<string, HTMLDivElement>>; insets: { top: number; bottom: number } }) {
   const P = place ?? identity;
   const slots = slotsFor(game, revealed, P);
   const done = game.street === "done";
@@ -129,8 +221,19 @@ function Scene({ game, epoch, delays, revealed, labelEls, place }: PokerScenePro
       {done &&
         game.winners.map((w) => <ChipPile key={`${game.handNo}:win${w.seat}:${w.pot}`} amount={w.amount} to={betPos(P(w.seat))} from={POT_POS} />)}
 
-      <LabelProjector anchors={ANCHORS} els={labelEls} />
-      <PokerCamera />
+      {/* the raise you're sizing, slid out in front of you before you commit it */}
+      {!done && preview && preview > 0 ? (
+        <ChipPile key={`${game.handNo}:${game.street}:preview`} amount={preview} to={PREVIEW_POS} from={holePos(0)} />
+      ) : null}
+
+      {bots?.map((b) => <BotPresence key={b.seat} bot={b.bot} place={P(b.seat)} mood={b.mood} actKey={b.actKey} />)}
+
+      <LabelProjector
+        anchors={anchors ? { ...ANCHORS, ...anchors } : ANCHORS}
+        els={labelEls}
+        clamp={fill ? { x: 8, top: insets.top + 28, bottom: insets.bottom + 28 } : undefined}
+      />
+      {fill ? <FramedCamera focus={focus ?? "table"} seats={game.seats.length} insets={insets} /> : <ClassicCamera />}
       <Effects />
     </>
   );
@@ -168,6 +271,7 @@ function Precompile({ onReady }: { onReady: () => void }) {
 }
 
 export default function PokerScene(props: PokerSceneProps) {
+  const insets = useGameInsets();
   const labelEls = useRef(new Map<string, HTMLDivElement>());
   const register = useCallback(
     (id: string) => (el: HTMLDivElement | null) => {
@@ -195,7 +299,13 @@ export default function PokerScene(props: PokerSceneProps) {
   const fx = useMemo<SceneFx>(() => ({ ...props.fx, reducedMotion, quality: props.quality ?? "high" }), [props.fx, reducedMotion, props.quality]);
 
   return (
-    <div className="relative h-[min(58dvh,460px)] overflow-hidden rounded-[28px] ring-1 ring-ember-500/25 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.9),0_0_60px_-20px_rgba(255,90,31,0.35)] sm:h-[560px] sm:rounded-[44px]">
+    <div
+      className={
+        props.fill
+          ? "absolute inset-0 overflow-hidden"
+          : "relative h-[min(58dvh,460px)] overflow-hidden rounded-[28px] ring-1 ring-ember-500/25 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.9),0_0_60px_-20px_rgba(255,90,31,0.35)] sm:h-[560px] sm:rounded-[44px]"
+      }
+    >
       <div className={`felt absolute inset-0 transition-opacity duration-500 ${live ? "opacity-0" : "animate-pulse opacity-100"}`} />
       {fontsReady && (
         <Canvas
@@ -212,7 +322,7 @@ export default function PokerScene(props: PokerSceneProps) {
         >
           <Precompile onReady={markLive} />
           <SceneFxContext.Provider value={fx}>
-            <Scene {...props} labelEls={labelEls} />
+            <Scene {...props} labelEls={labelEls} insets={props.fill ? insets : NO_INSETS} />
           </SceneFxContext.Provider>
         </Canvas>
       )}
