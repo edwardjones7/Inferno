@@ -165,9 +165,9 @@ function ChipsPill() {
   const hydrated = useHydrated();
   return (
     <Link
-      href="/play/blackjack/"
+      href="/chips/"
       className="tabular flex h-9 items-center gap-1.5 rounded-xl border border-ash-700 bg-ash-900 px-2.5 text-sm font-bold text-bone"
-      aria-label="Blackjack chips"
+      aria-label="Chips"
     >
       <span className="h-3.5 w-3.5 rounded-full bg-[repeating-conic-gradient(#ffc24b_0_20deg,#e5360f_20deg_60deg)] shadow-[0_0_6px_rgba(255,122,31,0.6)]" />
       {hydrated ? formatChips(unitsToChips(p.chips), { compact: true }) : "–"}

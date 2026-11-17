@@ -21,9 +21,11 @@ import { bustIfHit, dealerBust, pct } from "@/lib/blackjack/odds";
 import { basicStrategy, MOVE_LABEL } from "@/lib/blackjack/strategy";
 import { isTableId, TABLE_IDS, TABLES, tableOf } from "@/lib/blackjack/tables";
 import { whatIf } from "@/lib/blackjack/what-if";
-import { chipsToUnits, formatChips, MAX_BET, MIN_BET, REFILL_TO, unitsToChips } from "@/lib/chips";
+import { chipsToUnits, formatChips, MAX_BET, MIN_BET, unitsToChips } from "@/lib/chips";
 import { useAdBreakOnLeave } from "@/lib/ads";
-import { GameError, playAction, refill, settleAbandoned, startRound, type RoundPayload } from "@/lib/blackjack/session";
+import { GameError, playAction, settleAbandoned, startRound, type RoundPayload } from "@/lib/blackjack/session";
+import { useSettleLeftSeat } from "@/lib/earn";
+import { OutOfChipsSheet } from "@/components/earn";
 import { resolveQuality, useGraphics } from "@/lib/settings";
 import { getProgress, useHydrated, useProgress } from "@/lib/store";
 import { play, setAmbienceHeat, startAmbience, stopAmbience } from "@/lib/sound";
@@ -95,13 +97,13 @@ interface Replay {
 }
 
 export function BlackjackTable() {
+  useSettleLeftSeat();
   const progress = useProgress();
+  const [earnOpen, setEarnOpen] = useState(false);
   const ready = useHydrated();
   // the balance shown at the table only moves when a result is revealed, not when the
   // store settles the hand (which happens before the cards finish animating)
   const [shownUnits, setShownUnits] = useState<number | null>(null);
-  const balanceUnits = shownUnits ?? progress.chips;
-  const balanceChips = unitsToChips(balanceUnits);
   const setWallet = useCallback((units: number) => setShownUnits(units), []);
   // Every fresh visit starts at an empty table. A hand left unfinished from a previous
   // visit is completed (stand / no insurance, like a casino treats an abandoned hand).
@@ -192,6 +194,10 @@ export function BlackjackTable() {
   useAdBreakOnLeave("blackjack-leave", view?.phase === "settled" ? (round?.id ?? null) : null);
   const toUsd = unitsToChips;
   const inPlay = !!view && view.phase !== "settled";
+  // between hands the stored balance is the truth (it also picks up chips claimed meanwhile)
+  const balanceUnits = !inPlay && revealed ? progress.chips : (shownUnits ?? progress.chips);
+  const balanceChips = unitsToChips(balanceUnits);
+  const broke = ready && !inPlay && revealed && balanceChips < MIN_BET;
 
   /** Apply a game response: schedule card animations, then reveal the outcome. */
   const receive = useCallback(
@@ -460,11 +466,9 @@ export function BlackjackTable() {
           balance={balanceChips}
           ready={ready}
           inPlay={inPlay}
-          onRefill={() => {
-            refill(REFILL_TO);
-            setShownUnits(null);
-            play("win");
-            toast.success(`Topped up to ${formatChips(REFILL_TO)} chips`);
+          onGetChips={() => {
+            setDrawer(false);
+            setEarnOpen(true);
           }}
           coach={coach}
           setCoach={(v) => setCoachPref(v ? "1" : "0")}
@@ -491,6 +495,8 @@ export function BlackjackTable() {
           locked={!revealed}
           betTooBig={betTooBig}
           balance={balanceChips}
+          broke={broke}
+          onGetChips={() => setEarnOpen(true)}
           canUndo={betStack.length > 0}
           again={!!view}
           hint={hint}
@@ -570,6 +576,16 @@ export function BlackjackTable() {
           </div>
         )}
       </SceneArea>
+
+      <OutOfChipsSheet
+        open={earnOpen}
+        onClose={() => setEarnOpen(false)}
+        need={
+          balanceChips < MIN_BET
+            ? `You're out of chips. The smallest bet is ${formatChips(MIN_BET)}.`
+            : `You have ${formatChips(balanceChips)} chips. Here's how to get more.`
+        }
+      />
     </GameScreen>
   );
 }
@@ -642,6 +658,8 @@ function Dock(props: {
   locked: boolean;
   betTooBig: boolean;
   balance: number;
+  broke: boolean;
+  onGetChips: () => void;
   canUndo: boolean;
   again: boolean;
   hint: PlayAction | null;
@@ -764,6 +782,19 @@ function Dock(props: {
 
   // betting
   const { bet, betTooBig } = props;
+  if (props.broke) {
+    return (
+      <div className="flex flex-col items-center gap-3 pb-1 sm:flex-row sm:justify-between">
+        <div className="text-center sm:text-left">
+          <p className="font-display text-sm font-bold">You&apos;re out of chips</p>
+          <p className="text-sm text-ash-300">Check in, finish a challenge or take the comeback chips to keep playing.</p>
+        </div>
+        <button onClick={props.onGetChips} className="btn-fire h-12 w-full rounded-xl px-6 font-display text-sm font-bold uppercase tracking-wider sm:w-auto">
+          Get chips
+        </button>
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col gap-2.5 pb-1">
       {props.mistake && (
@@ -812,7 +843,13 @@ function Dock(props: {
         </button>
       </div>
       {betTooBig && (
-        <p className="text-center text-xs text-ember-300">Not enough chips ({formatChips(props.balance)}). Lower the bet or refill in settings.</p>
+        <p className="text-center text-xs text-ember-300">
+          Not enough chips ({formatChips(props.balance)}). Lower the bet or{" "}
+          <button onClick={props.onGetChips} className="font-bold underline decoration-ember-500/60 underline-offset-2">
+            get more chips
+          </button>
+          .
+        </p>
       )}
     </div>
   );
@@ -891,7 +928,7 @@ function TableDrawer(props: {
   balance: number;
   ready: boolean;
   inPlay: boolean;
-  onRefill: () => void;
+  onGetChips: () => void;
   coach: boolean;
   setCoach: (v: boolean) => void;
   hints: boolean;
@@ -909,11 +946,11 @@ function TableDrawer(props: {
       <DrawerSection>
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-ash-500">Practice chips</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-ash-500">Chips</p>
             <p className="tabular mt-1 font-display text-2xl font-bold">{props.ready ? formatChips(props.balance) : "–"}</p>
           </div>
-          <button onClick={props.onRefill} disabled={!props.ready || props.inPlay || props.balance >= REFILL_TO} className="btn-ash h-10 rounded-xl px-3.5 text-xs font-bold">
-            Refill
+          <button onClick={props.onGetChips} disabled={!props.ready} className="btn-ash h-10 rounded-xl px-3.5 text-xs font-bold">
+            Get chips
           </button>
         </div>
       </DrawerSection>

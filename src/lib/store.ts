@@ -11,7 +11,8 @@ import type { Card } from "./blackjack/cards";
 import type { Decision } from "./blackjack/coach";
 import type { HandResult, RoundState } from "./blackjack/engine";
 import type { TableId } from "./blackjack/tables";
-import { chipsToUnits, STARTING_CHIPS } from "./chips";
+import { chipsToUnits } from "./chips";
+import { freshEconomy, STARTING_CHIPS, type CashSeat, type EconomyState } from "./economy";
 import type { HandEvent } from "./poker/game-types";
 import { difficultyOf, rate, START_RATING } from "./rating";
 import { schedule, srsId, type SrsCard } from "./srs";
@@ -98,8 +99,12 @@ export interface Progress {
   v: 1;
   name: string;
   createdAt: number;
-  /** blackjack balance in chip units (see chips.ts) */
+  /** the chip balance, in chip units (see chips.ts), shared by blackjack and the cash game */
   chips: number;
+  /** check-in, ads, claimed challenges, Pro grants and the grant ledger (see economy.ts) */
+  economy: EconomyState;
+  /** chips sitting at the 6-max cash table, if you're seated (see economy.ts sitDown) */
+  cashSeat: CashSeat | null;
   activeRound: ActiveRound | null;
   bjRounds: BjRoundRecord[];
   drills: DrillRecord[];
@@ -127,6 +132,8 @@ export function freshProgress(now = 0): Progress {
     name: "",
     createdAt: now,
     chips: chipsToUnits(STARTING_CHIPS),
+    economy: freshEconomy(),
+    cashSeat: null,
     activeRound: null,
     bjRounds: [],
     drills: [],
@@ -239,9 +246,12 @@ function trim(p: Progress) {
 }
 
 export function resetProgress() {
-  const name = load().name;
+  const { name, economy } = load();
   cache = null;
   const p = { ...freshProgress(Date.now()), name };
+  // a reset starts the chips over, but one-off member grants stay claimed
+  p.economy.proSignup = economy.proSignup;
+  p.economy.proMonth = economy.proMonth;
   cache = p;
   persist(p);
   listeners.forEach((l) => l());

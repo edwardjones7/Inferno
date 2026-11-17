@@ -5,9 +5,7 @@
  */
 export const CHIP_UNITS = 100;
 
-export const STARTING_CHIPS = 2_500;
-/** Refills top the balance back up to this many chips. */
-export const REFILL_TO = 2_500;
+/** Starting stack, grants, caps and buy-ins live in economy.ts. */
 export const MIN_BET = 1;
 export const MAX_BET = 5_000;
 

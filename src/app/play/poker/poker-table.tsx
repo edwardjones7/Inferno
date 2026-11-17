@@ -20,7 +20,12 @@ import { coachHero } from "@/lib/poker/table-coach";
 import { youText } from "@/lib/poker/text";
 import { resolveQuality, useGraphics } from "@/lib/settings";
 import { play } from "@/lib/sound";
-import { applyRating, getProgress, touchDay, update, type PokerNote } from "@/lib/store";
+import { applyRating, getProgress, touchDay, update, useHydrated, useProgress, type PokerNote } from "@/lib/store";
+import { formatChips, unitsToChips } from "@/lib/chips";
+import { buyInFor, CASH_BLINDS, CASH_BUY_IN, CASH_MIN_BUY_IN } from "@/lib/economy";
+import { EconomyError, leaveSeat, rebuy, saveSeatStack, takeSeat } from "@/lib/earn";
+import { OutOfChipsSheet } from "@/components/earn";
+import { toast } from "sonner";
 import { isBoolString, useStored } from "@/lib/use-stored";
 import { boardKey, holeKey } from "@/game/poker-three/poker-scene";
 import type { BotMood } from "@/game/poker-three/bot-presence";
@@ -30,8 +35,11 @@ const PokerScene = dynamic(() => import("@/game/poker-three/poker-scene"), {
   loading: () => <div className="felt absolute inset-0 animate-pulse" />,
 });
 
-const TABLE_STACK = 1000;
+/** the bots' stacks at the cash table (they rebuy for free; the hero buys in from the balance) */
+const TABLE_STACK = CASH_BUY_IN;
 const NEXT_HAND_MS = 3600;
+
+const withHeroStack = (g: PokerState, stack: number): PokerState => ({ ...g, seats: g.seats.map((s) => (s.isHero ? { ...s, stack } : s)) });
 
 let webgl: boolean | null = null;
 function hasWebGL() {
@@ -87,10 +95,17 @@ export function PokerTable(props: PokerMode) {
   const lineup = useMemo(() => (bot ? [bot] : TABLE_LINEUP.map((id) => botById(id)!)), [bot]);
   const stack = bot ? MATCH.stack : TABLE_STACK;
 
+  // at the cash table the hero starts with nothing until the buy-in comes out of the balance
   const fresh = useCallback(() => {
-    const [sb, bb] = bot ? blindsFor(1) : [5, 10];
-    return newTable({ heroName: "You", bots: lineup.map((b) => ({ name: b.name, style: b.style, skill: b.skill })), stack, sb, bb });
+    const [sb, bb] = bot ? blindsFor(1) : CASH_BLINDS;
+    const g = newTable({ heroName: "You", bots: lineup.map((b) => ({ name: b.name, style: b.style, skill: b.skill })), stack, sb, bb });
+    return bot ? g : withHeroStack(g, 0);
   }, [bot, lineup, stack]);
+  const progress = useProgress();
+  const hydrated = useHydrated();
+  /** cash table: a buy-in is on the table */
+  const [seated, setSeated] = useState(false);
+  const [earnOpen, setEarnOpen] = useState(false);
 
   const [game, setGame] = useState<PokerState>(fresh);
   const [epoch, setEpoch] = useState(0);
@@ -217,6 +232,9 @@ export function PokerTable(props: PokerMode) {
         }
         if (matchOver(next)) setTimeout(() => finishMatch(next), showdownAt * 1000 + 900);
       }
+      // the seat in the store follows the hero's stack (chips behind, not in the pot), so
+      // leaving or a closed app settles exactly what's in front of you
+      if (!bot) saveSeatStack(next.seats[0].stack);
       setDelays(d);
       gameRef.current = next;
       setGame(next);
@@ -227,13 +245,13 @@ export function PokerTable(props: PokerMode) {
   );
 
   const deal = useCallback(
-    (rebuyHero = false) => {
+    () => {
       const g = gameRef.current;
       if (g.street !== "done" || result || matchOver(g)) return;
-      // table mode: bots rebuy when busted so it stays full; the hero only on request
+      // table mode: bots rebuy when busted so it stays full; the hero rebuys from the balance
       const topped: PokerState = {
         ...g,
-        seats: g.seats.map((s) => (s.stack === 0 && !bot && (!s.isHero || rebuyHero) ? { ...s, stack: TABLE_STACK } : s)),
+        seats: g.seats.map((s) => (s.stack === 0 && !bot && !s.isHero ? { ...s, stack: TABLE_STACK } : s)),
       };
       if (bot) [topped.sb, topped.bb] = blindsFor(g.handNo + 1);
       if (topped.seats[0].stack === 0) return;
@@ -253,6 +271,74 @@ export function PokerTable(props: PokerMode) {
     queueMicrotask(() => deal());
     if (bot) say(1, bot.lines.greet, 700);
   }, [game.handNo, deal, bot, say]);
+
+  /* ---------------------------------------------------------------- cash table seat */
+
+  /** A fresh table with the hero holding `stack`, dealt straight away when there is one. */
+  const openTable = useCallback(
+    (heroStack: number) => {
+      const g = withHeroStack(fresh(), heroStack);
+      gameRef.current = g;
+      notes.current = [];
+      setSeated(heroStack > 0);
+      setSession({ hands: 0, net: 0, won: 0, biggest: 0 });
+      setCoach(null);
+      setGame(g);
+      setEpoch((e) => e + 1);
+      if (heroStack > 0) deal();
+    },
+    [fresh, deal],
+  );
+
+  /** Buy in from the balance and sit down. */
+  const sit = useCallback(() => {
+    let amount = 0;
+    try {
+      amount = takeSeat();
+    } catch (e) {
+      if (!(e instanceof EconomyError)) throw e;
+    }
+    return amount;
+  }, []);
+
+  // Sitting at the cash table buys in; leaving it (back button, another tab, the page being
+  // hidden) cashes the stack back into the balance. A seat left by a closed app is settled
+  // by the next screen that opens (see useSettleLeftSeat).
+  useEffect(() => {
+    if (bot) return;
+    const amount = sit();
+    queueMicrotask(() => openTable(amount));
+    return () => {
+      leaveSeat();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per visit; openTable is stable for the cash table
+  }, [bot]);
+
+  const buyIn = () => {
+    const amount = sit();
+    if (amount) {
+      play("chip");
+      openTable(amount);
+    } else setEarnOpen(true);
+  };
+
+  /** Rebuy (or top up a short stack) to 100bb between hands. */
+  const topUp = () => {
+    const g = gameRef.current;
+    if (bot || g.street !== "done") return;
+    try {
+      const added = rebuy(g.seats[0].stack);
+      const next = withHeroStack(g, g.seats[0].stack + added);
+      gameRef.current = next;
+      setGame(next);
+      play("chip");
+      toast(`Added ${formatChips(added)} chips to your stack`);
+      if (g.seats[0].stack === 0) deal();
+    } catch (e) {
+      if (!(e instanceof EconomyError)) throw e;
+      setEarnOpen(true);
+    }
+  };
 
   // bots act on their turn
   useEffect(() => {
@@ -274,6 +360,9 @@ export function PokerTable(props: PokerMode) {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- matchOver only reads `bot`
   }, [game, autoPref, deal, result]);
+
+  const balance = Math.floor(unitsToChips(progress.chips));
+  const canBuyIn = hydrated ? buyInFor(progress) : 0;
 
   const heroTurn = game.toAct === 0 && game.street !== "done";
   const opts = heroTurn ? legal(game) : null;
@@ -528,7 +617,31 @@ export function PokerTable(props: PokerMode) {
                 </Link>
               </div>
             ) : (
-              <p className="mt-3 text-[11px] text-ash-500">Blinds 5/10, 100 big blinds deep. Bots rebuy when they bust.</p>
+              <>
+                <dl className="mt-4 grid grid-cols-2 gap-3 rounded-2xl bg-ash-950/50 p-3 text-xs ring-1 ring-ash-800">
+                  <SessionStat label="At the table" value={formatChips(hero.stack + hero.totalCommitted)} />
+                  <SessionStat label="Your chips" value={hydrated ? formatChips(balance) : "–"} />
+                </dl>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    onClick={() => {
+                      setDrawer(false);
+                      topUp();
+                    }}
+                    disabled={!seated || game.street !== "done" || hero.stack >= CASH_BUY_IN || hero.stack + Math.min(balance, CASH_BUY_IN - hero.stack) < CASH_MIN_BUY_IN}
+                    className="btn-ash h-10 flex-1 rounded-xl text-xs font-bold"
+                  >
+                    Top up to {formatChips(CASH_BUY_IN)}
+                  </button>
+                  <Link href="/play/" className="btn-ash grid h-10 flex-1 place-items-center rounded-xl text-xs font-bold">
+                    Leave table
+                  </Link>
+                </div>
+                <p className="mt-3 text-[11px] leading-relaxed text-ash-500">
+                  Blinds {CASH_BLINDS[0]}/{CASH_BLINDS[1]}. You buy in for up to 100 big blinds from your chips, and your stack goes back to them when you leave. Leaving
+                  mid-hand folds the hand. Bots rebuy when they bust.
+                </p>
+              </>
             )}
           </DrawerSection>
 
@@ -579,14 +692,39 @@ export function PokerTable(props: PokerMode) {
       }
       bottom={
         <div className="pb-1">
-          {game.street === "done" ? (
+          {!bot && game.street === "done" && hero.stack === 0 ? (
+            <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
+              <div className="text-center sm:text-left">
+                <p className="font-display text-sm font-bold">
+                  {!hydrated ? " " : seated ? "You're out of chips at this table" : canBuyIn ? "Take a seat" : "Not enough chips to sit down"}
+                </p>
+                <p className="text-sm text-ash-300">
+                  {!hydrated
+                    ? " "
+                    : canBuyIn
+                      ? `Buy in for ${formatChips(canBuyIn)} from your ${formatChips(balance)} chips.`
+                      : `The buy-in is ${formatChips(CASH_MIN_BUY_IN)}–${formatChips(CASH_BUY_IN)}. You have ${formatChips(balance)}.`}
+                </p>
+              </div>
+              {canBuyIn ? (
+                <div className="flex w-full gap-2 sm:w-auto">
+                  <button onClick={() => setEarnOpen(true)} className="btn-ash h-12 flex-1 rounded-xl px-4 text-sm font-bold sm:flex-none">
+                    Get chips
+                  </button>
+                  <button onClick={seated ? topUp : buyIn} className="btn-fire h-12 flex-[2] rounded-xl px-6 font-bold sm:flex-none">
+                    {seated ? "Rebuy" : "Buy in"} {formatChips(canBuyIn)}
+                  </button>
+                </div>
+              ) : (
+                <button onClick={() => setEarnOpen(true)} disabled={!hydrated} className="btn-fire h-12 w-full rounded-xl px-6 font-bold sm:w-auto">
+                  Get chips
+                </button>
+              )}
+            </div>
+          ) : game.street === "done" ? (
             <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
               <p className="text-center text-sm text-ash-200 sm:text-left">{winnerLine}</p>
-              {result ? null : hero.stack === 0 && !bot ? (
-                <button onClick={() => deal(true)} className="btn-fire h-12 w-full rounded-xl px-6 font-bold sm:w-auto">
-                  Rebuy 1,000
-                </button>
-              ) : matchOver(game) ? (
+              {result ? null : matchOver(game) ? (
                 <p className="text-sm font-bold text-ember-300">Match over…</p>
               ) : (
                 <button onClick={() => deal()} className="btn-fire h-12 w-full rounded-xl px-6 font-bold sm:w-auto">
@@ -703,6 +841,14 @@ export function PokerTable(props: PokerMode) {
           />
         )}
       </AnimatePresence>
+
+      {!bot && (
+        <OutOfChipsSheet
+          open={earnOpen}
+          onClose={() => setEarnOpen(false)}
+          need={`The cash game buy-in is ${formatChips(CASH_MIN_BUY_IN)} to ${formatChips(CASH_BUY_IN)} chips. You have ${formatChips(balance)}.`}
+        />
+      )}
     </GameScreen>
   );
 }
