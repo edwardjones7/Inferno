@@ -18,7 +18,7 @@ function fontFamily(varName: string, fallback: string) {
   const v = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
   return v || fallback;
 }
-export const display = () => fontFamily("--font-unbounded", "sans-serif");
+export const display = () => fontFamily("--font-display", "serif");
 export const sans = () => fontFamily("--font-manrope", "sans-serif");
 
 export function canvas(w: number, h: number) {

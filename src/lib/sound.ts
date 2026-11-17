@@ -26,7 +26,7 @@ export type Sfx =
   | "click"
   /** a losing hand burning away */
   | "burn"
-  /** the flame jet on a blackjack */
+  /** the payoff on a blackjack: sparks off a struck match and a lamp flare */
   | "flame"
   /** chips landing / settling on the felt */
   | "clack"

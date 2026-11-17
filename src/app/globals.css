@@ -307,18 +307,20 @@ body::after {
   }
 }
 
-/* The table: dark felt, a molten rim, and faint lava cracks bleeding in from the edges. */
+/* The table as it reads under the lamp: green baize pooled with light, a brass trim line inside
+   an oxblood leather edge, and a faint warm glow at the rail (matches the 3D tables). */
 @utility felt {
   background:
-    radial-gradient(ellipse 70% 55% at 50% 38%, rgb(70 26 14 / 0.55), transparent 70%),
-    radial-gradient(ellipse at 50% 120%, rgb(255 90 31 / 0.22), transparent 55%),
-    linear-gradient(180deg, #1a0f0b, #0f0907 70%);
+    radial-gradient(ellipse 65% 55% at 50% 36%, rgb(46 92 58 / 0.75), transparent 72%),
+    radial-gradient(ellipse at 50% 120%, rgb(255 140 60 / 0.1), transparent 55%),
+    linear-gradient(180deg, #123020, #0a1a12 70%);
   box-shadow:
-    inset 0 0 0 1px rgb(255 122 31 / 0.25),
-    inset 0 0 80px rgb(0 0 0 / 0.85),
-    inset 0 -30px 80px -40px rgb(255 90 31 / 0.5),
-    0 30px 80px -30px rgb(0 0 0 / 0.9),
-    0 0 60px -20px rgb(255 90 31 / 0.35);
+    inset 0 0 0 1px rgb(174 147 93 / 0.55),
+    inset 0 0 0 5px #3a1410,
+    inset 0 0 0 6px rgb(174 147 93 / 0.3),
+    inset 0 0 80px rgb(0 0 0 / 0.8),
+    inset 0 -30px 80px -40px rgb(255 120 40 / 0.22),
+    0 30px 80px -30px rgb(0 0 0 / 0.9);
 }
 
 @utility no-scrollbar {
