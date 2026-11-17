@@ -136,7 +136,10 @@ export function coachHero(state: PokerState, action: PlayerAction): CoachNote {
     const limpers = state.seats.filter((x) => x.id !== seatId && x.hole.length > 0 && !x.folded && x.lastAction?.startsWith("Call")).length;
     if (pos === "BB" && L.canCheck) {
       if (action.kind === "check") return note(null, "Free flop", "Nobody raised, so checking your option is fine; raise strong hands for value.");
-      if (isRaise) return note(true, "Raising your option", `Raising ${code} from the big blind punishes the limp${limpers > 1 ? "ers" : ""}.`);
+      if (isRaise)
+        return ISO_VALUE.has(code)
+          ? note(true, "Raising your option", `Raising ${code} from the big blind punishes the limp${limpers > 1 ? "ers" : ""}.`)
+          : note(null, "Raising light", `${code} is a thin raise out of position against the limp${limpers > 1 ? "ers" : ""}; checking for a free flop is fine.`);
     }
     if (pos !== "BB") return limpers ? coachBehindLimpers(action, pos, code, limpers) : coachOpen(action, pos, code);
   }

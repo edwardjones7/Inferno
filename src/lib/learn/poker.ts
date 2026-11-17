@@ -272,7 +272,7 @@ export const POKER_LESSONS: Lesson[] = [
           { id: "BTN", label: "Button" },
         ],
         answer: "BTN",
-        why: "The button. The blinds act last only before the flop; after it they act first.",
+        why: "The button. Before the flop the big blind acts last; after it the blinds act first on every street.",
       },
     ],
   },

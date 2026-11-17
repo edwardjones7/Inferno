@@ -352,8 +352,8 @@ function matchup(h: [Card, Card], v: [Card, Card]): { key: string; label: string
   if (hv.some((x) => vv.includes(x))) return { key: "dominated", label: "Shared card (domination)", tip: "When you share a card, the better kicker wins about 70% of the time." };
   const [hHi, hLo] = [Math.max(...hv), Math.min(...hv)];
   const [vHi, vLo] = [Math.max(...vv), Math.min(...vv)];
-  if (hLo > vHi || vLo > hHi) return { key: "two-over-two", label: "Two overs vs two unders", tip: "Two higher cards vs two lower cards is roughly 60/40." };
-  return { key: "interleaved", label: "Mixed unpaired hands", tip: "Overlapping unpaired hands are usually within 55/45." };
+  if (hLo > vHi || vLo > hHi) return { key: "two-over-two", label: "Two overs vs two unders", tip: "Two higher cards vs two lower cards runs roughly 60/40 to 65/35 (less when the low hand is suited and connected)." };
+  return { key: "interleaved", label: "Mixed unpaired hands", tip: "Overlapping unpaired hands are close: anywhere from about 50/50 to 65/35, with the highest card usually ahead." };
 }
 
 export function genEquity(rand: Rand, wantMatchup?: string): EquitySpot {
