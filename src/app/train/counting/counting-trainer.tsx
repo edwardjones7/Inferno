@@ -1,6 +1,11 @@
 "use client";
 
+import Link from "next/link";
+import { ProLock } from "@/components/pro/pro-badge";
 import { Segmented } from "@/components/ui";
+import { countingLocked, paywallReason } from "@/lib/gates";
+import { useIsPro } from "@/lib/pro";
+import { useHydrated } from "@/lib/store";
 import { useStored } from "@/lib/use-stored";
 import { DeckDrill } from "./deck-drill";
 import { IndexDrill } from "./index-drill";
@@ -18,6 +23,28 @@ const isMode = (v: unknown): v is Mode => MODES.some((m) => m.id === v);
 
 export function CountingTrainer() {
   const [mode, setMode] = useStored<Mode>("inferno:count:mode", "running", isMode);
+  const pro = useIsPro();
+  const hydrated = useHydrated();
+  if (!hydrated) return <div className="panel h-[420px] animate-pulse rounded-[28px]" />;
+  if (countingLocked(pro)) {
+    return (
+      <>
+        <ProLock
+          reason={paywallReason.counting}
+          title="The card counting course"
+          secondary={
+            <Link href="/train/learn/" className="flex h-10 items-center justify-center rounded-xl text-xs font-semibold text-ash-400 hover:text-bone">
+              Start with the free lessons
+            </Link>
+          }
+        >
+          Four drills that build on each other: keep the running count, count down a deck against the clock, convert to a true count, then learn the
+          index plays that change with it.
+        </ProLock>
+        <HowHiLoWorks />
+      </>
+    );
+  }
   return (
     <>
       <div className="mb-4 overflow-x-auto no-scrollbar">

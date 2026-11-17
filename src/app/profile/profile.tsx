@@ -15,6 +15,7 @@ import { autoQuality, HAPTICS_KEY, isToggle, useGraphics, type Graphics } from "
 import { isMuted, onMuteChange, setMuted } from "@/lib/sound";
 import { accuracy, leaksOf, resetProgress, streakOf, update, useHydrated, useProgress, type RatingKey } from "@/lib/store";
 import { useStored } from "@/lib/use-stored";
+import { DevProToggle, ProSection } from "./pro-section";
 
 const RATING_LABEL: Record<RatingKey, string> = { poker: "Poker", blackjack: "Blackjack", training: "Training" };
 const KIND_LABEL: Record<string, string> = { hard: "Hard totals", soft: "Soft totals", pair: "Pairs", insurance: "Insurance" };
@@ -86,6 +87,8 @@ export function Profile() {
         <Stat label="Blackjack hands" value={String(bjHands)} sub={`${formatChips(bjNet, { sign: true, compact: true })} chips`} />
         <Stat label="Poker hands" value={String(p.pokerHands.length)} sub="last 150 kept" />
       </section>
+
+      <ProSection />
 
       {/* trophy case */}
       <section className="mt-8">
@@ -236,6 +239,7 @@ function Settings() {
         <Row title="Haptics" sub="Vibration on chips, wins and big moments (phones).">
           <Switch label="Haptics" on={haptics === "1"} onChange={(v) => setHaptics(v ? "1" : "0")} />
         </Row>
+        <DevProToggle />
         <Row title="Reset progress" sub="Clears ratings, history, beaten bots and chips on this device.">
           {confirmReset ? (
             <div className="flex gap-2">

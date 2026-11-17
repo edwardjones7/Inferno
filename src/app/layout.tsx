@@ -5,6 +5,7 @@ import { AppShell } from "@/components/app-shell";
 import { EmberField } from "@/components/ember-field";
 import { NativeBridge } from "@/components/native-bridge";
 import { PrefetchTable } from "@/components/prefetch-table";
+import { PaywallHost } from "@/components/pro/paywall-host";
 import "./globals.css";
 
 const unbounded = Unbounded({ variable: "--font-unbounded", subsets: ["latin"], weight: ["500", "700", "900"] });
@@ -39,6 +40,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AppShell>{children}</AppShell>
         <PrefetchTable />
         <NativeBridge />
+        <PaywallHost />
         <Toaster
           theme="dark"
           position="top-center"

@@ -2,8 +2,12 @@
 
 import Link from "next/link";
 import { IconCheck, IconChevron, IconLock, IconSpade, IconTrain } from "@/components/icons";
+import { ProBadge } from "@/components/pro/pro-badge";
 import { PageHeader, Ring } from "@/components/ui";
+import { lessonLocked, paywallReason } from "@/lib/gates";
 import { lessonDone, lessonUnlocked, nextLesson, TRACK_IDS, TRACKS, trackProgress, type TrackId } from "@/lib/learn";
+import { openPaywall, useIsPro } from "@/lib/pro";
+import { play } from "@/lib/sound";
 import { useHydrated, useProgress } from "@/lib/store";
 
 export function LearnPath() {
@@ -35,6 +39,7 @@ export function LearnPath() {
 
 function TrackColumn({ track, hydrated }: { track: TrackId; hydrated: boolean }) {
   const p = useProgress();
+  const pro = useIsPro();
   const info = TRACKS[track];
   const { done, total } = trackProgress(p, track);
   const next = hydrated ? nextLesson(p, track) : null;
@@ -54,7 +59,18 @@ function TrackColumn({ track, hydrated }: { track: TrackId; hydrated: boolean })
             <p className="tabular mt-1 text-[11px] font-bold text-ember-400">{hydrated ? `${done}/${total} done` : " "}</p>
           </div>
         </div>
-        {hydrated && (
+        {hydrated && next && lessonLocked(next.id, pro) ? (
+          <button
+            onClick={() => {
+              play("click");
+              openPaywall(paywallReason.lesson(next.id));
+            }}
+            className="btn-fire relative mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl text-sm font-bold"
+          >
+            <span className="truncate">Next: {next.title}</span>
+            <ProBadge className="bg-ash-950/30 text-bone ring-ash-950/40" />
+          </button>
+        ) : hydrated && (
           <Link
             href={next ? `/train/learn/${next.id}/` : `/train/learn/${info.lessons[0].id}/`}
             className={`relative mt-4 flex h-11 items-center justify-center gap-1 rounded-xl text-sm font-bold ${next ? "btn-fire" : "btn-ash"}`}
@@ -69,6 +85,7 @@ function TrackColumn({ track, hydrated }: { track: TrackId; hydrated: boolean })
         {info.lessons.map((l, i) => {
           const isDone = hydrated && lessonDone(p, l.id);
           const open = hydrated && lessonUnlocked(p, l.id);
+          const proLocked = hydrated && lessonLocked(l.id, pro);
           const current = !!next && next.id === l.id;
           const last = i === info.lessons.length - 1;
           const body = (
@@ -91,17 +108,31 @@ function TrackColumn({ track, hydrated }: { track: TrackId; hydrated: boolean })
               </span>
               <span className={`min-w-0 flex-1 pb-5 ${open ? "" : "opacity-50"}`}>
                 <span className="flex items-baseline justify-between gap-2">
-                  <span className={`text-sm font-bold ${current ? "text-ember-200" : "text-bone"}`}>{l.title}</span>
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className={`text-sm font-bold ${current ? "text-ember-200" : "text-bone"}`}>{l.title}</span>
+                    {proLocked && <ProBadge />}
+                  </span>
                   <span className="tabular shrink-0 text-[11px] text-ash-500">{l.minutes} min</span>
                 </span>
                 <span className="mt-0.5 block text-xs text-ash-400">{l.blurb}</span>
               </span>
-              {open && <IconChevron className="mt-2 h-4 w-4 shrink-0 text-ash-500" />}
+              {open && !proLocked && <IconChevron className="mt-2 h-4 w-4 shrink-0 text-ash-500" />}
             </>
           );
           return (
             <li key={l.id}>
-              {open ? (
+              {proLocked ? (
+                // Pro lessons stay visible; tapping one says what Pro adds
+                <button
+                  onClick={() => {
+                    play("click");
+                    openPaywall(paywallReason.lesson(l.id));
+                  }}
+                  className="flex w-full gap-3 rounded-2xl px-2 pt-2 text-left transition-colors hover:bg-ash-900/70"
+                >
+                  {body}
+                </button>
+              ) : open ? (
                 <Link href={`/train/learn/${l.id}/`} className="flex gap-3 rounded-2xl px-2 pt-2 transition-colors hover:bg-ash-900/70">
                   {body}
                 </Link>

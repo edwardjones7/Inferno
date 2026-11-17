@@ -20,6 +20,12 @@ export interface ProState {
   expiresAt: number | null;
   /** store product id that granted it, if known */
   productId: string | null;
+  /** false when the player has cancelled and Pro ends at `expiresAt`; null/absent if unknown */
+  willRenew?: boolean | null;
+  /** true while the current period is a free trial */
+  trial?: boolean;
+  /** set only by the development override in src/lib/purchases.ts */
+  dev?: boolean;
 }
 
 const NONE: ProState = { active: false, expiresAt: null, productId: null };
