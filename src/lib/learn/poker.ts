@@ -271,7 +271,7 @@ export const POKER_LESSONS: Lesson[] = [
       },
       openCheck("UTG", ["AS", "5D"]),
       openCheck("BTN", ["AH", "5C"]),
-      openCheck("CO", ["KD", "9S"]),
+      openCheck("CO", ["QD", "8S"]),
     ],
   },
   {

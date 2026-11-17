@@ -27,6 +27,13 @@ const NOTATION: Record<Position, string> = {
   SB: "22+, A2s+, K3s+, Q5s+, J6s+, T6s+, 96s+, 85s+, 74s+, 64s+, 53s+, 43s, A2o+, K9o+, Q9o+, J9o+, T9o, 98o",
 };
 
+/**
+ * Re-raise ranges, 100bb: a ~9% 3-bet (99+/AQ+/KQ for value, suited broadways and A5s/A4s
+ * as bluffs) and a 4-bet of QQ+/AK with A5s/A4s as blocker bluffs.
+ */
+export const THREE_BET_NOTATION = "99+, ATs+, A5s, A4s, KTs+, QJs, JTs, AQo+, KQo";
+export const FOUR_BET_NOTATION = "QQ+, AKs, AKo, A5s, A4s";
+
 const idx = (r: string) => RANKS.indexOf(r);
 
 /** Expand "22+, A2s+, KTo+, 98s" into a set of hand codes. */

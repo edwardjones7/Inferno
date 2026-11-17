@@ -487,8 +487,8 @@ group("coachHero", () => {
     expect(s.toAct).toBe(0);
     const n = coachHero(s, call);
     expect(n.ok).toBe(true);
-    expect(n.detail).toMatch(/random/);
-    expect(n.detail).toMatch(/needed/);
+    expect(n.detail).toMatch(/betting range/);
+    expect(n.detail).toMatch(/need/);
     expect(coachHero(s, fold).ok).toBe(false);
   });
 

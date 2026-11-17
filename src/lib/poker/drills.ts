@@ -418,12 +418,12 @@ export function genSizing(rand: Rand, concept?: string): SizingSpot {
 
 const sizingWhy: Record<string, string> = {
   "dry-value": "Dry boards: bet a third of the pot with your whole range. Few draws to charge, and worse hands keep calling a small bet.",
-  "dry-air": "Dry boards: a small bet with your whole range. A third of the pot only has to work about a quarter of the time, and this board misses the caller.",
+  "dry-air": "High, dry board: a small bet with your whole range. A third of the pot only has to work about a quarter of the time, and this board misses the caller.",
   "wet-value": "Wet board, strong hand: bet big. Draws must pay to see the next card and the pot grows for when you get paid.",
   "wet-draw": "Wet board, good draw: semi-bluff big. You win now when they fold and have outs when called; big sizes match your value bets.",
   "wet-medium": "Medium pair on a wet board: check. It wins at showdown fairly often but hates a check-raise, and worse hands won't call a bet.",
   "wet-air": "No pair, no draw on a wet board: check and give up. Every pair and draw calls, so a bluff needs equity you don't have.",
-  "river-value": "River with a very strong hand: polarise and bet pot or more. Their bluff-catchers have to call, and nothing is left to protect.",
+  "river-value": "River with a near-nut hand: polarise and bet pot or more. Their bluff-catchers have to call, and nothing is left to protect.",
   "river-medium": "River with a medium pair: check. Worse hands won't call and better ones won't fold, so betting only loses to raises.",
 };
 
