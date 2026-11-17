@@ -1,5 +1,7 @@
 "use client";
 
+import { FELT_LOOKS, type FeltLook } from "@/game/designs/felt-looks";
+import { DEFAULT_FELT, type FeltId } from "@/lib/cosmetics";
 import { canvas, display, prng, sans, TABLE, texture } from "./canvas-utils";
 
 /* ------------------------------------------------------------------ felt */
@@ -27,23 +29,15 @@ function arcText(g: CanvasRenderingContext2D, text: string, cx: number, cy: numb
   }
 }
 
-/** Printing inks on the baize: antique gold for the headline, cream for the small print. */
-export const PRINT = {
-  gold: "rgba(226,186,110,0.88)",
-  cream: "rgba(232,220,196,0.5)",
-  line: "rgba(214,176,104,0.42)",
-  ring: "rgba(230,190,112,0.85)",
-} as const;
-
 /**
- * Deep green baize: an even cloth with a slight falloff toward the edges (the lamp does
- * the real lighting), a little mottling and fine fibres.
+ * The cloth: an even nap with a slight falloff toward the edges (the lamp does the real
+ * lighting), a little mottling and fine fibres, in the colours of the table design.
  */
-export function paintBaize(g: CanvasRenderingContext2D, W: number, H: number, cx: number, cy: number, seed: number, k = 1) {
+export function paintBaize(g: CanvasRenderingContext2D, W: number, H: number, cx: number, cy: number, seed: number, k = 1, look: FeltLook = FELT_LOOKS[DEFAULT_FELT]) {
   const bg = g.createRadialGradient(cx, cy, 40, cx, cy, Math.max(W, H) * 0.62);
-  bg.addColorStop(0, "#1f5a3c");
-  bg.addColorStop(0.55, "#174a31");
-  bg.addColorStop(1, "#0d2e1f");
+  bg.addColorStop(0, look.cloth[0]);
+  bg.addColorStop(0.55, look.cloth[1]);
+  bg.addColorStop(1, look.cloth[2]);
   g.fillStyle = bg;
   g.fillRect(0, 0, W, H);
   const rand = prng(seed);
@@ -53,7 +47,7 @@ export function paintBaize(g: CanvasRenderingContext2D, W: number, H: number, cx
     const y = rand() * H;
     const r = (60 + rand() * 160) * k;
     const m = g.createRadialGradient(x, y, 0, x, y, r);
-    const tone = rand() > 0.5 ? "255,255,230" : "0,10,4";
+    const tone = rand() > 0.5 ? look.mottle[0] : look.mottle[1];
     m.addColorStop(0, `rgba(${tone},0.035)`);
     m.addColorStop(1, `rgba(${tone},0)`);
     g.fillStyle = m;
@@ -62,7 +56,7 @@ export function paintBaize(g: CanvasRenderingContext2D, W: number, H: number, cx
   // fibres
   const n = Math.round((W * H) / 90);
   for (let i = 0; i < n; i++) {
-    g.fillStyle = rand() > 0.5 ? "rgba(200,235,200,0.03)" : "rgba(0,0,0,0.07)";
+    g.fillStyle = rand() > 0.5 ? look.fibre[0] : look.fibre[1];
     g.fillRect(rand() * W, rand() * H, 1.5 * k, 1.5 * k);
   }
 }
@@ -74,19 +68,22 @@ export interface FeltPrint {
 }
 const DEFAULT_PRINT: FeltPrint = { payout: "3 TO 2", dealerHitsSoft17: false };
 
-export function feltTexture(print: FeltPrint = DEFAULT_PRINT) {
-  return texture(`felt:${print.payout}:${print.dealerHitsSoft17 ? "h17" : "s17"}`, () => {
+/** The blackjack layout printed on the cloth of the given table design (cached per design and rules). */
+export function feltTexture(print: FeltPrint = DEFAULT_PRINT, design: FeltId = DEFAULT_FELT) {
+  const look = FELT_LOOKS[design];
+  const ink = look.print;
+  return texture(`felt:${design}:${print.payout}:${print.dealerHitsSoft17 ? "h17" : "s17"}`, () => {
     const W = TABLE.halfWidth * 2 * FELT_PX;
     const H = TABLE.halfDepth * 2 * FELT_PX;
     const [c, g] = canvas(W, H);
     const cx = W / 2;
     const top = 0; // dealer edge
 
-    paintBaize(g, W, H, cx, H * 0.45, 7, K);
+    paintBaize(g, W, H, cx, H * 0.45, 7, K, look);
 
     const P = FELT_PX;
     // printed arcs and lettering, centred on the dealer edge
-    g.strokeStyle = PRINT.line;
+    g.strokeStyle = ink.line;
     g.lineWidth = 3 * K;
     for (const r of [2.35, 3.3]) {
       g.beginPath();
@@ -96,22 +93,22 @@ export function feltTexture(print: FeltPrint = DEFAULT_PRINT) {
 
     g.textAlign = "center";
     g.textBaseline = "middle";
-    g.fillStyle = PRINT.gold;
+    g.fillStyle = ink.gold;
     g.font = `800 ${Math.round(64 * K)}px ${display()}`;
     arcText(g, `BLACKJACK PAYS ${print.payout}`, cx, top, 2.85 * P, 14 * K);
-    g.fillStyle = PRINT.cream;
+    g.fillStyle = ink.cream;
     g.font = `700 ${Math.round(34 * K)}px ${sans()}`;
     arcText(g, `${print.dealerHitsSoft17 ? "DEALER HITS SOFT 17" : "DEALER STANDS ON ALL 17s"}  ·  INSURANCE PAYS 2 TO 1`, cx, top, 2.55 * P, 9 * K);
 
     // betting circle: a gold ring with a fine inner line, printed into the cloth
     g.save();
-    g.strokeStyle = PRINT.ring;
+    g.strokeStyle = ink.ring;
     g.lineWidth = 7 * K;
     g.beginPath();
     g.arc(feltX(0), feltY(2.02), 0.42 * P, 0, Math.PI * 2);
     g.stroke();
     g.lineWidth = 2 * K;
-    g.strokeStyle = PRINT.line;
+    g.strokeStyle = ink.line;
     g.beginPath();
     g.arc(feltX(0), feltY(2.02), 0.5 * P, 0, Math.PI * 2);
     g.stroke();

@@ -7,7 +7,8 @@ import { toast } from "sonner";
 import { EmberBurst } from "@/components/ember-burst";
 import { IconPlay, IconReview, IconSpade, IconX } from "@/components/icons";
 import { FlameMark } from "@/components/logo";
-import { FREE_LESSONS_PER_TRACK, FREE_REVIEW_HANDS, PRO_BOT_TIERS } from "@/lib/gates";
+import { cosmeticById, CARD_BACKS, FELTS } from "@/lib/cosmetics";
+import { cosmeticIsPro, FREE_LESSONS_PER_TRACK, FREE_REVIEW_HANDS, PRO_BOT_TIERS } from "@/lib/gates";
 import { lessonById, TRACKS } from "@/lib/learn";
 import { botById, ROSTER, TIER_LABEL } from "@/lib/poker/roster";
 import { PRO_NAME, useProState } from "@/lib/pro";
@@ -30,6 +31,7 @@ type Perk = "ads" | "lessons" | "counting" | "bots" | "review" | "chips" | "desi
 
 const PRO_BOTS = ROSTER.filter((b) => PRO_BOT_TIERS.includes(b.tier)).map((b) => b.name);
 const listNames = (n: string[]) => (n.length < 2 ? n.join("") : `${n.slice(0, -1).join(", ")} and ${n.at(-1)}`);
+const memberNames = (list: readonly { id: string; name: string }[]) => listNames(list.filter((c) => cosmeticIsPro(c.id)).map((c) => c.name));
 
 const PERKS: { id: Perk; title: string; sub: string; soon?: boolean }[] = [
   { id: "lessons", title: "Every lesson", sub: `The full Blackjack and Hold'em courses, past the first ${FREE_LESSONS_PER_TRACK} of each.` },
@@ -38,7 +40,7 @@ const PERKS: { id: Perk; title: string; sub: string; soon?: boolean }[] = [
   { id: "review", title: "Every hand, replayable", sub: `Step through your whole history, not just the last ${FREE_REVIEW_HANDS}.` },
   { id: "ads", title: "No ads", sub: "Nothing between you and the next hand." },
   { id: "chips", title: "Chip bonus, then chips monthly", sub: "A big stack when you join and a fresh grant every month." },
-  { id: "designs", title: "Exclusive table designs", sub: "New felts and card backs for members.", soon: true },
+  { id: "designs", title: "Member table and card designs", sub: `${memberNames(FELTS)} tables, ${memberNames(CARD_BACKS)} card backs.` },
 ];
 
 interface Pitch {
@@ -82,6 +84,16 @@ function pitchFor(reason: string | null): Pitch {
         title: `Take a seat against ${b.name}`,
         sub: `${b.name} plays at the top of the ladder, where mistakes get punished. That's where you get better.`,
         perk: "bots",
+      };
+  }
+  if (kind === "design") {
+    const d = cosmeticById(arg ?? "");
+    if (d)
+      return {
+        eyebrow: "Table & cards",
+        title: d.kind === "felt" ? `Play on the ${d.name} table` : `Deal ${d.name} cards`,
+        sub: `${d.blurb} One of the member designs that come with ${PRO_NAME}. The game plays the same on every table.`,
+        perk: "designs",
       };
   }
   if (kind === "review")

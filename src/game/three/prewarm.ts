@@ -1,6 +1,7 @@
 "use client";
 
 import { buildShoe } from "@/lib/blackjack/cards";
+import { readTableLook } from "@/lib/settings";
 import { cardBack, cardFace, cardFoilMask, isFoil, paperGrain } from "./card-textures";
 import { chipSide, chipTop } from "./chip-textures";
 import { feltTexture } from "./felt-texture";
@@ -17,7 +18,7 @@ export function prewarmTableAssets() {
   if (started || typeof window === "undefined") return;
   started = true;
   const jobs: (() => unknown)[] = [
-    feltTexture,
+    () => feltTexture(undefined, readTableLook().felt),
     feltNormalTexture,
     leatherNormalTexture,
     cardBack,

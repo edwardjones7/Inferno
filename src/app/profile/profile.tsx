@@ -16,6 +16,7 @@ import { autoQuality, HAPTICS_KEY, isToggle, useGraphics, type Graphics } from "
 import { isMuted, onMuteChange, setMuted } from "@/lib/sound";
 import { accuracy, leaksOf, resetProgress, streakOf, update, useHydrated, useProgress, type RatingKey } from "@/lib/store";
 import { useStored } from "@/lib/use-stored";
+import { DesignsSection } from "./designs-section";
 import { DevProToggle, ProSection } from "./pro-section";
 
 const RATING_LABEL: Record<RatingKey, string> = { poker: "Poker", blackjack: "Blackjack", training: "Training" };
@@ -156,6 +157,8 @@ export function Profile() {
           )}
         </div>
       </section>
+
+      <DesignsSection />
 
       <Settings />
     </div>
