@@ -14,6 +14,7 @@ import { botDecide, botThinkMs } from "@/lib/poker/bots";
 import { act, legal, newTable, positionOf, potOdds, startHand } from "@/lib/poker/game";
 import type { CoachNote, PlayerAction, PokerState } from "@/lib/poker/game-types";
 import { describe } from "@/lib/poker/eval";
+import { maybeShowInterstitial, useAdBreakOnLeave } from "@/lib/ads";
 import { blindsFor, botById, MATCH, ROSTER, STYLE_LABEL, TABLE_LINEUP, type BotProfile } from "@/lib/poker/roster";
 import { coachHero } from "@/lib/poker/table-coach";
 import { youText } from "@/lib/poker/text";
@@ -125,6 +126,9 @@ export function PokerTable(props: PokerMode) {
       clearTimeout(chatTimer.current);
     };
   }, []);
+
+  // leaving the cash table after a real session is a natural break for an ad (free players only)
+  useAdBreakOnLeave("poker-table-leave", !bot && session.hands > 0 ? String(session.hands) : null);
 
   const say = useCallback((seat: number, lines: string[], delay = 0) => {
     clearTimeout(chatTimer.current);
@@ -692,9 +696,10 @@ export function PokerTable(props: PokerMode) {
           <MatchResultSheet
             bot={bot}
             result={result}
-            onRematch={restart}
-            onNext={(id) => router.push(`/play/poker/match/?bot=${id}`)}
-            onReview={() => router.push("/review/?tab=poker")}
+            // the end of a match is a natural break: maybe an ad (free players), then carry on
+            onRematch={() => void maybeShowInterstitial("match-end").finally(restart)}
+            onNext={(id) => void maybeShowInterstitial("match-end").finally(() => router.push(`/play/poker/match/?bot=${id}`))}
+            onReview={() => void maybeShowInterstitial("match-end").finally(() => router.push("/review/?tab=poker"))}
           />
         )}
       </AnimatePresence>

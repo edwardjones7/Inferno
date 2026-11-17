@@ -2,17 +2,20 @@
 
 import { Capacitor } from "@capacitor/core";
 import { useEffect } from "react";
+import { initAds } from "@/lib/ads";
 
 /**
  * Platform glue, mounted once.
  * - Native app (Capacitor): dark translucent status bar, hide the splash once the first
- *   screen has painted, and make Android's back button walk browser history.
+ *   screen has painted, make Android's back button walk browser history, and start ads
+ *   (src/lib/ads.ts: counts the session, prepares ads quietly after the first session).
  * - Web: register the service worker (production only) so the app installs and works offline.
  */
 export function NativeBridge() {
   useEffect(() => {
     if (Capacitor.isNativePlatform()) {
       document.documentElement.dataset.native = Capacitor.getPlatform();
+      initAds();
       let remove: (() => void) | undefined;
       void (async () => {
         const [{ StatusBar, Style }, { SplashScreen }, { App }] = await Promise.all([

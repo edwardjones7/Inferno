@@ -4,4 +4,6 @@
     <string name="title_activity_main">Inferno</string>
     <string name="package_name">app.inferno.trainer</string>
     <string name="custom_url_scheme">app.inferno.trainer</string>
+    <!-- AdMob app id: set by scripts/admob-app-ids.mjs from NEXT_PUBLIC_ADMOB_ANDROID_APP_ID (test id by default) -->
+    <string name="admob_app_id">ca-app-pub-3940256099942544~3347511713</string>
 </resources>

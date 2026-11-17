@@ -22,6 +22,7 @@ import { basicStrategy, MOVE_LABEL } from "@/lib/blackjack/strategy";
 import { isTableId, TABLE_IDS, TABLES, tableOf } from "@/lib/blackjack/tables";
 import { whatIf } from "@/lib/blackjack/what-if";
 import { chipsToUnits, formatChips, MAX_BET, MIN_BET, REFILL_TO, unitsToChips } from "@/lib/chips";
+import { useAdBreakOnLeave } from "@/lib/ads";
 import { GameError, playAction, refill, settleAbandoned, startRound, type RoundPayload } from "@/lib/blackjack/session";
 import { resolveQuality, useGraphics } from "@/lib/settings";
 import { getProgress, useHydrated, useProgress } from "@/lib/store";
@@ -187,6 +188,8 @@ export function BlackjackTable() {
   }, []);
 
   const view = round?.view ?? null;
+  // leaving the table after a real session is a natural break for an ad (free players only)
+  useAdBreakOnLeave("blackjack-leave", view?.phase === "settled" ? (round?.id ?? null) : null);
   const toUsd = unitsToChips;
   const inPlay = !!view && view.phase !== "settled";
 
