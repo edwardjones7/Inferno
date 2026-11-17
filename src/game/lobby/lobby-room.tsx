@@ -5,8 +5,10 @@ import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { memo, useEffect, useMemo, useRef, type ReactNode, type RefObject } from "react";
 import * as THREE from "three";
 import { stepSpring, type Spring } from "@/game/three/camera-spring";
-import { Embers } from "@/game/three/env-embers";
+import { Dust } from "@/game/three/env-air";
 import { LightBeam, PendantLamp } from "@/game/three/env-lamp";
+import { Sconce } from "@/game/three/env-room";
+import { floorMap, wallTexture, WALL_H } from "@/game/three/room-textures";
 import { useMood } from "@/game/three/env-mood";
 import { Shoe, TableBody } from "@/game/three/table-body";
 import { DEALER_Z, HAND_Z, BET_Z } from "@/game/three/table-layout";
@@ -147,7 +149,8 @@ function StationLights() {
         color="#ffe2c4"
         target={target}
       />
-      <pointLight position={[0, 0.7, 2.2]} color="#ff5a1f" intensity={4} distance={4.5} />
+      {/* ember rim from behind the table */}
+      <pointLight position={[0, 1.5, -2.4]} color="#ff8a3a" intensity={3} distance={5} />
     </>
   );
 }
@@ -212,9 +215,9 @@ function FloorGlow() {
     c.width = c.height = 128;
     const g = c.getContext("2d")!;
     const r = g.createRadialGradient(64, 64, 0, 64, 64, 64);
-    r.addColorStop(0, "rgba(255,110,40,0.3)");
-    r.addColorStop(0.45, "rgba(255,80,20,0.09)");
-    r.addColorStop(1, "rgba(255,60,10,0)");
+    r.addColorStop(0, "rgba(255,170,100,0.16)");
+    r.addColorStop(0.45, "rgba(255,130,60,0.07)");
+    r.addColorStop(1, "rgba(255,110,40,0)");
     g.fillStyle = r;
     g.fillRect(0, 0, 128, 128);
     const t = new THREE.CanvasTexture(c);
@@ -268,15 +271,54 @@ function Station({ index, children, onTap }: { index: number; children: ReactNod
 
 /* ------------------------------------------------------------ room */
 
+const FLOOR = -1.4 * MINI;
+const WALL_R = ROOM_R + 5;
+/** the arc of wall that can ever be in view, centred straight ahead */
+const WALL_ARC = 2.6;
+const WALL_HEIGHT = 9;
+
+/**
+ * Plank floor and a curved wall of brick over dark panelling behind the stations, with
+ * wall lamps between them. No real lights (the lamps and a faint glow on the wall are emissive), so it costs a
+ * handful of draws and falls off into the fog.
+ */
+const RoomShell = memo(function RoomShell() {
+  const wall = useMemo(() => {
+    const t = wallTexture().clone();
+    t.wrapS = THREE.RepeatWrapping;
+    t.needsUpdate = true;
+    // keep the bricks the same size as in the game rooms (4 x WALL_H units per tile)
+    t.repeat.set((WALL_R * WALL_ARC) / (4 * (WALL_HEIGHT / WALL_H)), 1);
+    return t;
+  }, []);
+  const lamps = [-0.62, -0.2, 0.2, 0.62];
+  return (
+    <group>
+      <mesh rotation-x={-Math.PI / 2} position={[0, FLOOR, ROOM_R]}>
+        <circleGeometry args={[WALL_R + 1, 64]} />
+        <meshStandardMaterial map={floorMap()} color="#b8a090" roughness={0.75} />
+      </mesh>
+      <mesh position={[0, FLOOR + WALL_HEIGHT / 2, ROOM_R]}>
+        <cylinderGeometry args={[WALL_R, WALL_R, WALL_HEIGHT, 48, 1, true, Math.PI - WALL_ARC / 2, WALL_ARC]} />
+        <meshStandardMaterial map={wall} emissive="#ffffff" emissiveMap={wall} emissiveIntensity={0.22} side={THREE.BackSide} roughness={0.92} />
+      </mesh>
+      {lamps.map((a) => {
+        const [x, z] = onArc(a, WALL_R - 0.05);
+        return <Sconce key={a} x={x} y={FLOOR + 2.3} z={z} rotation={-a} />;
+      })}
+    </group>
+  );
+});
+
 const ReflectionRig = memo(function ReflectionRig() {
   return (
     <EnvMap resolution={128} background={false} frames={1} environmentIntensity={0.5}>
       <color attach="background" args={["#050302"]} />
       <Lightformer form="circle" intensity={6} color="#ffd9a8" position={[0, 6, 0]} scale={2.2} />
-      <Lightformer form="rect" intensity={3} color="#ff5a1f" position={[-7, 1.2, 0.5]} scale={[10, 1.6, 1]} />
-      <Lightformer form="rect" intensity={3} color="#ff5a1f" position={[7, 1.2, 0.5]} scale={[10, 1.6, 1]} />
-      <Lightformer form="rect" intensity={1.4} color="#ff9a2e" position={[0, 1.8, -8]} scale={[12, 2, 1]} />
-      <Lightformer form="rect" intensity={0.35} color="#7a8aa8" position={[0, 3, 9]} scale={[12, 4, 1]} />
+      <Lightformer form="rect" intensity={0.6} color="#8a4a22" position={[-7, 1.4, 0]} scale={[10, 2, 1]} />
+      <Lightformer form="rect" intensity={0.6} color="#8a4a22" position={[7, 1.4, 0]} scale={[10, 2, 1]} />
+      <Lightformer form="rect" intensity={1.2} color="#ff9a4a" position={[0, 1.8, -8]} scale={[10, 2, 1]} />
+      <Lightformer form="rect" intensity={0.25} color="#7a8aa8" position={[0, 3, 9]} scale={[12, 4, 1]} />
     </EnvMap>
   );
 });
@@ -293,7 +335,7 @@ function FirstFrame({ onReady }: { onReady: () => void }) {
 
 export interface LobbyRoomProps {
   nav: RefObject<LobbyNav>;
-  /** idle animation (lava, embers, floating cards); off for reduced motion and when hidden */
+  /** idle animation (dust, rail glow, floating cards); off for reduced motion and when hidden */
   animate: boolean;
   reduced: boolean;
   quality: "high" | "low";
@@ -306,7 +348,7 @@ export function LobbyRoom({ nav, animate, reduced, quality, onTap, onReady }: Lo
   return (
     <>
       <color attach="background" args={[BG]} />
-      <fog attach="fog" args={[BG, 11, 26]} />
+      <fog attach="fog" args={[BG, 12, 32]} />
       <ReflectionRig />
       <ambientLight intensity={0.28} color="#ffd8b8" />
       <hemisphereLight args={["#ffb070", "#1a0d08", 0.25]} />
@@ -317,11 +359,12 @@ export function LobbyRoom({ nav, animate, reduced, quality, onTap, onReady }: Lo
             <>
               <PendantLamp y={3.4} />
               <LightBeam y={3.4} mood={mood} />
+              <Dust mood={mood} lampY={3.4} count={quality === "low" ? 40 : 140} />
             </>
           )}
-          <Embers mood={mood} />
         </Station>
       ))}
+      <RoomShell />
       <CameraRig nav={nav} reduced={reduced} />
       <Driver active={animate} fps={quality === "low" ? 30 : 60} />
       <FirstFrame onReady={onReady} />

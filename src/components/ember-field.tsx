@@ -2,7 +2,33 @@
 
 import { useEffect, useRef } from "react";
 
-/** Slow-rising embers behind the page. Pauses when hidden; disabled for reduced motion. */
+/** Soft smoke puff, painted once and stamped with drawImage (no per-frame gradients). */
+function puffSprite(size: number) {
+  const c = document.createElement("canvas");
+  c.width = c.height = size;
+  const g = c.getContext("2d")!;
+  // a few overlapping blobs so the puff isn't a perfect circle
+  for (const [x, y, r] of [
+    [0.5, 0.5, 0.5],
+    [0.38, 0.56, 0.32],
+    [0.62, 0.44, 0.3],
+    [0.5, 0.36, 0.26],
+  ]) {
+    const grad = g.createRadialGradient(x * size, y * size, 0, x * size, y * size, r * size);
+    grad.addColorStop(0, "rgba(205,190,175,0.22)");
+    grad.addColorStop(0.5, "rgba(190,175,160,0.08)");
+    grad.addColorStop(1, "rgba(180,165,150,0)");
+    g.fillStyle = grad;
+    g.fillRect(0, 0, size, size);
+  }
+  return c;
+}
+
+/**
+ * The room's air behind the page: slow cigarette smoke drifting up and across, and dust
+ * motes that glint when they pass under the lamp (top centre). Pauses when hidden;
+ * disabled for reduced motion.
+ */
 export function EmberField({ density = 1 }: { density?: number }) {
   const ref = useRef<HTMLCanvasElement>(null);
 
@@ -26,44 +52,84 @@ export function EmberField({ density = 1 }: { density?: number }) {
     resize();
     window.addEventListener("resize", resize);
 
-    type P = { x: number; y: number; r: number; vy: number; vx: number; life: number; max: number; hue: number; phase: number };
-    const count = Math.round(Math.min(70, (w * h) / 22000) * density);
-    const spawn = (anywhere: boolean): P => ({
+    const sprite = puffSprite(128);
+
+    type Puff = { x: number; y: number; s: number; vx: number; vy: number; rot: number; vr: number; life: number; max: number };
+    const puffCount = Math.round(Math.min(14, (w * h) / 90000 + 4) * density);
+    const spawnPuff = (anywhere: boolean): Puff => ({
       x: Math.random() * w,
-      y: anywhere ? Math.random() * h : h + 10,
-      r: 0.6 + Math.random() * 1.8,
-      vy: 0.2 + Math.random() * 0.6,
-      vx: (Math.random() - 0.5) * 0.2,
-      life: 0,
-      max: 400 + Math.random() * 600,
-      hue: 15 + Math.random() * 30,
-      phase: Math.random() * Math.PI * 2,
+      y: anywhere ? Math.random() * h : h + 80,
+      s: 160 + Math.random() * 260,
+      vx: (Math.random() - 0.5) * 0.12,
+      vy: 0.08 + Math.random() * 0.14,
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.0015,
+      life: anywhere ? Math.random() * 1500 : 0,
+      max: 1800 + Math.random() * 1600,
     });
-    const ps = Array.from({ length: count }, () => spawn(true));
+    const puffs = Array.from({ length: puffCount }, () => spawnPuff(true));
+
+    type Mote = { x: number; y: number; r: number; vx: number; vy: number; phase: number; rate: number };
+    const moteCount = Math.round(Math.min(60, (w * h) / 26000) * density);
+    const spawnMote = (): Mote => ({
+      x: Math.random() * w,
+      y: Math.random() * h,
+      r: 0.5 + Math.random() * 1.1,
+      vx: (Math.random() - 0.5) * 0.08,
+      vy: (Math.random() - 0.5) * 0.06,
+      phase: Math.random() * Math.PI * 2,
+      rate: 0.01 + Math.random() * 0.03,
+    });
+    const motes = Array.from({ length: moteCount }, spawnMote);
 
     let raf = 0;
+    let frame = 0;
     const tick = () => {
+      frame++;
       g.clearRect(0, 0, w, h);
-      g.globalCompositeOperation = "lighter";
-      for (let i = 0; i < ps.length; i++) {
-        const p = ps[i];
+
+      // smoke
+      g.globalCompositeOperation = "source-over";
+      for (let i = 0; i < puffs.length; i++) {
+        const p = puffs[i];
         p.life++;
         p.y -= p.vy;
-        p.x += p.vx + Math.sin((p.life + p.phase * 100) / 60) * 0.25;
-        const fade = Math.min(1, p.life / 60) * Math.max(0, 1 - p.life / p.max);
-        if (p.y < -10 || p.life > p.max) {
-          ps[i] = spawn(false);
+        p.x += p.vx + Math.sin((p.life + i * 300) / 400) * 0.08;
+        p.rot += p.vr;
+        p.s += 0.04;
+        if (p.life > p.max || p.y < -p.s) {
+          puffs[i] = spawnPuff(false);
           continue;
         }
-        const glow = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 5);
-        glow.addColorStop(0, `hsla(${p.hue + 15}, 100%, 70%, ${0.9 * fade})`);
-        glow.addColorStop(0.3, `hsla(${p.hue}, 100%, 55%, ${0.35 * fade})`);
-        glow.addColorStop(1, `hsla(${p.hue}, 100%, 50%, 0)`);
-        g.fillStyle = glow;
+        const k = p.life / p.max;
+        g.globalAlpha = Math.min(1, k * 6) * (1 - k) * 0.9;
+        g.save();
+        g.translate(p.x, p.y);
+        g.rotate(p.rot);
+        g.drawImage(sprite, -p.s / 2, -p.s / 2, p.s, p.s);
+        g.restore();
+      }
+
+      // dust: brighter under the lamp (top centre), a slow glint as each turns
+      g.globalCompositeOperation = "lighter";
+      const lx = w / 2;
+      const reach = Math.max(w, h) * 0.55;
+      for (const m of motes) {
+        m.x += m.vx + Math.sin(frame * 0.004 + m.phase) * 0.05;
+        m.y += m.vy + Math.cos(frame * 0.003 + m.phase) * 0.04;
+        if (m.x < -5) m.x = w + 5;
+        if (m.x > w + 5) m.x = -5;
+        if (m.y < -5) m.y = h + 5;
+        if (m.y > h + 5) m.y = -5;
+        const lit = Math.max(0, 1 - Math.hypot(m.x - lx, m.y * 1.4) / reach);
+        const glint = 0.35 + 0.65 * Math.pow(0.5 + 0.5 * Math.sin(frame * m.rate + m.phase), 3);
+        g.globalAlpha = (0.06 + 0.6 * lit) * glint;
+        g.fillStyle = "#ffd9a8";
         g.beginPath();
-        g.arc(p.x, p.y, p.r * 5, 0, Math.PI * 2);
+        g.arc(m.x, m.y, m.r, 0, Math.PI * 2);
         g.fill();
       }
+      g.globalAlpha = 1;
       raf = requestAnimationFrame(tick);
     };
     const onVis = () => {

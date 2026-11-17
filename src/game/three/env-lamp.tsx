@@ -13,8 +13,23 @@ const BEAM_HOT = new THREE.Color(1.0, 0.6, 0.3);
 const BULB = new THREE.Color(7, 4.4, 2.0);
 const LIP = new THREE.Color(4.2, 2.3, 0.9);
 
-/** Brass-trimmed dark-metal pendant lamp; `y` is the height of the shade's bottom rim. */
-export function PendantLamp({ y }: { y: number }) {
+const bulbColor = new THREE.Color();
+
+/**
+ * Brass-trimmed dark-metal pendant lamp; `y` is the height of the shade's bottom rim.
+ * With `mood`, the bulb flares on a win or a blackjack.
+ */
+export function PendantLamp({ y, mood }: { y: number; mood?: MoodRef }) {
+  const bulb = useRef<THREE.MeshBasicMaterial>(null);
+  const lip = useRef<THREE.MeshBasicMaterial>(null);
+  useFrame(() => {
+    if (!mood) return;
+    const m = mood.current;
+    const bj = m.bjAge < 2 ? Math.exp(-m.bjAge * 2.2) : 0;
+    const k = (1 + 0.5 * m.win + 0.9 * bj) * (1 - 0.25 * m.lose);
+    bulb.current?.color.copy(bulbColor.copy(BULB).multiplyScalar(k));
+    lip.current?.color.copy(bulbColor.copy(LIP).multiplyScalar(k));
+  });
   const shade = useMemo(() => {
     const pts = [
       [0.52, 0],
@@ -53,12 +68,12 @@ export function PendantLamp({ y }: { y: number }) {
       {/* warm glowing inner lip */}
       <mesh rotation-x={Math.PI / 2} position-y={0.012}>
         <torusGeometry args={[0.487, 0.011, 8, 64]} />
-        <meshBasicMaterial color={LIP} toneMapped={false} />
+        <meshBasicMaterial ref={lip} color={LIP} toneMapped={false} />
       </mesh>
       {/* bulb */}
       <mesh position-y={0.11}>
         <sphereGeometry args={[0.1, 20, 14]} />
-        <meshBasicMaterial color={BULB} toneMapped={false} />
+        <meshBasicMaterial ref={bulb} color={BULB} toneMapped={false} />
       </mesh>
     </group>
   );
@@ -122,7 +137,7 @@ export function LightBeam({ y, mood }: { y: number; mood: MoodRef }) {
     u.uTime.value = m.reduced ? 0 : m.time;
     heatColor(u.uColor.value, m.heat, BEAM_COLD, BEAM_NEUTRAL, BEAM_HOT);
     const bj = m.bjAge < 2 ? Math.exp(-m.bjAge * 2.5) : 0;
-    u.uIntensity.value = 0.075 * (1 + 0.25 * m.hot - 0.35 * m.cold) * (1 - 0.4 * m.lose) + 0.05 * bj;
+    u.uIntensity.value = 0.08 * (1 + 0.25 * m.hot - 0.35 * m.cold + 0.4 * m.win) * (1 - 0.4 * m.lose) + 0.06 * bj;
   });
 
   return (
@@ -236,7 +251,7 @@ export function BeamHaze({ y, mood }: { y: number; mood: MoodRef }) {
     u.uTime.value += Math.min(dt, 0.1) * (m.reduced ? 0.25 : 1 + 0.6 * m.hot);
     heatColor(u.uColor.value, m.heat, BEAM_COLD, BEAM_NEUTRAL, BEAM_HOT);
     const bj = m.bjAge < 2 ? Math.exp(-m.bjAge * 2) : 0;
-    u.uOpacity.value = 0.11 * (1 + 0.2 * m.hot - 0.15 * m.cold) * (1 - 0.35 * m.lose) + 0.08 * bj;
+    u.uOpacity.value = 0.13 * (1 + 0.2 * m.hot - 0.15 * m.cold + 0.3 * m.win) * (1 - 0.35 * m.lose) + 0.08 * bj;
   });
 
   return (
