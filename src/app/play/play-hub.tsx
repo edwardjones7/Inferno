@@ -74,7 +74,7 @@ export function PlayHub() {
               ))}
             </div>
             <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-ember-300">Hold&apos;em · 6-max</p>
-            <h2 className="mt-1 font-display text-2xl font-black">Ring game</h2>
+            <h2 className="mt-1 font-display text-2xl font-black">Cash game</h2>
             <p className="mt-1 text-sm text-ash-300">Five bots, endless hands. Practise multiway pots with no rating on the line.</p>
             <span className="mt-3 flex items-center gap-1 text-xs font-bold text-ember-400">
               Sit down <IconChevron className="h-3.5 w-3.5" />
