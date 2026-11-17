@@ -101,4 +101,6 @@ export interface CoachNote {
   ok: boolean | null;
   title: string;
   detail: string;
+  /** rough big blinds given up vs the coach's play; only set on mistakes when it can be estimated */
+  cost?: number;
 }

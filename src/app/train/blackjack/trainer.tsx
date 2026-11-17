@@ -7,10 +7,12 @@ import { PlayingCardStatic } from "@/components/playing-card-static";
 import { gradeSpot, type Decision } from "@/lib/blackjack/coach";
 import { DRILL_CATEGORIES, generateSpot, spotFromKey, spotLegal, type DrillCategory, type DrillSpot } from "@/lib/blackjack/drill";
 import type { ActionType } from "@/lib/blackjack/engine";
+import { formatCost, formatEV, moveEVs, type MoveEVs } from "@/lib/blackjack/ev";
 import { MOVE_LABEL, spotLabel, spotOf, type Move } from "@/lib/blackjack/strategy";
 import { isTableId, TABLE_IDS, TABLES } from "@/lib/blackjack/tables";
 import { play } from "@/lib/sound";
 import { useStored } from "@/lib/use-stored";
+import { isCountingKind } from "@/lib/leak-links";
 import { leaksOf, recordDrills, useProgress } from "@/lib/store";
 import { IconFlame } from "@/components/icons";
 
@@ -25,6 +27,19 @@ const KEYMAP: Record<string, Move> = { h: "hit", s: "stand", d: "double", p: "sp
 
 interface Answered {
   decision: Decision;
+  evs: MoveEVs;
+}
+
+const GERUND: Record<Move, string> = { hit: "Hitting", stand: "Standing", double: "Doubling", split: "Splitting", surrender: "Surrendering" };
+
+/** "Hitting hard 16 vs 10 costs ~0.1% of your bet vs standing." */
+function costLine(d: Decision): string | null {
+  if (d.ok || d.cost === undefined) return null;
+  const chosen = d.chosen as Move;
+  const correct = d.correct as Move;
+  if (!GERUND[chosen] || !GERUND[correct]) return null;
+  const spot = d.label.replace(/^(Hard|Soft)/, (m) => m.toLowerCase());
+  return `${GERUND[chosen]} ${spot} costs ~${formatCost(d.cost)} of your bet vs ${GERUND[correct].toLowerCase()}.`;
 }
 
 export function Trainer({ focus }: { focus: string | null }) {
@@ -35,7 +50,8 @@ export function Trainer({ focus }: { focus: string | null }) {
   const [answered, setAnswered] = useState<Answered | null>(null);
   const [session, setSession] = useState({ n: 0, correct: 0, streak: 0, best: 0 });
   const progress = useProgress();
-  const leaks = useMemo(() => leaksOf(progress, "blackjack", 8), [progress]);
+  // counting/index misses have their own trainer; this list is basic strategy only
+  const leaks = useMemo(() => leaksOf(progress, "blackjack", 40).filter((l) => !isCountingKind(l.kind)).slice(0, 8), [progress]);
   const advanceTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const leakKeys = useMemo(() => leaks.filter((l) => l.key !== "insurance").map((l) => l.key), [leaks]);
@@ -61,13 +77,13 @@ export function Trainer({ focus }: { focus: string | null }) {
     (move: Move) => {
       if (!spot || answered || !legal.includes(move)) return;
       const decision = gradeSpot(spot.cards, spot.up, legal, table.rules, move as ActionType);
-      setAnswered({ decision });
+      setAnswered({ decision, evs: moveEVs(spot.cards, spot.up, table.rules, legal) });
       setSession((s) => {
         const streak = decision.ok ? s.streak + 1 : 0;
         return { n: s.n + 1, correct: s.correct + (decision.ok ? 1 : 0), streak, best: Math.max(s.best, streak) };
       });
       play(decision.ok ? "chip" : "lose");
-      recordDrills([{ game: "blackjack", key: decision.spot, label: decision.label, kind: decision.kind, correct: decision.correct, ok: decision.ok }]);
+      recordDrills([{ game: "blackjack", key: decision.spot, label: decision.label, kind: decision.kind, correct: decision.correct, ok: decision.ok, cost: decision.cost }]);
       if (decision.ok) advanceTimer.current = setTimeout(next, 650);
     },
     [spot, answered, legal, table, next],
@@ -110,7 +126,7 @@ export function Trainer({ focus }: { focus: string | null }) {
           <Pill label="Streak" value={`${session.streak}`} hot={session.streak >= 10} flame={session.streak >= 5} />
           <Pill label="Best" value={`${session.best}`} />
           {focus && (
-            <Link href="/trainer" className="ml-auto rounded-full bg-ember-500/15 px-3 py-1.5 font-semibold text-ember-200 ring-1 ring-ember-500/40 hover:bg-ember-500/25">
+            <Link href="/train/blackjack/" className="ml-auto rounded-full bg-ember-500/15 px-3 py-1.5 font-semibold text-ember-200 ring-1 ring-ember-500/40 hover:bg-ember-500/25">
               Focused: {spotLabel(focus)} ✕
             </Link>
           )}
@@ -186,11 +202,15 @@ export function Trainer({ focus }: { focus: string | null }) {
               answered.decision.ok ? (
                 <p className="text-center text-sm font-semibold text-emerald-300">✓ {MOVE_LABEL[answered.decision.correct as Move]} — correct</p>
               ) : (
-                <div className="flex flex-col items-center gap-2 text-center sm:flex-row sm:text-left">
-                  <p className="flex-1 text-sm text-ember-100">
-                    <span className="font-bold">{answered.decision.label}: {MOVE_LABEL[answered.decision.correct as Move].toLowerCase()}.</span>{" "}
-                    <span className="text-ash-300">{answered.decision.why}</span>
-                  </p>
+                <div className="flex flex-col items-center gap-2 text-center sm:flex-row sm:items-start sm:text-left">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-ember-100">
+                      <span className="font-bold">{answered.decision.label}: {MOVE_LABEL[answered.decision.correct as Move].toLowerCase()}.</span>{" "}
+                      <span className="text-ash-300">{answered.decision.why}</span>
+                    </p>
+                    {costLine(answered.decision) && <p className="mt-1 text-sm font-semibold text-ember-300">{costLine(answered.decision)}</p>}
+                    <EvBreakdown evs={answered.evs} decision={answered.decision} />
+                  </div>
                   <button onClick={next} className="btn-fire h-10 shrink-0 rounded-xl px-5 text-sm font-bold">
                     Next <kbd className="ml-1 rounded bg-ash-950/20 px-1.5 py-0.5 font-mono text-[10px]">Enter</kbd>
                   </button>
@@ -286,6 +306,34 @@ export function Trainer({ focus }: { focus: string | null }) {
           )}
         </div>
       </aside>
+    </div>
+  );
+}
+
+/** EV of every legal play, as a share of the bet, best first. */
+function EvBreakdown({ evs, decision }: { evs: MoveEVs; decision: Decision }) {
+  const rows = (Object.entries(evs) as [Move, number][]).sort((a, b) => b[1] - a[1]);
+  if (rows.length < 2) return null;
+  return (
+    <div className="mt-2">
+      <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-ash-500">EV of each play</span>
+      <ul className="mt-1 flex flex-wrap justify-center gap-1.5 sm:justify-start">
+        {rows.map(([m, ev]) => (
+          <li
+            key={m}
+            className={`tabular rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ${
+              m === decision.correct
+                ? "bg-emerald-500/10 text-emerald-200 ring-emerald-500/40"
+                : m === decision.chosen
+                  ? "bg-ember-500/10 text-ember-100 ring-ember-500/40"
+                  : "bg-ash-900 text-ash-300 ring-ash-700"
+            }`}
+          >
+            {MOVE_LABEL[m]} {formatEV(ev)}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-1 text-[10px] text-ash-600">Expected win or loss per hand as a share of your bet (infinite-deck model).</p>
     </div>
   );
 }

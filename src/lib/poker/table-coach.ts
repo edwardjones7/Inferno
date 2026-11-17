@@ -2,12 +2,18 @@
  * Live coaching for the hero at the practice table. `coachHero` is called with the state
  * BEFORE the hero's action and grades it: pre-flop opens against the charts in ranges.ts,
  * calls/folds against pot odds using equity versus random hands (an approximation: real
- * betting ranges are stronger than random, especially behind big bets).
+ * betting ranges are stronger than random, especially behind big bets). Post-flop bets and
+ * checks are graded with the textbook c-bet / sizing heuristics in postflop.ts.
+ *
+ * `cost` on a note is a rough estimate, in big blinds, of what a mistake gave up: pot-odds
+ * maths for calls and folds (with the equity above), the one-street toy model (`betEV`)
+ * for bets and checks. It is only attached when `ok === false`.
  */
 import { seeded, seedFor } from "./equity";
 import { equityVsRandom } from "./bots";
 import { legal, opponentsOf, positionOf, raisesThisStreet } from "./game";
 import type { CoachNote, PlayerAction, PokerState } from "./game-types";
+import { cbetAnswer, costBetween, flopInfo, foldBonusFor, handClass, SIZE_FRAC, sizingAnswer } from "./postflop";
 import { handCode, OPEN_RANGES, parseRange, POSITION_NAME, rangePercent, type Position } from "./ranges";
 
 const THREE_BET_RANGE = parseRange("TT+, AQs+, AKo, KQs, A5s, A4s");
@@ -26,7 +32,11 @@ function raiserRange(s: PokerState): { range: Set<string>; label: string } | nul
 }
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
-const note = (ok: boolean | null, title: string, detail: string): CoachNote => ({ ok, title: title.slice(0, 40), detail: detail.slice(0, 180) });
+const note = (ok: boolean | null, title: string, detail: string, cost?: number): CoachNote => {
+  const n: CoachNote = { ok, title: title.slice(0, 40), detail: detail.slice(0, 180) };
+  if (ok === false && cost && cost > 0) n.cost = Math.round(cost * 10) / 10;
+  return n;
+};
 
 /** Deterministic equity for the hero's spot so the same decision always gets the same note. */
 function heroEquity(s: PokerState, seatId: number, opponents: number, range?: Set<string>): number {
@@ -81,11 +91,13 @@ export function coachHero(state: PokerState, action: PlayerAction): CoachNote {
   if (L.toCall > 0) {
     const price = L.toCall / (state.pot + L.toCall);
     const diff = eq - price;
+    // calling wins pot + call with probability eq and costs the call; folding is 0
+    const evCallBb = (eq * (state.pot + L.toCall) - L.toCall) / state.bb;
     const bigBet = state.street !== "preflop" && L.toCall > 0.6 * (state.pot - L.toCall);
     const caveat = bigBet ? " Big bets usually mean stronger than random." : "";
     const need = `${vs}; you needed ${pct(price)}.`;
     if (action.kind === "fold") {
-      if (diff > 0.05) return note(false, "Fold looks too tight", `${need}${caveat || " The price was good enough to continue."}`);
+      if (diff > 0.05) return note(false, "Fold looks too tight", `${need}${caveat || " The price was good enough to continue."}`, evCallBb);
       if (diff < -0.05) return note(true, "Good fold", `${need} Not enough equity for the price.`);
       return note(null, "Close spot", `${need} Folding is reasonable.`);
     }
@@ -94,11 +106,12 @@ export function coachHero(state: PokerState, action: PlayerAction): CoachNote {
       return note(null, "Bluff-raise", `${need} It only works if they fold often.`);
     }
     if (diff > 0.05) return note(true, "Good call", `${need}${caveat}`);
-    if (diff < -0.05) return note(false, "Calling below the price", `${need} Folding saves chips in the long run.`);
+    if (diff < -0.05) return note(false, "Calling below the price", `${need} Folding saves chips in the long run.`, -evCallBb);
     return note(null, "Close spot", `${need} Calling is fine.`);
   }
 
   // nothing to call: checking or betting
+  if (state.street !== "preflop" && state.board.length >= 3) return coachUnopened(state, seatId, action, eq, opponents, vs);
   const strength = Math.pow(eq, 1 / opponents);
   if (action.kind === "check") {
     if (strength > 0.8) return note(null, "Consider betting for value", `${vs}. A strong hand like this usually wants to build the pot.`);
@@ -110,4 +123,104 @@ export function coachHero(state: PokerState, action: PlayerAction): CoachNote {
     return note(null, "Bet", `${vs}.`);
   }
   return note(null, "Check", `${vs}.`);
+}
+
+/* ------------------------------------------------------------------ post-flop, unopened pots */
+
+/** Seat that made the last pre-flop raise (the player with the initiative), or null. */
+function preflopAggressor(s: PokerState): number | null {
+  const ev = [...s.log].reverse().find((e) => e.kind === "action" && e.street === "preflop" && e.seat !== undefined && / raises to /.test(e.text));
+  return ev?.seat ?? null;
+}
+
+interface Plan {
+  bet: boolean;
+  /** recommended bet as a fraction of the pot (0 = check) */
+  size: number;
+  /** textbook-clear: deviating is a mistake rather than a style choice */
+  firm: boolean;
+  why: string;
+}
+
+const sizeWord = (f: number) => (f <= 0.4 ? "a third of the pot" : f <= 0.8 ? "about two thirds of the pot" : "pot or more");
+
+/**
+ * What the textbook does when nobody has bet yet after the flop:
+ * - flop c-bet, heads-up, as the pre-flop raiser: `cbetAnswer` (range-bet small on A/K-high
+ *   dry boards; elsewhere bet value, top pair and draws, check medium pairs and air);
+ * - otherwise bet strong hands (big on wet boards and the river, small on dry flops), bet
+ *   top pair and draws heads-up, check medium pairs, and don't bluff into two or more players.
+ */
+function planFor(s: PokerState, seatId: number, opponents: number): Plan {
+  const hole = s.seats[seatId].hole;
+  const info = flopInfo(s.board);
+  const cls = handClass(hole, s.board);
+  const river = s.board.length >= 5;
+  const wet = info.texture === "wet" || info.texture === "semiwet" || info.texture === "monotone";
+  if (s.street === "flop" && opponents === 1 && preflopAggressor(s) === seatId) {
+    const bet = cbetAnswer(info, cls) === "bet";
+    const sz = sizingAnswer(hole, s.board).size;
+    const size = info.favors === "raiser" ? 0.33 : sz === "check" ? 0.66 : SIZE_FRAC[sz];
+    const why =
+      info.favors === "raiser"
+        ? "You raised pre-flop and this A/K-high dry flop favours you: c-bet small with your whole range."
+        : bet
+          ? `C-bet ${sizeWord(size)}: your hand wants value or protection, or has a draw.`
+          : "This flop hits the caller's range: check medium pairs and air instead of c-betting.";
+    return { bet, size: bet ? size : 0, firm: info.favors !== "neutral", why };
+  }
+  switch (cls) {
+    case "strong":
+    case "overpair": {
+      const size = river ? (cls === "strong" ? 1 : 0.66) : wet || s.street === "turn" ? 0.66 : 0.33;
+      return { bet: true, size, firm: wet || river, why: `Strong hand: bet ${sizeWord(size)}${wet ? " and charge the draws" : river ? " for value" : ""}.` };
+    }
+    case "toppair":
+      return { bet: opponents === 1 && !river, size: 0.5, firm: false, why: "Top pair: a medium bet for value and protection is standard heads-up." };
+    case "medium":
+      return { bet: false, size: 0, firm: wet || river, why: "Medium pair: check. It wins some showdowns but can't take a raise, and worse rarely calls." };
+    case "draw":
+      return {
+        bet: opponents === 1,
+        size: 0.66,
+        firm: false,
+        why: opponents === 1 ? "Draw heads-up: a semi-bluff wins the pot now or builds it for when you hit." : "Draw multiway: take the free card.",
+      };
+    default:
+      return {
+        bet: false,
+        size: 0,
+        firm: opponents >= 2,
+        why: opponents >= 2 ? "No pair, no draw, two or more opponents: someone has something. Check." : "No pair, no draw: checking is fine; bluff where they fold a lot.",
+      };
+  }
+}
+
+function coachUnopened(s: PokerState, seatId: number, action: PlayerAction, eq: number, opponents: number, vs: string): CoachNote {
+  const me = s.seats[seatId];
+  const plan = planFor(s, seatId, opponents);
+  const strength = Math.pow(eq, 1 / opponents);
+  const potBb = s.pot / s.bb;
+  const bonus = s.board.length === 3 ? foldBonusFor(flopInfo(s.board)) : 0;
+  const cost = (best: number, chosen: number) => costBetween(strength, best, chosen, potBb, bonus);
+  if (action.kind === "check") {
+    if (!plan.bet) return note(true, "Good check", `${vs}. ${plan.why}`);
+    if (plan.firm) return note(false, plan.size <= 0.4 ? "Missed c-bet" : "Bet this hand", `${vs}. ${plan.why}`, cost(plan.size, 0));
+    return note(null, "Checking is OK", `${vs}. ${plan.why}`);
+  }
+  if (action.kind !== "raise") return note(null, "Check", `${vs}.`);
+  const frac = (action.to - me.committed) / Math.max(1, s.pot);
+  if (!plan.bet) {
+    if (plan.firm) return note(false, "Check this one", `${vs}. ${plan.why}`, cost(0, frac));
+    return note(null, "Bluff", `${vs}. ${plan.why}`);
+  }
+  const tooBig = plan.size <= 0.4 && frac > 0.85;
+  const tooSmall = plan.size >= 0.6 && frac < 0.4;
+  if (tooBig || tooSmall) {
+    const title = tooBig ? "Size down" : "Size up";
+    const detail = `Bet ${sizeWord(plan.size)} here; you bet ${Math.round(frac * 100)}%. ${plan.why}`;
+    return plan.firm ? note(false, title, detail, cost(plan.size, frac)) : note(null, title, detail);
+  }
+  const cbet = s.street === "flop" && opponents === 1 && preflopAggressor(s) === seatId;
+  return note(true, cbet ? "Good c-bet" : "Good bet", `${vs}. ${plan.why}`);
 }

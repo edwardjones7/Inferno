@@ -14,7 +14,7 @@ import { dailyPuzzles, type DailyPuzzle } from "@/lib/daily";
 import { gradePoker, type PokerGrade } from "@/lib/poker/drills";
 import { play } from "@/lib/sound";
 import { recordDrills, streakOf, today, update, useHydrated, useProgress } from "@/lib/store";
-import { CHOICES, Prompt, SpotView } from "../poker/poker-trainer";
+import { choicesFor, Prompt, SpotView } from "../poker/poker-trainer";
 
 type Graded = { kind: "blackjack"; d: Decision } | { kind: "poker"; g: PokerGrade & { answer: string } };
 
@@ -145,7 +145,7 @@ function Verdict({ ok, title, why }: { ok: boolean; title: string; why?: string 
   );
 }
 
-function BlackjackPuzzle({ pz, graded, onAnswer }: { pz: Extract<DailyPuzzle, { game: "blackjack" }>; graded: Decision | null; onAnswer: (m: Move) => void }) {
+export function BlackjackPuzzle({ pz, graded, onAnswer }: { pz: Pick<Extract<DailyPuzzle, { game: "blackjack" }>, "spot" | "legal">; graded: Decision | null; onAnswer: (m: Move) => void }) {
   const info = spotOf(pz.spot.cards, pz.spot.up);
   const moves = (["hit", "stand", "double", "split", "surrender"] as Move[]).filter((m) => pz.legal.includes(m));
   return (
@@ -191,16 +191,16 @@ function BlackjackPuzzle({ pz, graded, onAnswer }: { pz: Extract<DailyPuzzle, { 
   );
 }
 
-function PokerPuzzle({
+export function PokerPuzzle({
   pz,
   graded,
   onAnswer,
 }: {
-  pz: Extract<DailyPuzzle, { game: "poker" }>;
+  pz: Pick<Extract<DailyPuzzle, { game: "poker" }>, "spot">;
   graded: (PokerGrade & { answer: string }) | null;
   onAnswer: (id: string) => void;
 }) {
-  const choices = CHOICES[pz.spot.kind];
+  const choices = choicesFor(pz.spot);
   return (
     <>
       <div className="felt rounded-[28px] px-4 py-6 sm:px-8">

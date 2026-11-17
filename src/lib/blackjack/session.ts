@@ -6,7 +6,7 @@
  * against basic strategy and moves the blackjack rating.
  */
 import { chipsToUnits, MAX_BET, MIN_BET } from "../chips";
-import { applyRating, getProgress, touchDay, update, type ActiveRound, type BjRoundRecord, type Progress } from "../store";
+import { applyRating, getProgress, reviewSpot, touchDay, update, type ActiveRound, type BjRoundRecord, type Progress } from "../store";
 import { difficultyOf } from "../rating";
 import { gradeAction, type Decision } from "./coach";
 import { applyAction, deal, toView, type ActionType, type RoundView } from "./engine";
@@ -38,6 +38,8 @@ function settle(p: Progress, r: ActiveRound) {
     decisions: r.decisions,
   };
   p.bjRounds.push(record);
+  // live mistakes join the spaced-repetition queue just like drill misses
+  for (const d of r.decisions) reviewSpot(p, { game: "blackjack", key: d.spot, label: d.label, kind: d.kind, ok: d.ok });
   p.activeRound = null;
 }
 

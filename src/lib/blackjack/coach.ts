@@ -4,6 +4,7 @@
  */
 import type { Card } from "./cards";
 import { legalActions, type ActionType, type RoundState, type Rules } from "./engine";
+import { INSURANCE_COST, mistakeCost, moveEVs } from "./ev";
 import { basicStrategy, explain, MOVE_LABEL, spotOf, type Move, type SpotKind } from "./strategy";
 
 export interface Decision {
@@ -16,6 +17,8 @@ export interface Decision {
   ok: boolean;
   /** why the correct play is correct (only stored for mistakes, to keep rows small) */
   why?: string;
+  /** expected loss vs the correct play, as a fraction of the bet (only for mistakes) */
+  cost?: number;
 }
 
 /** Grade the action the player is about to take in this state (call before applying it). */
@@ -31,6 +34,7 @@ export function gradeAction(state: RoundState, action: ActionType): Decision | n
       correct: "decline",
       ok,
       why: ok ? undefined : "Insurance is a side bet the house wins over time. Basic strategy never takes it.",
+      cost: ok ? undefined : INSURANCE_COST,
     };
   }
   if (state.phase !== "player") return null;
@@ -42,6 +46,8 @@ export function gradeSpot(cards: readonly Card[], dealerUp: Card, legal: readonl
   const correct = basicStrategy(cards, dealerUp, legal, rules);
   const spot = spotOf(cards, dealerUp);
   const ok = action === correct;
+  // EV tables are memoised per rules + upcard, so pricing a mistake is a few lookups.
+  const cost = ok ? undefined : mistakeCost(moveEVs(cards, dealerUp, rules, legal), correct, action as Move);
   return {
     spot: spot.key,
     label: spot.label,
@@ -50,6 +56,7 @@ export function gradeSpot(cards: readonly Card[], dealerUp: Card, legal: readonl
     correct,
     ok,
     why: ok ? undefined : explain(spot, correct),
+    ...(cost !== undefined && { cost: Math.round(cost * 10000) / 10000 }),
   };
 }
 

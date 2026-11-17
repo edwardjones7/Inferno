@@ -28,6 +28,15 @@ export const SPOT_DIFFICULTY: Record<string, number> = {
   potodds: 1300,
   showdown: 1050,
   equity: 1400,
+  // post-flop poker drills
+  texture: 1100,
+  handread: 1450,
+  sizing: 1250,
+  cbet: 1350,
+  // card counting
+  count: 1200,
+  truecount: 1300,
+  index: 1550,
 };
 
 export const difficultyOf = (kind: string) => SPOT_DIFFICULTY[kind] ?? 1000;

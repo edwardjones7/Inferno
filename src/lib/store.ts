@@ -14,6 +14,7 @@ import type { TableId } from "./blackjack/tables";
 import { chipsToUnits, STARTING_CHIPS } from "./chips";
 import type { HandEvent } from "./poker/game-types";
 import { difficultyOf, rate, START_RATING } from "./rating";
+import { schedule, srsId, type SrsCard } from "./srs";
 
 const KEY = "inferno:progress:v1";
 
@@ -48,6 +49,8 @@ export interface DrillRecord {
   kind: string;
   correct: string;
   ok: boolean;
+  /** how much the chosen play gave up vs the best one (blackjack: fraction of the bet; poker: big blinds) */
+  cost?: number;
 }
 
 export interface PokerNote {
@@ -57,6 +60,8 @@ export interface PokerNote {
   detail: string;
   /** index into the hand log at the moment of the decision */
   at: number;
+  /** big blinds given up vs the coach's play (absent when not estimated) */
+  cost?: number;
 }
 
 export interface PokerHandRecord {
@@ -106,6 +111,10 @@ export interface Progress {
   daily: Record<string, boolean[]>;
   /** yyyy-mm-dd of every day with any activity (most recent last, capped) */
   days: string[];
+  /** lesson id -> time it was completed */
+  lessons: Record<string, number>;
+  /** spaced-repetition cards keyed by srsId(game, key) */
+  srs: Record<string, SrsCard>;
 }
 
 const LIMITS = { bjRounds: 200, drills: 2000, pokerHands: 150, matches: 200, days: 400, history: 120 };
@@ -127,6 +136,8 @@ export function freshProgress(now = 0): Progress {
     beaten: [],
     daily: {},
     days: [],
+    lessons: {},
+    srs: {},
   };
 }
 
@@ -219,6 +230,12 @@ function trim(p: Progress) {
   for (const k of Object.keys(p.ratings) as RatingKey[]) p.ratings[k].history = cap(p.ratings[k].history, LIMITS.history);
   const dailyKeys = Object.keys(p.daily).sort();
   for (const k of dailyKeys.slice(0, Math.max(0, dailyKeys.length - 60))) delete p.daily[k];
+  // keep the schedule bounded: drop the most-mastered cards first
+  const srs = Object.entries(p.srs);
+  if (srs.length > 600) {
+    srs.sort(([, a], [, b]) => a.interval - b.interval);
+    p.srs = Object.fromEntries(srs.slice(0, 600));
+  }
 }
 
 export function resetProgress() {
@@ -266,7 +283,7 @@ export function applyRating(p: Progress, key: RatingKey, opponent: number, score
   r.history.push(r.r);
 }
 
-/** Record drill / puzzle answers and move the training rating. */
+/** Record drill / puzzle answers, move the training rating and schedule spaced reviews. */
 export function recordDrills(records: Omit<DrillRecord, "at">[]) {
   if (!records.length) return;
   update((p) => {
@@ -274,7 +291,23 @@ export function recordDrills(records: Omit<DrillRecord, "at">[]) {
     for (const r of records) {
       p.drills.push({ ...r, at });
       applyRating(p, "training", difficultyOf(r.kind), r.ok ? 1 : 0);
+      reviewSpot(p, r);
     }
+    touchDay(p);
+  });
+}
+
+/** Feed one graded answer into the spaced-repetition schedule (mutates the draft). */
+export function reviewSpot(p: Progress, r: { game: "blackjack" | "poker"; key: string; label: string; kind: string; ok: boolean }) {
+  const id = srsId(r.game, r.key);
+  const next = schedule(p.srs[id], { game: r.game, key: r.key, label: r.label, kind: r.kind }, r.ok, today());
+  if (next) p.srs[id] = next;
+}
+
+/** Mark a lesson finished. */
+export function completeLesson(id: string) {
+  update((p) => {
+    if (!p.lessons[id]) p.lessons[id] = Date.now();
     touchDay(p);
   });
 }

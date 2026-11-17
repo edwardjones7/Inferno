@@ -1,12 +1,23 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { PlayingCardStatic } from "@/components/playing-card-static";
 import { cardLabel, type Card } from "@/lib/blackjack/cards";
-import { EQUITY_BUCKETS, genPoker, gradePoker, POKER_DRILLS, type PokerDrill, type PokerGrade, type PokerSpot } from "@/lib/poker/drills";
+import {
+  EQUITY_BUCKETS,
+  genPoker,
+  genPreflop,
+  gradePoker,
+  HANDREAD_BUCKETS,
+  POKER_DRILLS,
+  type PokerDrill,
+  type PokerGrade,
+  type PokerSpot,
+} from "@/lib/poker/drills";
 import { outs } from "@/lib/poker/equity";
 import { describe } from "@/lib/poker/eval";
+import { flopInfo, HAND_CLASS_NAME, handClass, LINES, TEXTURE_NAME, TEXTURES } from "@/lib/poker/postflop";
 import { BEHIND, GRID, handCode, OPEN_RANGES, POSITION_NAME, POSITIONS, rangePercent, type Position } from "@/lib/poker/ranges";
 import { play } from "@/lib/sound";
 import { bestStreak, leaksOf, recordDrills, useProgress } from "@/lib/store";
@@ -33,11 +44,44 @@ export const CHOICES: Record<PokerDrill, Choice[]> = {
     { id: "split", label: "Split pot", key: "S" },
   ],
   equity: EQUITY_BUCKETS.map((b, i) => ({ id: b.id, label: b.label, key: String(i + 1) })),
+  texture: TEXTURES.map((t, i) => ({ id: t, label: TEXTURE_NAME[t], key: String(i + 1) })),
+  handread: HANDREAD_BUCKETS.map((b, i) => ({ id: b.id, label: b.label, key: String(i + 1) })),
+  sizing: [
+    { id: "check", label: "Check", key: "C" },
+    { id: "33", label: "⅓ pot", key: "1" },
+    { id: "66", label: "⅔ pot", key: "2" },
+    { id: "100", label: "Pot+", key: "3" },
+  ],
+  cbet: [
+    { id: "bet", label: "C-bet", key: "B" },
+    { id: "check", label: "Check", key: "C" },
+  ],
 };
 
+const FAVOR_CHOICES: Choice[] = [
+  { id: "raiser", label: "Pre-flop raiser", key: "R" },
+  { id: "caller", label: "Big blind (caller)", key: "C" },
+];
 
-export function PokerTrainer({ initialDrill = "preflop" }: { initialDrill?: PokerDrill }) {
+/** Answer buttons for one spot: the texture drill asks two kinds of question. */
+export const choicesFor = (spot: PokerSpot): Choice[] => (spot.kind === "texture" && spot.q === "favor" ? FAVOR_CHOICES : CHOICES[spot.kind]);
+
+/** Tailwind grid columns for a row of answer buttons. */
+export const choiceCols = (n: number) => (n === 2 ? "grid-cols-2" : n === 5 ? "grid-cols-2 sm:grid-cols-5" : n === 3 ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4");
+
+/** Drills that move on by themselves after a right answer (the rest have numbers worth reading). */
+const AUTO_NEXT: PokerDrill[] = ["preflop", "equity", "texture"];
+
+const GROUPS = [
+  { id: "pre", label: "Pre-flop & maths" },
+  { id: "post", label: "Post-flop" },
+] as const;
+
+
+/** `lockPos` pins the opening-ranges drill to one seat (from `?pos=BTN`). */
+export function PokerTrainer({ initialDrill = "preflop", initialPos }: { initialDrill?: PokerDrill; initialPos?: Position }) {
   const [drill, setDrill] = useState<PokerDrill>(initialDrill);
+  const [lockPos, setLockPos] = useState<Position | null>(initialPos ?? null);
   const [spot, setSpot] = useState<(PokerSpot & { n: number }) | null>(null);
   const [grade, setGrade] = useState<(PokerGrade & { answer: string }) | null>(null);
   const [session, setSession] = useState({ n: 0, correct: 0, streak: 0, best: 0 });
@@ -50,17 +94,17 @@ export function PokerTrainer({ initialDrill = "preflop" }: { initialDrill?: Poke
     });
     return { byDrill, leaks: leaksOf(progress, "poker", 8), bestStreak: bestStreak(mine) };
   }, [progress]);
-  const [chartPos, setChartPos] = useState<Position>("BTN");
+  const [chartPos, setChartPos] = useState<Position>(initialPos ?? "BTN");
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
 
   const deal = useCallback((kind: PokerDrill) => {
     clearTimeout(timer.current);
-    const s = genPoker(kind, Math.random);
+    const s = kind === "preflop" && lockPos ? genPreflop(Math.random, lockPos) : genPoker(kind, Math.random);
     setSpot((prev) => ({ ...s, n: (prev?.n ?? 0) + 1 }));
     setGrade(null);
     if (s.kind === "preflop") setChartPos(s.pos);
-  }, []);
+  }, [lockPos]);
 
   useEffect(() => {
     queueMicrotask(() => deal(initialDrill));
@@ -78,8 +122,8 @@ export function PokerTrainer({ initialDrill = "preflop" }: { initialDrill?: Poke
         return { n: s.n + 1, correct: s.correct + (g.ok ? 1 : 0), streak, best: Math.max(s.best, streak) };
       });
       play(g.ok ? "chip" : "lose");
-      recordDrills([{ game: "poker", key: g.key, label: g.label, kind: spot.kind, correct: g.correct, ok: g.ok }]);
-      if (g.ok && drill !== "potodds" && drill !== "showdown") timer.current = setTimeout(() => deal(drill), 900);
+      recordDrills([{ game: "poker", key: g.key, label: g.label, kind: spot.kind, correct: g.correct, ok: g.ok, ...(g.cost ? { cost: g.cost } : {}) }]);
+      if (g.ok && AUTO_NEXT.includes(drill)) timer.current = setTimeout(() => deal(drill), 900);
     },
     [spot, grade, drill, deal],
   );
@@ -94,7 +138,7 @@ export function PokerTrainer({ initialDrill = "preflop" }: { initialDrill?: Poke
         deal(drill);
         return;
       }
-      const c = CHOICES[drill].find((x) => x.key.toLowerCase() === k);
+      const c = (spot ? choicesFor(spot) : CHOICES[drill]).find((x) => x.key.toLowerCase() === k);
       if (c) {
         e.preventDefault();
         answer(c.id);
@@ -102,7 +146,7 @@ export function PokerTrainer({ initialDrill = "preflop" }: { initialDrill?: Poke
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [answer, grade, deal, drill]);
+  }, [answer, grade, deal, drill, spot]);
 
   const pickDrill = (d: PokerDrill) => {
     setDrill(d);
@@ -110,26 +154,42 @@ export function PokerTrainer({ initialDrill = "preflop" }: { initialDrill?: Poke
   };
 
   const acc = session.n ? Math.round((session.correct / session.n) * 100) : 0;
+  const choices = spot ? choicesFor(spot) : CHOICES[drill];
   const drillStats = useMemo(() => Object.fromEntries(stats.byDrill.map((d) => [d.drill, d])), [stats]);
 
   return (
     <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
       <div className="min-w-0">
-        {/* drill tabs */}
-        <div className="mb-3 grid grid-cols-2 gap-1.5 sm:grid-cols-4" role="tablist" aria-label="Drill">
-          {POKER_DRILLS.map((d) => (
-            <button
-              key={d.id}
-              role="tab"
-              aria-selected={drill === d.id}
-              onClick={() => pickDrill(d.id)}
-              className={`rounded-xl px-3 py-2 text-left transition-colors ${drill === d.id ? "bg-ember-500 text-ash-950" : "panel text-ash-200 hover:text-bone"}`}
-            >
-              <span className="block text-sm font-bold">{d.label}</span>
-              <span className={`hidden text-[11px] leading-tight sm:block ${drill === d.id ? "text-ash-950/70" : "text-ash-500"}`}>{d.blurb}</span>
-            </button>
+        {/* drill tabs, grouped so eight drills still fit two short rows on a phone */}
+        <div className="mb-3 space-y-2" role="tablist" aria-label="Drill">
+          {GROUPS.map((g) => (
+            <div key={g.id}>
+              <p className="mb-1 px-1 text-[10px] font-bold uppercase tracking-[0.2em] text-ash-500">{g.label}</p>
+              <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+                {POKER_DRILLS.filter((d) => d.group === g.id).map((d) => (
+                  <button
+                    key={d.id}
+                    role="tab"
+                    aria-selected={drill === d.id}
+                    onClick={() => pickDrill(d.id)}
+                    className={`rounded-xl px-3 py-2 text-left transition-colors ${drill === d.id ? "bg-ember-500 text-ash-950" : "panel text-ash-200 hover:text-bone"}`}
+                  >
+                    <span className="block text-sm font-bold">{d.label}</span>
+                    <span className={`hidden text-[11px] leading-tight sm:block ${drill === d.id ? "text-ash-950/70" : "text-ash-500"}`}>{d.blurb}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
+        {drill === "preflop" && lockPos && (
+          <div className="mb-3 flex items-center gap-2 text-xs text-ash-300">
+            <span className="rounded-full bg-ember-500/15 px-3 py-1 font-bold text-ember-200 ring-1 ring-ember-500/40">Only {POSITION_NAME[lockPos].toLowerCase()} spots</span>
+            <button onClick={() => setLockPos(null)} className="text-ash-400 underline underline-offset-2 hover:text-bone">
+              All seats
+            </button>
+          </div>
+        )}
 
         <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
           <Pill label="Answered" value={String(session.n)} />
@@ -158,8 +218,8 @@ export function PokerTrainer({ initialDrill = "preflop" }: { initialDrill?: Poke
         {/* answers */}
         <div className="panel mt-4 rounded-3xl p-4 sm:p-5">
           {spot && <Prompt spot={spot} />}
-          <div className={`mt-3 grid gap-2 ${CHOICES[drill].length === 2 ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-4"}`}>
-            {CHOICES[drill].map((c) => {
+          <div className={`mt-3 grid gap-2 ${choiceCols(choices.length)}`}>
+            {choices.map((c) => {
               const isCorrect = grade && grade.correct === c.id;
               const isWrong = grade && !grade.ok && grade.answer === c.id;
               return (
@@ -183,13 +243,14 @@ export function PokerTrainer({ initialDrill = "preflop" }: { initialDrill?: Poke
                 <p className={`flex-1 text-sm ${grade.ok ? "text-emerald-200" : "text-ember-100"}`}>
                   <span className="font-bold">{grade.ok ? "✓ Correct. " : "✗ Not quite. "}</span>
                   <span className="text-ash-300">{grade.why}</span>
+                  {!grade.ok && grade.cost ? <span className="mt-1 block font-semibold text-ember-300">This cost you ~{fmtBb(grade.cost)}.</span> : null}
                 </p>
                 <button onClick={() => deal(drill)} className="btn-fire h-10 shrink-0 rounded-xl px-5 text-sm font-bold">
                   Next <kbd className="ml-1 rounded bg-ash-950/20 px-1.5 py-0.5 font-mono text-[10px]">Enter</kbd>
                 </button>
               </div>
             ) : (
-              <p className="text-center text-xs text-ash-500">Keyboard: {CHOICES[drill].map((c) => c.key).join(" · ")}</p>
+              <p className="text-center text-xs text-ash-500">Keyboard: {choices.map((c) => c.key).join(" · ")}</p>
             )}
           </div>
         </div>
@@ -197,7 +258,8 @@ export function PokerTrainer({ initialDrill = "preflop" }: { initialDrill?: Poke
 
       {/* sidebar */}
       <aside className="flex min-w-0 flex-col gap-4">
-        <div className="panel rounded-3xl p-5">
+        {/* the opening chart only helps pre-flop drills */}
+        {POKER_DRILLS.find((d) => d.id === drill)?.group === "pre" && (<div className="panel rounded-3xl p-5">
           <div className="flex items-center justify-between">
             <h2 className="font-display text-sm font-bold">Opening chart</h2>
             <span className="tabular text-xs text-ash-400">{Math.round(rangePercent(OPEN_RANGES[chartPos]))}% of hands</span>
@@ -219,7 +281,7 @@ export function PokerTrainer({ initialDrill = "preflop" }: { initialDrill?: Poke
           <p className="mt-2 text-[11px] leading-relaxed text-ash-500">
             Simplified 100bb 6-max raise-first-in ranges. {POSITION_NAME[chartPos]}: {BEHIND[chartPos]} player{BEHIND[chartPos] > 1 ? "s" : ""} left to act.
           </p>
-        </div>
+        </div>)}
 
         <div className="panel rounded-3xl p-5">
           <h2 className="font-display text-sm font-bold">Your accuracy</h2>
@@ -275,7 +337,17 @@ export function Prompt({ spot }: { spot: PokerSpot }) {
         ? `Pot is ${spot.pot}. Villain shoves ${spot.bet}. Call ${spot.bet} to win ${spot.pot + spot.bet}?`
         : spot.kind === "showdown"
           ? "All-in, cards on their backs. Who wins the pot?"
-          : "All-in pre-flop. How often does your hand win (counting ties as half)?";
+          : spot.kind === "equity"
+            ? "All-in pre-flop. How often does your hand win (counting ties as half)?"
+            : spot.kind === "texture"
+              ? spot.q === "favor"
+                ? "Button opened, big blind called. Whose range does this flop hit harder?"
+                : "What kind of flop is this?"
+              : spot.kind === "handread"
+                ? "What share of villain's range is ahead of you right now?"
+                : spot.kind === "sizing"
+                  ? `You raised pre-flop and it's checked to you${spot.board.length >= 5 ? " on the river" : ""}. Pot ${spot.pot} bb. Your play?`
+                  : `You opened the ${spot.pos}, the big blind called and checked. Pot ${spot.pot} bb. C-bet or check?`;
   return <p className="text-center text-sm font-semibold text-bone">{text}</p>;
 }
 
@@ -350,6 +422,65 @@ export function SpotView({ spot, grade }: { spot: PokerSpot; grade: PokerGrade |
       </div>
     );
   }
+  if (spot.kind === "texture") {
+    const i = flopInfo(spot.board);
+    return (
+      <div className="flex flex-col items-center gap-5 py-6">
+        <Cards cards={spot.board} label="Flop" />
+        {grade && (
+          <div className="flex flex-wrap justify-center gap-2">
+            <Tag>{TEXTURE_NAME[i.texture]}</Tag>
+            <Tag>{i.favors === "raiser" ? "Favours the raiser" : i.favors === "caller" ? "Favours the caller" : "Neutral"}</Tag>
+          </div>
+        )}
+      </div>
+    );
+  }
+  if (spot.kind === "handread") {
+    const l = LINES[spot.line];
+    return (
+      <div className="flex flex-col items-center gap-4">
+        <p className="max-w-md text-center text-xs text-ash-300">{l.text}</p>
+        <span className="max-w-md rounded-xl bg-ash-950/70 px-3 py-1.5 text-center font-mono text-[11px] leading-relaxed text-ember-200 ring-1 ring-ash-700">
+          Villain&apos;s range: {l.notation}
+        </span>
+        <Cards cards={spot.board} label="Board" />
+        <Cards cards={spot.hero} label={`You · ${describe([...spot.hero, ...spot.board]).name}`} />
+        {grade && (
+          <div className="w-full max-w-md">
+            <Bar label={`Range ahead of you (${grade.detail?.beat} of ${grade.detail?.live} combos)`} value={Number(grade.detail?.share)} tone="ember" />
+          </div>
+        )}
+      </div>
+    );
+  }
+  if (spot.kind === "sizing" || spot.kind === "cbet") {
+    const i = flopInfo(spot.board);
+    const cls = handClass(spot.hero, spot.board);
+    return (
+      <div className="flex flex-col items-center gap-4">
+        {spot.kind === "cbet" && <Tag>You opened {spot.pos} · big blind called</Tag>}
+        <div className="flex flex-col items-center gap-1.5">
+          <Cards cards={spot.board} label={spot.board.length >= 5 ? "River" : "Flop"} />
+          <span className="tabular rounded-full bg-ash-950/80 px-3 py-1 text-xs font-bold text-ember-200 ring-1 ring-ember-500/40">
+            Pot {spot.pot} bb · checked to you
+          </span>
+        </div>
+        <Cards cards={spot.hero} label="You" />
+        {grade && (
+          <div className="flex w-full max-w-md flex-col items-center gap-2">
+            <div className="flex flex-wrap justify-center gap-2">
+              {spot.board.length < 5 && <Tag>{TEXTURE_NAME[i.texture]} flop</Tag>}
+              <Tag>You have {HAND_CLASS_NAME[cls]}</Tag>
+            </div>
+            <div className="w-full">
+              <Bar label="Equity vs big blind's range" value={Number(grade.detail?.equity)} tone="ember" />
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col items-center gap-5">
       <Cards cards={spot.villain} label="Villain" />
@@ -362,6 +493,12 @@ export function SpotView({ spot, grade }: { spot: PokerSpot; grade: PokerGrade |
       )}
     </div>
   );
+}
+
+const fmtBb = (x: number) => `${x >= 10 ? Math.round(x) : x.toFixed(1)} bb`;
+
+function Tag({ children }: { children: ReactNode }) {
+  return <span className="rounded-full bg-ash-950/80 px-3 py-1 text-xs font-bold text-ember-200 ring-1 ring-ash-700">{children}</span>;
 }
 
 function Bar({ label, value, tone }: { label: string; value: number; tone: "ember" | "ash" }) {
