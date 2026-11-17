@@ -3,14 +3,28 @@
 import Link from "next/link";
 import { BotAvatar, TierBadge } from "@/components/bot-avatar";
 import { Chip } from "@/components/chip";
-import { IconCalendar, IconChevron, IconFlame, IconLock, IconSpade, IconTrain } from "@/components/icons";
+import {
+  IconCalendar,
+  IconChevron,
+  IconFlame,
+  IconLock,
+  IconSpade,
+  IconTrain,
+} from "@/components/icons";
 import { LobbyHero } from "@/components/lobby-hero";
 import { PlayingCardStatic } from "@/components/playing-card-static";
 import { Ring, SectionTitle, Sparkline } from "@/components/ui";
 import { MOVE_LABEL, type Move } from "@/lib/blackjack/strategy";
 import { isUnlocked, ROSTER } from "@/lib/poker/roster";
 import { ratingTitle } from "@/lib/rating";
-import { leaksOf, streakOf, today, useHydrated, useProgress, type RatingKey } from "@/lib/store";
+import {
+  leaksOf,
+  streakOf,
+  today,
+  useHydrated,
+  useProgress,
+  type RatingKey,
+} from "@/lib/store";
 
 const RATINGS: { key: RatingKey; label: string; href: string }[] = [
   { key: "poker", label: "Poker", href: "/play/poker/" },
@@ -20,208 +34,290 @@ const RATINGS: { key: RatingKey; label: string; href: string }[] = [
 
 function greeting() {
   const h = new Date().getHours();
-  return h < 5 ? "Late night" : h < 12 ? "Morning" : h < 18 ? "Afternoon" : "Evening";
+  return h < 5
+    ? "Late night"
+    : h < 12
+    ? "Morning"
+    : h < 18
+    ? "Afternoon"
+    : "Evening";
 }
 
 export function Home() {
   const p = useProgress();
   const hydrated = useHydrated();
   const streak = hydrated ? streakOf(p.days) : 0;
-  const daily = hydrated ? (p.daily[today()] ?? []) : [];
+  const daily = hydrated ? p.daily[today()] ?? [] : [];
   const dailyDone = daily.length;
-  const next = ROSTER.find((b) => !p.beaten.includes(b.id) && isUnlocked(b.id, p.beaten)) ?? ROSTER[ROSTER.length - 1];
+  const next =
+    ROSTER.find(
+      (b) => !p.beaten.includes(b.id) && isUnlocked(b.id, p.beaten)
+    ) ?? ROSTER[ROSTER.length - 1];
   const leak = hydrated ? leaksOf(p, undefined, 1)[0] : undefined;
 
   return (
-    <div className="mx-auto max-w-6xl px-4 pb-10 pt-5 sm:px-6 lg:pt-10">
-      {/* hero */}
-      <section className="grid items-center gap-6 lg:grid-cols-[1.15fr_1fr]">
-        <div className="animate-rise">
-          <p className="text-sm font-semibold text-ash-400">{hydrated ? `${greeting()}, ${p.name}` : " "}</p>
-          <h1 className="mt-2 font-display text-[40px] font-black leading-[0.95] tracking-tight sm:text-6xl">
-            <span className="molten-text">Play sharp.</span>
-            <br />
-            <span className="text-bone">Train hotter.</span>
-          </h1>
-          <p className="mt-4 max-w-md text-[15px] leading-relaxed text-ash-300">
-            Take on poker bots with real personalities, play blackjack with a coach watching every decision, and drill the spots you miss.
-          </p>
-          <div className="mt-6 grid grid-cols-3 gap-2 sm:max-w-md">
+    <>
+      {/* the room: swipe between the blackjack table, the poker room and the training corner */}
+      <LobbyHero fallback={<HeroArt />} />
+
+      <div className="mx-auto max-w-6xl px-4 pb-10 pt-2 sm:px-6 lg:pt-4">
+        {/* you */}
+        <section className="grid items-end gap-5 lg:grid-cols-[1fr_1.1fr]">
+          <div className="animate-rise">
+            <p className="text-sm font-semibold text-ash-400">
+              {hydrated ? `${greeting()}, ${p.name}` : " "}
+            </p>
+            <h1 className="mt-1.5 font-display text-[32px] font-black leading-[0.95] tracking-tight sm:text-5xl">
+              <span className="molten-text">Play sharp.</span>{" "}
+              <span className="text-bone">Train hotter.</span>
+            </h1>
+            <p className="mt-3 max-w-md text-[15px] leading-relaxed text-ash-300">
+              Take on poker bots with real personalities, play blackjack with a
+              coach watching every decision, and drill the spots you miss.
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
             {RATINGS.map((r) => {
               const rt = p.ratings[r.key];
               return (
-                <Link key={r.key} href={r.href} className="panel pressable rounded-2xl p-3">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-ash-500">{r.label}</p>
-                  <p className="tabular mt-1 font-display text-xl font-bold">{hydrated ? rt.r : "–"}</p>
-                  <p className="text-[10px] font-semibold text-ember-400">{hydrated ? ratingTitle(rt.r) : " "}</p>
-                  <Sparkline points={hydrated ? rt.history.slice(-30) : []} className="mt-1.5 h-6 w-full" />
+                <Link
+                  key={r.key}
+                  href={r.href}
+                  className="panel pressable rounded-2xl p-3"
+                >
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-ash-500">
+                    {r.label}
+                  </p>
+                  <p className="tabular mt-1 font-display text-xl font-bold">
+                    {hydrated ? rt.r : "–"}
+                  </p>
+                  <p className="text-[10px] font-semibold text-ember-400">
+                    {hydrated ? ratingTitle(rt.r) : " "}
+                  </p>
+                  <Sparkline
+                    points={hydrated ? rt.history.slice(-30) : []}
+                    className="mt-1.5 h-6 w-full"
+                  />
                 </Link>
               );
             })}
           </div>
-        </div>
-        <LobbyHero fallback={<HeroArt />} />
-      </section>
+        </section>
 
-      {/* today */}
-      <section className="mt-8 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-        <Link href="/train/daily/" className="panel pressable group relative overflow-hidden rounded-3xl p-5 ring-1 ring-ember-500/25">
-          <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-[radial-gradient(closest-side,rgba(255,90,31,0.28),transparent)]" />
-          <div className="relative flex items-center gap-4">
-            <Ring value={dailyDone / 3} size={68}>
-              <span className="tabular font-display text-lg font-bold">{dailyDone}/3</span>
-            </Ring>
-            <div className="min-w-0 flex-1">
-              <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-ember-400">
-                <IconCalendar className="h-3.5 w-3.5" /> Daily puzzles
-              </p>
-              <p className="mt-1 font-display text-lg font-bold">{dailyDone === 3 ? "All solved today" : dailyDone ? "Keep going" : "Three new spots"}</p>
-              <p className="text-xs text-ash-400">{dailyDone === 3 ? "Come back tomorrow for more." : "One blackjack, two poker. Same for everyone."}</p>
-            </div>
-            <IconChevron className="h-5 w-5 text-ash-500 transition-colors group-hover:text-ember-300" />
-          </div>
-        </Link>
-
-        <Link href={`/play/poker/match/?bot=${next.id}`} className="panel pressable group relative overflow-hidden rounded-3xl p-5">
-          <div className="flex items-center gap-4">
-            <BotAvatar bot={next} size={68} ring />
-            <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-ember-400">Next opponent</p>
-              <p className="mt-1 flex items-center gap-2 font-display text-lg font-bold">
-                {next.name}
-                <span className="tabular text-xs font-semibold text-ash-400">{next.rating}</span>
-              </p>
-              <p className="truncate text-xs text-ash-400">{next.title}</p>
-            </div>
-            <span className="btn-fire rounded-xl px-3.5 py-2 text-xs font-bold">Play</span>
-          </div>
-        </Link>
-
-        <div className="panel relative overflow-hidden rounded-3xl p-5 md:col-span-2 lg:col-span-1">
-          <div className="flex items-center gap-4">
-            <span className={`grid h-[68px] w-[68px] shrink-0 place-items-center rounded-2xl ${streak ? "bg-ember-500/15 ring-1 ring-ember-500/40" : "bg-ash-850 ring-1 ring-ash-700"}`}>
-              <IconFlame className={`h-9 w-9 ${streak ? "animate-flicker text-ember-400 drop-shadow-[0_0_12px_rgba(255,122,31,0.8)]" : "text-ash-600"}`} />
-            </span>
-            <div className="min-w-0">
-              <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-ember-400">Streak</p>
-              <p className="tabular mt-1 font-display text-lg font-bold">
-                {streak} day{streak === 1 ? "" : "s"}
-              </p>
-              <p className="text-xs text-ash-400">{streak ? "Play or train today to keep it burning." : "Play a hand or solve a puzzle to light it."}</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* play */}
-      <section className="mt-9">
-        <SectionTitle title="Play" href="/play/" cta="All modes" />
-        <div className="grid gap-3 md:grid-cols-3">
-          <Link href="/play/poker/" className="felt pressable group relative flex min-h-44 flex-col justify-end overflow-hidden rounded-3xl p-5 md:col-span-2">
-            <div className="absolute right-4 top-4 flex -space-x-3 transition-transform duration-500 group-hover:-translate-x-1">
-              {ROSTER.slice(0, 5).map((b) => (
-                <BotAvatar key={b.id} bot={b} size={44} dim={!isUnlocked(b.id, p.beaten)} />
-              ))}
-            </div>
-            <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-ember-300">
-              <IconSpade className="h-3.5 w-3.5" /> Hold&apos;em
-            </p>
-            <h3 className="mt-1 font-display text-2xl font-black">Poker vs bots</h3>
-            <p className="mt-1 max-w-sm text-sm text-ash-300">Heads-up matches against eight bots from beginner to master, or a full 6-max table.</p>
-          </Link>
-          <Link href="/play/blackjack/" className="panel pressable group relative flex min-h-44 flex-col justify-end overflow-hidden rounded-3xl p-5">
-            <div className="absolute right-3 top-4 flex rotate-6 transition-transform duration-500 group-hover:rotate-0">
-              <div className="-rotate-12 scale-[0.6] origin-top-right">
-                <PlayingCardStatic card="AS" />
-              </div>
-              <div className="-ml-16 rotate-3 scale-[0.6] origin-top-right">
-                <PlayingCardStatic card="KH" />
-              </div>
-            </div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-ember-300">21</p>
-            <h3 className="mt-1 font-display text-2xl font-black">Blackjack</h3>
-            <p className="mt-1 text-sm text-ash-300">The 3D table, four rule sets, and a coach watching every decision.</p>
-          </Link>
-        </div>
-      </section>
-
-      {/* train */}
-      <section className="mt-9">
-        <SectionTitle title="Train" href="/train/" cta="All drills" />
-        <div className="grid gap-3 md:grid-cols-2">
-          {leak ? (
-            <Link
-              href={leak.game === "blackjack" && leak.kind !== "insurance" ? `/train/blackjack/?spot=${leak.key}` : leak.game === "poker" ? `/train/poker/?drill=${leak.kind}` : "/train/blackjack/"}
-              className="panel pressable flex items-center gap-4 rounded-3xl p-5 ring-1 ring-ember-600/30"
-            >
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-ember-600/15 text-ember-300 ring-1 ring-ember-600/40">
-                <IconTrain className="h-6 w-6" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-[11px] font-bold uppercase tracking-[0.2em] text-ember-400">Your biggest leak</span>
-                <span className="mt-0.5 block truncate font-bold">{leak.key === "insurance" ? "Taking insurance" : leak.label}</span>
-                <span className="block text-xs text-ash-400">
-                  Missed {leak.misses} of {leak.seen} · right play: {leak.game === "blackjack" ? (MOVE_LABEL[leak.correct as Move] ?? leak.correct).toLowerCase() : leak.correct}
+        {/* today */}
+        <section className="mt-8 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          <Link
+            href="/train/daily/"
+            className="panel pressable group relative overflow-hidden rounded-3xl p-5 ring-1 ring-ember-500/25"
+          >
+            <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-[radial-gradient(closest-side,rgba(255,90,31,0.28),transparent)]" />
+            <div className="relative flex items-center gap-4">
+              <Ring value={dailyDone / 3} size={68}>
+                <span className="tabular font-display text-lg font-bold">
+                  {dailyDone}/3
                 </span>
+              </Ring>
+              <div className="min-w-0 flex-1">
+                <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-ember-400">
+                  <IconCalendar className="h-3.5 w-3.5" /> Daily puzzles
+                </p>
+                <p className="mt-1 font-display text-lg font-bold">
+                  {dailyDone === 3
+                    ? "All solved today"
+                    : dailyDone
+                    ? "Keep going"
+                    : "Three new spots"}
+                </p>
+                <p className="text-xs text-ash-400">
+                  {dailyDone === 3
+                    ? "Come back tomorrow for more."
+                    : "One blackjack, two poker. Same for everyone."}
+                </p>
+              </div>
+              <IconChevron className="h-5 w-5 text-ash-500 transition-colors group-hover:text-ember-300" />
+            </div>
+          </Link>
+
+          <Link
+            href={`/play/poker/match/?bot=${next.id}`}
+            className="panel pressable group relative overflow-hidden rounded-3xl p-5"
+          >
+            <div className="flex items-center gap-4">
+              <BotAvatar bot={next} size={68} ring />
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-ember-400">
+                  Next opponent
+                </p>
+                <p className="mt-1 flex items-center gap-2 font-display text-lg font-bold">
+                  {next.name}
+                  <span className="tabular text-xs font-semibold text-ash-400">
+                    {next.rating}
+                  </span>
+                </p>
+                <p className="truncate text-xs text-ash-400">{next.title}</p>
+              </div>
+              <span className="btn-fire rounded-xl px-3.5 py-2 text-xs font-bold">
+                Play
               </span>
-              <span className="btn-ash rounded-xl px-3 py-2 text-xs font-bold">Fix it</span>
-            </Link>
-          ) : (
-            <Link href="/train/blackjack/" className="panel pressable flex items-center gap-4 rounded-3xl p-5">
+            </div>
+          </Link>
+
+          <div className="panel relative overflow-hidden rounded-3xl p-5 md:col-span-2 lg:col-span-1">
+            <div className="flex items-center gap-4">
+              <span
+                className={`grid h-[68px] w-[68px] shrink-0 place-items-center rounded-2xl ${
+                  streak
+                    ? "bg-ember-500/15 ring-1 ring-ember-500/40"
+                    : "bg-ash-850 ring-1 ring-ash-700"
+                }`}
+              >
+                <IconFlame
+                  className={`h-9 w-9 ${
+                    streak
+                      ? "animate-flicker text-ember-400 drop-shadow-[0_0_12px_rgba(255,122,31,0.8)]"
+                      : "text-ash-600"
+                  }`}
+                />
+              </span>
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-ember-400">
+                  Streak
+                </p>
+                <p className="tabular mt-1 font-display text-lg font-bold">
+                  {streak} day{streak === 1 ? "" : "s"}
+                </p>
+                <p className="text-xs text-ash-400">
+                  {streak
+                    ? "Play or train today to keep it burning."
+                    : "Play a hand or solve a puzzle to light it."}
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* train */}
+        <section className="mt-9">
+          <SectionTitle title="Train" href="/train/" cta="All drills" />
+          <div className="grid gap-3 md:grid-cols-2">
+            {leak ? (
+              <Link
+                href={
+                  leak.game === "blackjack" && leak.kind !== "insurance"
+                    ? `/train/blackjack/?spot=${leak.key}`
+                    : leak.game === "poker"
+                    ? `/train/poker/?drill=${leak.kind}`
+                    : "/train/blackjack/"
+                }
+                className="panel pressable flex items-center gap-4 rounded-3xl p-5 ring-1 ring-ember-600/30"
+              >
+                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-ember-600/15 text-ember-300 ring-1 ring-ember-600/40">
+                  <IconTrain className="h-6 w-6" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[11px] font-bold uppercase tracking-[0.2em] text-ember-400">
+                    Your biggest leak
+                  </span>
+                  <span className="mt-0.5 block truncate font-bold">
+                    {leak.key === "insurance" ? "Taking insurance" : leak.label}
+                  </span>
+                  <span className="block text-xs text-ash-400">
+                    Missed {leak.misses} of {leak.seen} · right play:{" "}
+                    {leak.game === "blackjack"
+                      ? (
+                          MOVE_LABEL[leak.correct as Move] ?? leak.correct
+                        ).toLowerCase()
+                      : leak.correct}
+                  </span>
+                </span>
+                <span className="btn-ash rounded-xl px-3 py-2 text-xs font-bold">
+                  Fix it
+                </span>
+              </Link>
+            ) : (
+              <Link
+                href="/train/blackjack/"
+                className="panel pressable flex items-center gap-4 rounded-3xl p-5"
+              >
+                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-ash-850 text-ember-300 ring-1 ring-ash-700">
+                  <IconTrain className="h-6 w-6" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-bold">
+                    Blackjack strategy drills
+                  </span>
+                  <span className="block text-xs text-ash-400">
+                    Rapid-fire opening decisions graded against basic strategy.
+                  </span>
+                </span>
+                <IconChevron className="h-5 w-5 text-ash-500" />
+              </Link>
+            )}
+            <Link
+              href="/train/poker/"
+              className="panel pressable flex items-center gap-4 rounded-3xl p-5"
+            >
               <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-ash-850 text-ember-300 ring-1 ring-ash-700">
-                <IconTrain className="h-6 w-6" />
+                <IconSpade className="h-6 w-6" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block font-bold">Blackjack strategy drills</span>
-                <span className="block text-xs text-ash-400">Rapid-fire opening decisions graded against basic strategy.</span>
+                <span className="block font-bold">Poker drills</span>
+                <span className="block text-xs text-ash-400">
+                  Opening ranges, pot odds, showdowns and equity, graded with
+                  exact maths.
+                </span>
               </span>
               <IconChevron className="h-5 w-5 text-ash-500" />
             </Link>
-          )}
-          <Link href="/train/poker/" className="panel pressable flex items-center gap-4 rounded-3xl p-5">
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-ash-850 text-ember-300 ring-1 ring-ash-700">
-              <IconSpade className="h-6 w-6" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block font-bold">Poker drills</span>
-              <span className="block text-xs text-ash-400">Opening ranges, pot odds, showdowns and equity, graded with exact maths.</span>
-            </span>
-            <IconChevron className="h-5 w-5 text-ash-500" />
-          </Link>
-        </div>
-      </section>
+          </div>
+        </section>
 
-      {/* ladder */}
-      <section className="mt-9">
-        <SectionTitle title="The ladder" href="/play/poker/" cta="Challenge" />
-        <div className="no-scrollbar -mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 sm:-mx-6 sm:px-6">
-          {ROSTER.map((b) => {
-            const open = isUnlocked(b.id, p.beaten);
-            const won = p.beaten.includes(b.id);
-            return (
-              <Link
-                key={b.id}
-                href={open ? `/play/poker/match/?bot=${b.id}` : "/play/poker/"}
-                className={`panel pressable relative flex w-36 shrink-0 snap-start flex-col items-center rounded-3xl p-4 text-center ${won ? "ring-1 ring-ember-400/50" : ""}`}
-              >
-                <BotAvatar bot={b} size={64} dim={!open} />
-                {!open && (
-                  <span className="absolute right-3 top-3 text-ash-500">
-                    <IconLock className="h-4 w-4" />
-                  </span>
-                )}
-                {won && <span className="absolute right-3 top-3 rounded-full bg-ember-500 px-1.5 text-[9px] font-black text-ash-950">WON</span>}
-                <p className="mt-2 font-display text-sm font-bold">{b.name}</p>
-                <p className="tabular text-xs text-ash-400">{b.rating}</p>
-                <div className="mt-2">
-                  <TierBadge tier={b.tier} />
-                </div>
-              </Link>
-            );
-          })}
-        </div>
-      </section>
-    </div>
+        {/* ladder */}
+        <section className="mt-9">
+          <SectionTitle
+            title="The ladder"
+            href="/play/poker/"
+            cta="Challenge"
+          />
+          <div className="no-scrollbar -mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 sm:-mx-6 sm:px-6">
+            {ROSTER.map((b) => {
+              const open = isUnlocked(b.id, p.beaten);
+              const won = p.beaten.includes(b.id);
+              return (
+                <Link
+                  key={b.id}
+                  href={
+                    open ? `/play/poker/match/?bot=${b.id}` : "/play/poker/"
+                  }
+                  className={`panel pressable relative flex w-36 shrink-0 snap-start flex-col items-center rounded-3xl p-4 text-center ${
+                    won ? "ring-1 ring-ember-400/50" : ""
+                  }`}
+                >
+                  <BotAvatar bot={b} size={64} dim={!open} />
+                  {!open && (
+                    <span className="absolute right-3 top-3 text-ash-500">
+                      <IconLock className="h-4 w-4" />
+                    </span>
+                  )}
+                  {won && (
+                    <span className="absolute right-3 top-3 rounded-full bg-ember-500 px-1.5 text-[9px] font-black text-ash-950">
+                      WON
+                    </span>
+                  )}
+                  <p className="mt-2 font-display text-sm font-bold">
+                    {b.name}
+                  </p>
+                  <p className="tabular text-xs text-ash-400">{b.rating}</p>
+                  <div className="mt-2">
+                    <TierBadge tier={b.tier} />
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      </div>
+    </>
   );
 }
 
@@ -245,7 +341,9 @@ function HeroArt() {
       <div className="absolute bottom-16 right-[8%] rotate-6">
         <Chip value={500} size={66} glow />
       </div>
-      <div className="absolute right-[2%] top-[12%] font-display text-7xl font-black molten-text opacity-90">21</div>
+      <div className="absolute right-[2%] top-[12%] font-display text-7xl font-black molten-text opacity-90">
+        21
+      </div>
     </div>
   );
 }
