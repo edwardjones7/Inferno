@@ -34,6 +34,9 @@ export const OPEN_NOTATION: Record<Position, string> = {
   SB: "22+, A2s+, K3s+, Q5s+, J6s+, T6s+, 96s+, 85s+, 74s+, 64s+, 53s+, 43s, A2o+, K9o+, Q9o+, J9o+, T9o, 98o",
 };
 
+// 3-bet and 4-bet ranges live in preflop.ts (per seat pair, with THREE_BET_NOTATION /
+// FOUR_BET_NOTATION as the typical ones when the positions aren't known).
+
 const idx = (r: string) => RANKS.indexOf(r);
 
 /**

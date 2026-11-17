@@ -248,6 +248,17 @@ export const VS_3BET_SPOTS: { hero: Position; villain: Seat }[] = POSITIONS.flat
   SEATS.filter((v) => seatIndex(v) > seatIndex(hero)).map((villain) => ({ hero, villain })),
 );
 
+/* ------------------------------------------------------------------ typical re-raise ranges */
+
+/**
+ * The 3-bet and 4-bet ranges to assume when the seats don't pin down a chart, derived from
+ * the charts above so there is one source of truth: a ~10% button 3-bet against a cutoff
+ * open (99+/AJ+/KQ for value, suited aces and connectors as bluffs), and the cutoff's 4-bet
+ * against it (QQ+/AK for value, A5s/A4s as blocker bluffs).
+ */
+export const THREE_BET_NOTATION = VS_OPEN_SPECS.BTNvCO.raise;
+export const FOUR_BET_NOTATION = VS_3BET_SPECS["CO-oop"].raise;
+
 /* ------------------------------------------------------------------ rarer spots (coach and bots only) */
 
 /**

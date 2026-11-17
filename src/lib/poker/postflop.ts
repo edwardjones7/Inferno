@@ -9,7 +9,7 @@
 import { rankOf, suitOf, type Card } from "../blackjack/cards";
 import { hasDraw } from "./bots";
 import { CATEGORIES, categoryOf, evaluate, RANK_VALUE } from "./eval";
-import { VS_3BET_SPECS, VS_OPEN_SPECS } from "./preflop";
+import { FOUR_BET_NOTATION, THREE_BET_NOTATION, VS_OPEN_SPECS } from "./preflop";
 import { combosOfCode, OPEN_NOTATION, parseRange } from "./ranges";
 
 export { combosOfCode };
@@ -190,14 +190,14 @@ export const LINES = {
   },
   threebet: {
     text: "You opened the cutoff, the button 3-bet and you called. He bets the flop.",
-    notation: VS_OPEN_SPECS.BTNvCO.raise,
+    notation: THREE_BET_NOTATION,
     street: 3,
     filter: null,
     filterText: "",
   },
   fourbet: {
     text: "You 3-bet the cutoff from the button, the cutoff 4-bet and you called. He bets the flop.",
-    notation: VS_3BET_SPECS["CO-oop"].raise,
+    notation: FOUR_BET_NOTATION,
     street: 3,
     filter: null,
     filterText: "",
@@ -254,8 +254,9 @@ export const SIZE_FRAC: Record<SizeId, number> = { check: 0, "33": 0.33, "66": 0
  * - Wet flop: big (2/3 pot) with strong hands and draws: charge the draws, build the pot
  *   for when you hit. Check medium pairs and air: they can't stand a raise.
  * - Monotone flop: small, the board is already scary and nobody wants a big pot.
- * - River: polarise. Bet big (pot or more) with sets and better, check medium pairs that
- *   win at showdown but can't get called by worse.
+ * - River: polarise. Bet big (pot or more) with sets and better that are near the nuts
+ *   (under 5% of the big blind's defending range beats them), two thirds with other strong
+ *   hands, and check medium pairs that win at showdown but can't get called by worse.
  */
 export function sizingAnswer(hole: readonly Card[], board: readonly Card[]): { size: SizeId; clear: boolean; cls: HandClass } {
   const cls = handClass(hole, board);
@@ -265,13 +266,17 @@ export function sizingAnswer(hole: readonly Card[], board: readonly Card[]): { s
 function sizeFor(hole: readonly Card[], board: readonly Card[], cls: HandClass): { size: SizeId; clear: boolean } {
   const valueish = cls === "strong" || cls === "overpair";
   if (board.length >= 5) {
-    if (cls === "strong") return { size: "100", clear: categoryOf(evaluate([...hole, ...board])) >= 3 };
+    // Overbet only near the nuts: a set on a four-flush board is not a pot-size bet.
+    if (cls === "strong") return nearNuts(hole, board) ? { size: "100", clear: categoryOf(evaluate([...hole, ...board])) >= 3 } : { size: "66", clear: false };
     if (cls === "medium") return { size: "check", clear: true };
     return { size: "check", clear: false };
   }
   const t = flopInfo(board).texture;
   if (t === "dry" || t === "paired") {
-    if (valueish || cls === "air") return { size: "33", clear: true };
+    // Range-betting air small is textbook on high dry boards; on low dry boards the caller
+    // has more of the low cards and the raiser checks more, so it isn't dealt as clear.
+    if (valueish) return { size: "33", clear: true };
+    if (cls === "air") return { size: "33", clear: flopInfo(board).high >= 11 };
     return { size: cls === "medium" ? "check" : "33", clear: false };
   }
   if (t === "monotone") return { size: cls === "medium" || cls === "air" ? "check" : "33", clear: false };
@@ -283,6 +288,9 @@ function sizeFor(hole: readonly Card[], board: readonly Card[], cls: HandClass):
   // semi-wet: the textbook answer depends on details, so never dealt
   return { size: valueish || cls === "draw" || cls === "toppair" ? "66" : "check", clear: false };
 }
+
+/** Fewer than 5% of the big blind's defending combos beat this hand right now. */
+export const nearNuts = (hole: readonly Card[], board: readonly Card[]) => readRange(hole, board, BB_DEFEND).share < 0.05;
 
 /* ------------------------------------------------------------------ toy EV model */
 
