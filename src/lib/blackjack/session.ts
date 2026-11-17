@@ -52,7 +52,7 @@ export function startRound(betChips: number, tableId: TableId): { round: RoundPa
   let out: ActiveRound | null = null;
   const p = update((p) => {
     if (p.activeRound) throw new GameError("Finish your current hand first");
-    if (p.chips < bet) throw new GameError("Not enough chips. Refill to keep playing.");
+    if (p.chips < bet) throw new GameError("Not enough chips for that bet");
     p.chips -= bet;
     const shoe = shuffledShoe();
     const state = deal(bet, shoe, table.rules);
@@ -106,11 +106,4 @@ export function settleAbandoned(): { round: RoundPayload; chips: number } | null
     settle(p, r);
   });
   return after ? { round: payload(after), chips: p.chips } : null;
-}
-
-/** Top the balance back up to the refill amount (practice chips, no cooldown). */
-export function refill(toChips: number) {
-  update((p) => {
-    p.chips = Math.max(p.chips, chipsToUnits(toChips));
-  });
 }

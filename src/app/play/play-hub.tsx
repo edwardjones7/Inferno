@@ -7,10 +7,12 @@ import { IconChevron } from "@/components/icons";
 import { PlayingCardStatic } from "@/components/playing-card-static";
 import { PageHeader } from "@/components/ui";
 import { formatChips, unitsToChips } from "@/lib/chips";
+import { useSettleLeftSeat } from "@/lib/earn";
 import { botById, isUnlocked, ROSTER, TABLE_LINEUP } from "@/lib/poker/roster";
 import { useHydrated, useProgress } from "@/lib/store";
 
 export function PlayHub() {
+  useSettleLeftSeat();
   const p = useProgress();
   const hydrated = useHydrated();
   const next = ROSTER.find((b) => !p.beaten.includes(b.id) && isUnlocked(b.id, p.beaten)) ?? ROSTER[ROSTER.length - 1];
@@ -75,7 +77,7 @@ export function PlayHub() {
             </div>
             <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-ember-300">Hold&apos;em · 6-max</p>
             <h2 className="mt-1 font-display text-2xl font-black">Cash game</h2>
-            <p className="mt-1 text-sm text-ash-300">Five bots, endless hands. Practise multiway pots with no rating on the line.</p>
+            <p className="mt-1 text-sm text-ash-300">Five bots, endless hands. Buy in from your chips and practise multiway pots with no rating on the line.</p>
             <span className="mt-3 flex items-center gap-1 text-xs font-bold text-ember-400">
               Sit down <IconChevron className="h-3.5 w-3.5" />
             </span>

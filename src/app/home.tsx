@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { BotAvatar, TierBadge } from "@/components/bot-avatar";
 import { Chip } from "@/components/chip";
+import { ChallengesCard, CheckInCard } from "@/components/earn";
 import {
   IconCalendar,
   IconChevron,
@@ -16,6 +17,7 @@ import { PlayingCardStatic } from "@/components/playing-card-static";
 import { Ring, SectionTitle, Sparkline } from "@/components/ui";
 import { MOVE_LABEL, type Move } from "@/lib/blackjack/strategy";
 import { isUnlocked, ROSTER } from "@/lib/poker/roster";
+import { useSettleLeftSeat } from "@/lib/earn";
 import { ratingTitle } from "@/lib/rating";
 import {
   leaksOf,
@@ -44,6 +46,7 @@ function greeting() {
 }
 
 export function Home() {
+  useSettleLeftSeat();
   const p = useProgress();
   const hydrated = useHydrated();
   const streak = hydrated ? streakOf(p.days) : 0;
@@ -193,6 +196,15 @@ export function Home() {
                 </p>
               </div>
             </div>
+          </div>
+        </section>
+
+        {/* chips: the daily check-in and today's challenges */}
+        <section className="mt-9">
+          <SectionTitle title="Chips" href="/chips/" cta="Earn more" />
+          <div className="grid gap-3 md:grid-cols-2">
+            <CheckInCard />
+            <ChallengesCard />
           </div>
         </section>
 

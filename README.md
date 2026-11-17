@@ -46,6 +46,7 @@ Native setup, once per machine: install Xcode (full app, not just the command li
 | `src/lib/poker/bots.ts` | Bot decisions. Style shapes ranges and aggression; `skill` < 1 adds style-appropriate blunders. |
 | `src/lib/poker/game.ts`, `table-coach.ts` | No-Limit Hold'em engine (2–6 seats) and the live coach. |
 | `src/lib/blackjack/` | Rules engine, basic strategy, coach, drills, and `session.ts` (play against the dealer locally). |
+| `src/lib/economy.ts`, `challenges.ts`, `earn.ts` | Chips: one balance for blackjack and the cash game, every amount and cap (with the tuning rationale), check-ins, challenges, rewarded ads, Pro grants, the comeback grant, cash-game buy-ins, and `grantChips()` with its ledger. Chips screen at `/chips/`. |
 | `src/lib/daily.ts` | Three puzzles per day, generated from the date so everyone gets the same set. |
 | `src/lib/settings.ts`, `haptics.ts` | Graphics tiers (auto/high/low/flat) and haptics (Capacitor Haptics natively, `navigator.vibrate` on the web). |
 | `src/game/three/`, `src/game/poker-three/` | The 3D tables (React Three Fiber). The low tier skips post-processing and uses cheaper shadows for phones. |
