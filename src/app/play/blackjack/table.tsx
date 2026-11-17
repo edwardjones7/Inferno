@@ -16,6 +16,7 @@ import { HeatMeter, OutcomeBanner } from "./parts";
 import { outcome, schedule, type Timing } from "./timing";
 import type { ActionType, RoundView } from "@/lib/blackjack/engine";
 import { choiceLabel, type Decision } from "@/lib/blackjack/coach";
+import { formatCost } from "@/lib/blackjack/ev";
 import { bustIfHit, dealerBust, pct } from "@/lib/blackjack/odds";
 import { basicStrategy, MOVE_LABEL } from "@/lib/blackjack/strategy";
 import { isTableId, TABLE_IDS, TABLES, tableOf } from "@/lib/blackjack/tables";
@@ -82,8 +83,6 @@ interface CoachNote extends Decision {
   n: number;
   /** which hand the decision was about */
   hand: number;
-  /** cost of the mistake as a fraction of the bet, when the coach knows it */
-  cost?: number;
 }
 
 /** A replay of the hand with the right play, shown on the table after a mistake. */
@@ -272,8 +271,7 @@ export function BlackjackTable() {
         }
       }
       if (d && coach) {
-        const cost = (d as Decision & { cost?: number }).cost;
-        setCoachNote((prev) => ({ ...d, n: (prev?.n ?? 0) + 1, hand: handIndex, cost }));
+        setCoachNote((prev) => ({ ...d, n: (prev?.n ?? 0) + 1, hand: handIndex }));
         clearTimeout(coachTimer.current);
         coachTimer.current = setTimeout(() => setCoachNote(null), d.ok ? 2200 : 9000);
       }
@@ -923,7 +921,7 @@ function CoachBubble({ note }: { note: CoachNote }) {
           ) : (
             <>
               <span className="font-bold">{note.label}:</span> the right play is <span className="font-bold text-ember-300">{choiceLabel(note.correct).toLowerCase()}</span>
-              {typeof note.cost === "number" && note.cost > 0 && <span className="text-ash-300"> (this costs ~{Math.round(note.cost * 100)}% of your bet on average)</span>}
+              {typeof note.cost === "number" && note.cost > 0 && <span className="text-ash-300"> (costs ~{formatCost(note.cost)} of your bet on average)</span>}
               . <span className="text-ash-300">{note.why}</span>
             </>
           )}

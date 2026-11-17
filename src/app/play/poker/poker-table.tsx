@@ -292,7 +292,7 @@ export function PokerTable(props: PokerMode) {
     (a: PlayerAction) => {
       if (!heroTurn) return;
       const note = coachHero(game, a);
-      notes.current.push({ street: game.street, ok: note.ok, title: note.title, detail: note.detail, at: game.log.length });
+      notes.current.push({ street: game.street, ok: note.ok, title: note.title, detail: note.detail, at: game.log.length, cost: note.cost });
       if (coachPref === "1") setCoach((c) => ({ ...note, n: (c?.n ?? 0) + 1 }));
       if (a.kind === "raise" || a.kind === "call") play("chip");
       else play("click");
