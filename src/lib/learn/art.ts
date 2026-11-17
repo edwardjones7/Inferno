@@ -22,6 +22,10 @@ const WITH_ART = new Set([
   "pk-board-texture",
   "pk-cbet-sizing",
   "pk-hand-reading",
+  "pk-bb-defence",
+  "pk-3bet",
+  "pk-vs-3bet",
+  "pk-ranges-later",
 ]);
 
 export const ART_WIDTHS = [640, 1280] as const;
