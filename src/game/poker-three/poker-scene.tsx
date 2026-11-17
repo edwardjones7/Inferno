@@ -17,6 +17,7 @@ import type { PokerState } from "@/lib/poker/game-types";
 import type { BotProfile } from "@/lib/poker/roster";
 import { BotFigure } from "@/game/characters/bot-figure";
 import type { BotMood } from "./bot-presence";
+import { PokerStakes, STAKE_CENTER } from "./poker-stakes";
 import { ChipPile } from "./poker-chips";
 import { betPos, boardPos, buttonPos, DEAL_ORIGIN, holePos, POT_POS, seatLabelPos } from "./poker-layout";
 import { DealerButton, PokerTableBody } from "./poker-table-body";
@@ -38,12 +39,20 @@ export interface PokerSceneProps {
   place?: (seatId: number) => number;
   /** fill the parent (full-screen game) instead of the framed card */
   fill?: boolean;
-  /** "hand" leans the camera in over your cards while it's your decision */
-  focus?: "table" | "hand";
+  /**
+   * "hand" leans the camera in over your cards while it's your decision; "stake" leans
+   * toward the chips you're pushing in while you add them
+   */
+  focus?: Focus;
   /** the bots seated at the table, with what they're doing */
   bots?: { seat: number; bot: BotProfile; mood: BotMood; actKey: number }[];
-  /** chips you're about to bet, shown on your bet spot while sizing a raise */
-  preview?: number;
+  /**
+   * The chips you're pushing in on your turn (physics chips in front of you). Undefined
+   * when it isn't your turn, which clears the stack.
+   */
+  stake?: readonly number[];
+  /** tapping your stack (takes the last chip back) */
+  onStakeTap?: () => void;
   /** extra label anchors (world space) for overlay content in `labels` */
   anchors?: Anchors;
 }
@@ -95,9 +104,12 @@ const ANCHORS = labelAnchors();
  * back so the board still fits), the image is centred between the HUD and the controls, and
  * the camera leans in over your cards while it's your decision.
  */
-function PokerCamera({ focus, span, insets }: { focus: "table" | "hand"; span: number; insets: { top: number; bottom: number } }) {
+type Focus = "table" | "hand" | "stake";
+
+function PokerCamera({ focus, span, insets }: { focus: Focus; span: number; insets: { top: number; bottom: number } }) {
   const fx = useSceneFx();
   const lean = useRef<Spring>({ x: 0, v: 0 });
+  const toStake = useRef<Spring>({ x: 0, v: 0 });
   const shift = useRef<Spring>({ x: 0, v: 0 });
   const look = useMemo(() => new THREE.Vector3(), []);
   useFrame((state, delta) => {
@@ -120,14 +132,16 @@ function PokerCamera({ focus, span, insets }: { focus: "table" | "hand"; span: n
       } else stepSpring(sp, target, omega, dt);
       return sp.x;
     };
-    const t = THREE.MathUtils.clamp(step(lean.current, focus === "hand" ? 1 : 0, 5), 0, 1);
+    const t = THREE.MathUtils.clamp(step(lean.current, focus === "table" ? 0 : 1, 5), 0, 1);
+    const k = THREE.MathUtils.clamp(step(toStake.current, focus === "stake" ? 1 : 0, 4), 0, 1);
     const px = step(shift.current, (insets.bottom - insets.top) / 2, 10);
 
-    // lean: a little closer and lower, looking slightly nearer (your cards and the board)
-    const d = dist * (1 - 0.12 * t);
-    const e = elev - THREE.MathUtils.degToRad(5) * t;
-    look.set(0, 0, (portrait ? 0.05 : -0.25) + 0.25 * t);
-    cam.position.set(0, look.y + Math.sin(e) * d, look.z + Math.cos(e) * d);
+    // lean: a little closer and lower, looking slightly nearer (your cards and the board);
+    // while you add chips, drift further in toward the stack you're building
+    const d = dist * (1 - 0.12 * t - 0.14 * k);
+    const e = elev - THREE.MathUtils.degToRad(5) * t + THREE.MathUtils.degToRad(4) * k;
+    look.set(STAKE_CENTER.x * 0.55 * k, 0, THREE.MathUtils.lerp((portrait ? 0.05 : -0.25) + 0.25 * t, STAKE_CENTER.z * 0.8, k));
+    cam.position.set(look.x * 0.6, look.y + Math.sin(e) * d, look.z + Math.cos(e) * d);
     cam.lookAt(look);
     cam.fov = fov;
     if (height > usable) cam.fov = THREE.MathUtils.radToDeg(Math.atan(half * (height / usable)) * 2);
@@ -143,7 +157,7 @@ function PokerCamera({ focus, span, insets }: { focus: "table" | "hand"; span: n
 /** Half-width of what must be in frame: the board heads-up, the whole table at 6-max. */
 const spanFor = (seats: number, portrait: boolean) => (seats <= 2 ? 2.1 : portrait ? 2.6 : 4.4);
 
-function FramedCamera({ focus, seats, insets }: { focus: "table" | "hand"; seats: number; insets: { top: number; bottom: number } }) {
+function FramedCamera({ focus, seats, insets }: { focus: Focus; seats: number; insets: { top: number; bottom: number } }) {
   const size = useThree((st) => st.size);
   const portrait = size.width / Math.max(1, size.height - insets.top - insets.bottom) < 1.15;
   return <PokerCamera focus={focus} span={spanFor(seats, portrait)} insets={insets} />;
@@ -166,7 +180,7 @@ function ClassicCamera() {
   return null;
 }
 
-const PREVIEW_POS = new THREE.Vector3(0.55, 0, 1.08);
+const STAKE_FROM = new THREE.Vector3(STAKE_CENTER.x, 0, STAKE_CENTER.z);
 const NO_INSETS = { top: 0, bottom: 0 };
 
 function Scene({
@@ -178,7 +192,8 @@ function Scene({
   place,
   focus,
   bots,
-  preview,
+  stake,
+  onStakeTap,
   anchors,
   insets,
   fill,
@@ -214,7 +229,13 @@ function Scene({
       {!done &&
         game.seats.map((s) =>
           s.committed > 0 ? (
-            <ChipPile key={`${game.handNo}:${game.street}:bet${s.id}`} amount={s.committed} to={betPos(P(s.id))} from={holePos(P(s.id))} />
+            <ChipPile
+              key={`${game.handNo}:${game.street}:bet${s.id}`}
+              amount={s.committed}
+              to={betPos(P(s.id))}
+              // your chips slide in from the stack you built
+              from={s.id === 0 ? STAKE_FROM : holePos(P(s.id))}
+            />
           ) : null,
         )}
       {/* the pot, or the winnings sliding to each winner */}
@@ -222,10 +243,8 @@ function Scene({
       {done &&
         game.winners.map((w) => <ChipPile key={`${game.handNo}:win${w.seat}:${w.pot}`} amount={w.amount} to={betPos(P(w.seat))} from={POT_POS} />)}
 
-      {/* the raise you're sizing, slid out in front of you before you commit it */}
-      {!done && preview && preview > 0 ? (
-        <ChipPile key={`${game.handNo}:${game.street}:preview`} amount={preview} to={PREVIEW_POS} from={holePos(0)} />
-      ) : null}
+      {/* the chips you're pushing in, tossed onto the felt as you add them */}
+      {!done && stake !== undefined && <PokerStakes chips={stake} pileKey={`${game.handNo}:${game.log.length}`} onTap={onStakeTap} />}
 
       {bots?.map((b) => <BotFigure key={b.seat} bot={b.bot} place={P(b.seat)} mood={b.mood} actKey={b.actKey} />)}
 

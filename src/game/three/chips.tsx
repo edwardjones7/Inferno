@@ -205,6 +205,16 @@ function buildSpecs(view: RoundView | null, roundId: string | null, revealed: bo
 }
 
 function ChipLayer({ view, roundId, revealed, pendingBetUsd, toUsd }: StakesProps) {
+  const specs = useMemo(() => buildSpecs(view, roundId, revealed, pendingBetUsd, toUsd), [view, roundId, revealed, pendingBetUsd, toUsd]);
+  return <PhysicsChips specs={specs} />;
+}
+
+/**
+ * Physics chips for any set of piles: tossed in from the player (or the tray), settled
+ * into tidy stacks, slid away when a pile shrinks or goes. Must be inside a <Physics>.
+ * Used by the blackjack stakes and by the poker bet you're building.
+ */
+export function PhysicsChips({ specs }: { specs: PileSpec[] }) {
   const { world, rapier } = useRapier();
   const { reducedMotion } = useSceneFx();
   const sim = useRef<ChipSim | null>(null);
@@ -220,8 +230,8 @@ function ChipLayer({ view, roundId, revealed, pendingBetUsd, toUsd }: StakesProp
 
   useEffect(() => {
     sim.current ??= new ChipSim(world, rapier);
-    sim.current.sync(buildSpecs(view, roundId, revealed, pendingBetUsd, toUsd), reducedMotion);
-  }, [world, rapier, view, roundId, revealed, pendingBetUsd, toUsd, reducedMotion]);
+    sim.current.sync(specs, reducedMotion);
+  }, [world, rapier, specs, reducedMotion]);
 
   useBeforePhysicsStep(() => sim.current?.beforeStep());
   useAfterPhysicsStep(() => sim.current?.afterStep(meshes.current));

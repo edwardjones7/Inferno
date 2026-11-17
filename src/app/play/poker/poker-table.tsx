@@ -6,6 +6,9 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { BotAvatar } from "@/components/bot-avatar";
+import { ChipRail } from "@/components/chip-rail";
+import { STAKE_CENTER } from "@/game/poker-three/poker-stakes";
+import { addChip as addStackChip, stackTo, sum as sumChips } from "@/lib/poker/stake";
 import { DrawerSection, GameScreen, useGameInsets } from "@/components/game-screen";
 import { IconTrophy } from "@/components/icons";
 import { Switch } from "@/components/ui";
@@ -115,11 +118,14 @@ export function PokerTable(props: PokerMode) {
   const [autoPref, setAutoPref] = useStored("inferno:poker-auto", "1", isBoolString);
   const [gesturePref, setGesturePref] = useStored("inferno:poker-gestures", "1", isBoolString);
   const [drawer, setDrawer] = useState(false);
-  /** the raise has been sized this turn (shows the chips on your bet spot) */
-  const [raiseTouched, setRaiseTouched] = useState(false);
+  /** chips you've pushed in this turn (beyond what you already have in), and the undo history */
+  const [pushed, setPushed] = useState<number[]>([]);
+  const [pushedHistory, setPushedHistory] = useState<number[][]>([]);
+  /** true for a moment after the stack changes, so the camera looks at it */
+  const [sizing, setSizing] = useState(false);
+  const sizingTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [session, setSession] = useState({ hands: 0, net: 0, won: 0, biggest: 0 });
   const [winKey, setWinKey] = useState(0);
-  const [raiseTo, setRaiseTo] = useState(0);
   const [chat, setChat] = useState<{ seat: number; text: string; n: number } | null>(null);
   const [result, setResult] = useState<MatchResult | null>(null);
   const [graphics] = useGraphics();
@@ -368,7 +374,7 @@ export function PokerTable(props: PokerMode) {
   const opts = heroTurn ? legal(game) : null;
   const hero = game.seats[0];
 
-  // keep the raise slider inside the legal range when it becomes the hero's turn
+  // every turn starts with no chips pushed in
   const lastTurn = useRef(-1);
   useEffect(() => {
     if (!opts) return;
@@ -376,10 +382,35 @@ export function PokerTable(props: PokerMode) {
     if (lastTurn.current === marker) return;
     lastTurn.current = marker;
     queueMicrotask(() => {
-      setRaiseTo(opts.minRaiseTo);
-      setRaiseTouched(false);
+      setPushed([]);
+      setPushedHistory([]);
+      setSizing(false);
     });
   }, [opts, game.log.length]);
+
+  /* building the bet with chips, like the blackjack table */
+  const put = sumChips(pushed);
+  const maxPut = opts ? opts.maxRaiseTo - hero.committed : 0;
+  /** the raise the chips add up to, topped up to the legal minimum */
+  const raiseTarget = opts ? Math.min(opts.maxRaiseTo, Math.max(opts.minRaiseTo, hero.committed + put)) : 0;
+  const changeStack = (next: number[], sound: "chip" | "click") => {
+    if (next.length === pushed.length && next.every((v, i) => v === pushed[i])) return;
+    setPushedHistory((h) => [...h, pushed]);
+    setPushed(next);
+    play(sound);
+    setSizing(true);
+    clearTimeout(sizingTimer.current);
+    sizingTimer.current = setTimeout(() => setSizing(false), 2400);
+  };
+  const setPutTo = (n: number, sound: "chip" | "click" = "chip") => changeStack(stackTo(pushed, Math.max(0, Math.min(maxPut, n))), sound);
+  const addChip = (v: number) => changeStack(addStackChip(pushed, v, maxPut), "chip");
+  const undoChip = () => {
+    if (!pushedHistory.length) return;
+    setPushed(pushedHistory[pushedHistory.length - 1]);
+    setPushedHistory((h) => h.slice(0, -1));
+    play("click");
+  };
+  useEffect(() => () => clearTimeout(sizingTimer.current), []);
 
   const heroAct = useCallback(
     (a: PlayerAction) => {
@@ -408,12 +439,12 @@ export function PokerTable(props: PokerMode) {
       if (!opts) return;
       if (k === "f" && opts.canFold && !opts.canCheck) heroAct({ kind: "fold" });
       else if (k === "c") heroAct(opts.canCheck ? { kind: "check" } : { kind: "call" });
-      else if (k === "r" && opts.canRaise) heroAct({ kind: "raise", to: Math.min(opts.maxRaiseTo, Math.max(opts.minRaiseTo, raiseTo)) });
+      else if (k === "r" && opts.canRaise) heroAct({ kind: "raise", to: raiseTarget });
       else if (k === "a" && opts.canRaise) heroAct({ kind: "raise", to: opts.maxRaiseTo });
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [opts, heroAct, raiseTo, game.street, deal, drawer]);
+  }, [opts, heroAct, raiseTarget, game.street, deal, drawer]);
 
   // showdown: reveal everyone who got to the end
   const revealed = useMemo(() => {
@@ -507,10 +538,9 @@ export function PokerTable(props: PokerMode) {
   // 2D table only when the device cannot run WebGL
   const flat = !webglOk;
 
-  /* table gestures: swipe up to bet/raise the sized amount, swipe down to check or fold */
+  /* table gestures: swipe up to bet/raise the chips you've pushed, swipe down to check or fold */
   const gesture = useRef<{ x: number; y: number; id: number } | null>(null);
   const gesturesOn = gesturePref === "1" && !!opts;
-  const clampedRaise = opts ? Math.min(opts.maxRaiseTo, Math.max(opts.minRaiseTo, raiseTo)) : 0;
   const onPointerDown = (e: React.PointerEvent) => {
     if (!gesturesOn || !e.isPrimary) return;
     gesture.current = { x: e.clientX, y: e.clientY, id: e.pointerId };
@@ -522,7 +552,7 @@ export function PokerTable(props: PokerMode) {
     const dx = e.clientX - g.x;
     const dy = e.clientY - g.y;
     if (Math.abs(dy) < 70 || Math.abs(dy) < Math.abs(dx) * 1.4) return;
-    if (dy < 0 && opts.canRaise) heroAct({ kind: "raise", to: clampedRaise });
+    if (dy < 0 && opts.canRaise) heroAct({ kind: "raise", to: raiseTarget });
     else if (dy > 0) heroAct(opts.canCheck ? { kind: "check" } : { kind: "fold" });
   };
 
@@ -545,6 +575,15 @@ export function PokerTable(props: PokerMode) {
 
   /* teaching callouts on the felt: the coach's note, your hand, the price of a call */
   const anchors: Record<string, [number, number, number]> = {};
+  if (opts && put > 0) {
+    labels.stake = (
+      <span className="tabular block w-max rounded-full bg-ash-950/85 px-2.5 py-0.5 font-display text-sm font-bold text-ember-200 ring-1 ring-ember-500/50 shadow-[0_0_16px_-4px_rgba(255,122,31,0.8)]">
+        {put.toLocaleString()}
+      </span>
+    );
+    // just past the far side of the stack, so the tag never hides the chips
+    anchors.stake = [STAKE_CENTER.x, 0.05, STAKE_CENTER.z - 0.42];
+  }
   if (coach) {
     labels.coach = <PokerCoachBubble note={coach} />;
     anchors.coach = [0, 0.05, 1.02];
@@ -560,7 +599,6 @@ export function PokerTable(props: PokerMode) {
     anchors.read = [1.35, 0.25, 3.0];
   }
 
-  const preview = opts && raiseTouched && opts.canRaise ? Math.max(0, clampedRaise - hero.committed) : 0;
 
   const hud = bot ? (
     <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl bg-ash-950/60 py-1 pl-1 pr-3 ring-1 ring-ash-700/70 backdrop-blur-md sm:flex-none">
@@ -649,7 +687,7 @@ export function PokerTable(props: PokerMode) {
             <div className="flex flex-col gap-4">
               <ToggleRow title="Coach" sub="Grades your opens and calls on the table as you play." on={coachPref === "1"} set={(v) => setCoachPref(v ? "1" : "0")} />
               <ToggleRow title="Auto-deal" sub="Deal the next hand automatically." on={autoPref === "1"} set={(v) => setAutoPref(v ? "1" : "0")} />
-              <ToggleRow title="Table gestures" sub="Swipe up to bet the sized amount, swipe down to check or fold." on={gesturePref === "1"} set={(v) => setGesturePref(v ? "1" : "0")} />
+              <ToggleRow title="Table gestures" sub="Swipe up to bet the chips you've pushed in, swipe down to check or fold." on={gesturePref === "1"} set={(v) => setGesturePref(v ? "1" : "0")} />
             </div>
           </DrawerSection>
 
@@ -740,44 +778,27 @@ export function PokerTable(props: PokerMode) {
                 </p>
               )}
               {opts.canRaise && (
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="range"
-                    aria-label="Raise amount"
-                    min={opts.minRaiseTo}
-                    max={opts.maxRaiseTo}
-                    step={1}
-                    value={clampedRaise}
-                    onChange={(e) => {
-                      setRaiseTo(Number(e.target.value));
-                      setRaiseTouched(true);
-                    }}
-                    className="h-2 min-w-0 flex-1 accent-ember-500"
-                  />
-                  {potPresets.map((p) => (
-                    <button
-                      key={p.label}
-                      onClick={() => {
-                        setRaiseTo(p.to);
-                        setRaiseTouched(true);
-                        play("chip");
-                      }}
-                      className="btn-ash h-9 rounded-lg px-2.5 text-xs font-bold"
-                    >
-                      {p.label}
+                <>
+                  <ChipRail onChip={addChip} disabled={put >= maxPut} />
+                  <div className="flex items-center justify-center gap-1.5">
+                    <button onClick={undoChip} disabled={!pushedHistory.length} aria-label="Take the last chip back" className="btn-ash grid h-9 w-10 shrink-0 place-items-center rounded-lg">
+                      <svg viewBox="0 0 16 16" className="h-4 w-4" aria-hidden>
+                        <path d="M6 4L2 8l4 4M2.5 8H10a4 4 0 0 1 0 8" fill="none" stroke="currentColor" strokeWidth="1.6" transform="translate(0 -2)" />
+                      </svg>
                     </button>
-                  ))}
-                  <button
-                    onClick={() => {
-                      setRaiseTo(opts.maxRaiseTo);
-                      setRaiseTouched(true);
-                      play("chip");
-                    }}
-                    className="btn-ash h-9 rounded-lg px-2.5 text-xs font-bold"
-                  >
-                    Max
-                  </button>
-                </div>
+                    {potPresets.map((p) => (
+                      <button key={p.label} onClick={() => setPutTo(p.to - hero.committed)} className="btn-ash h-9 rounded-lg px-2.5 text-xs font-bold">
+                        {p.label}
+                      </button>
+                    ))}
+                    <button onClick={() => setPutTo(maxPut)} className="btn-ash h-9 rounded-lg px-2.5 text-xs font-bold">
+                      Max
+                    </button>
+                    <button onClick={() => setPutTo(0, "click")} disabled={put === 0} className="btn-ash h-9 rounded-lg px-2.5 text-xs font-bold">
+                      Clear
+                    </button>
+                  </div>
+                </>
               )}
               <div className="grid grid-cols-3 gap-2">
                 <button disabled={!opts.canFold || opts.canCheck} onClick={() => heroAct({ kind: "fold" })} className="btn-ash h-14 rounded-2xl font-bold">
@@ -788,11 +809,14 @@ export function PokerTable(props: PokerMode) {
                 </button>
                 <button
                   disabled={!opts.canRaise}
-                  onClick={() => heroAct({ kind: "raise", to: clampedRaise })}
+                  onClick={() => heroAct({ kind: "raise", to: raiseTarget })}
                   className="btn-fire flex h-14 flex-col items-center justify-center rounded-2xl font-bold leading-tight"
                 >
-                  <span className="text-xs opacity-80">{clampedRaise >= opts.maxRaiseTo ? "All-in" : opts.isOpeningBet ? "Bet" : "Raise to"}</span>
-                  <span className="tabular">{clampedRaise}</span>
+                  <span className="text-xs opacity-80">
+                    {raiseTarget >= opts.maxRaiseTo ? "All-in" : opts.isOpeningBet ? "Bet" : "Raise to"}
+                    {put > 0 && hero.committed + put < opts.minRaiseTo ? " (min)" : ""}
+                  </span>
+                  <span className="tabular">{raiseTarget}</span>
                 </button>
               </div>
             </div>
@@ -820,9 +844,10 @@ export function PokerTable(props: PokerMode) {
             anchors={anchors}
             place={place}
             quality={quality}
-            focus={heroTurn ? "hand" : "table"}
+            focus={heroTurn ? (sizing && put > 0 ? "stake" : "hand") : "table"}
             bots={bots}
-            preview={preview}
+            stake={heroTurn && opts?.canRaise ? pushed : undefined}
+            onStakeTap={undoChip}
           />
         ) : (
           <div className="felt absolute inset-0" />
