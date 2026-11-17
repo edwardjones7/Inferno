@@ -5,7 +5,7 @@
 import type { Card } from "./cards";
 import { legalActions, type ActionType, type RoundState, type Rules } from "./engine";
 import { INSURANCE_COST, mistakeCost, moveEVs } from "./ev";
-import { basicStrategy, explain, MOVE_LABEL, spotOf, type Move, type SpotKind } from "./strategy";
+import { basicStrategy, chartMove, explain, MOVE_LABEL, spotOf, type Move, type SpotKind } from "./strategy";
 
 export interface Decision {
   /** chart cell id, e.g. "hard-16-10", or "insurance" */
@@ -45,6 +45,7 @@ export function gradeAction(state: RoundState, action: ActionType): Decision | n
 export function gradeSpot(cards: readonly Card[], dealerUp: Card, legal: readonly ActionType[], rules: Rules, action: ActionType): Decision {
   const correct = basicStrategy(cards, dealerUp, legal, rules);
   const spot = spotOf(cards, dealerUp);
+  const chart = chartMove(spot, rules);
   const ok = action === correct;
   // EV tables are memoised per rules + upcard, so pricing a mistake is a few lookups.
   const cost = ok ? undefined : mistakeCost(moveEVs(cards, dealerUp, rules, legal), correct, action as Move);
@@ -55,8 +56,10 @@ export function gradeSpot(cards: readonly Card[], dealerUp: Card, legal: readonl
     chosen: action,
     correct,
     ok,
-    why: ok ? undefined : explain(spot, correct),
-    ...(cost !== undefined && { cost: Math.round(cost * 10000) / 10000 }),
+    why: ok ? undefined : explain(spot, correct, chart),
+    // a zero cost means the infinite-deck EV model disagrees with the chart on a very close
+    // cell (e.g. A,2 vs 5): show no cost rather than telling the player the mistake was free
+    ...(cost !== undefined && cost > 0 && { cost: Math.round(cost * 10000) / 10000 }),
   };
 }
 
