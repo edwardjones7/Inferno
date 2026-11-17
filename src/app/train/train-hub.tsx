@@ -1,19 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { IconBolt, IconCalendar, IconChevron, IconFlame, IconReview, IconSpade, IconTrain } from "@/components/icons";
+import { IconBolt, IconCalendar, IconCheck, IconChevron, IconFlame, IconLock, IconReview, IconSpade, IconTrain } from "@/components/icons";
 import { ProBadge } from "@/components/pro/pro-badge";
 import { Meter, PageHeader, Ring, SectionTitle, Sparkline } from "@/components/ui";
-import { DRILL_CATEGORIES } from "@/lib/blackjack/drill";
-import { countingLocked } from "@/lib/gates";
+import { countingLocked, lessonLocked, paywallReason } from "@/lib/gates";
 import { MOVE_LABEL, type Move } from "@/lib/blackjack/strategy";
-import { nextLesson, trackProgress, TRACK_IDS, TRACKS } from "@/lib/learn";
+import { lessonDone, lessonUnlocked, nextLesson, trackProgress, TRACK_IDS, TRACKS, type TrackId } from "@/lib/learn";
 import { isCountingKind, leakHref } from "@/lib/leak-links";
-import { POKER_DRILLS } from "@/lib/poker/drills";
-import { useIsPro } from "@/lib/pro";
+import { openPaywall, useIsPro } from "@/lib/pro";
 import { ratingTitle } from "@/lib/rating";
+import { play } from "@/lib/sound";
 import { dueCards } from "@/lib/srs";
 import { accuracy, leaksOf, today, useHydrated, useProgress } from "@/lib/store";
+import { LessonArt } from "./learn/lesson-art";
 
 export function TrainHub() {
   const p = useProgress();
@@ -31,121 +31,102 @@ export function TrainHub() {
     <div className="mx-auto max-w-5xl px-4 pb-10 pt-5 sm:px-6 lg:pt-10">
       <PageHeader eyebrow="Train" title="Sharpen every decision" />
 
-      <div className="grid gap-3 md:grid-cols-[1.2fr_1fr]">
-        <Link href="/train/daily/" className="panel pressable relative overflow-hidden rounded-[28px] p-5 ring-1 ring-ember-500/30 sm:p-6">
-          <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-[radial-gradient(closest-side,rgba(255,90,31,0.3),transparent)]" />
-          <div className="relative flex items-center gap-5">
-            <Ring value={done / 3} size={84} stroke={7}>
-              <span className="tabular font-display text-xl font-bold">{done}/3</span>
+      {/* the lesson tracks lead the page, each fronted by the art of the lesson that's up next */}
+      <div className="grid gap-3 md:grid-cols-2">
+        {TRACK_IDS.map((id) => (
+          <TrackHero key={id} track={id} hydrated={hydrated} />
+        ))}
+      </div>
+
+      <div className="mt-3 grid gap-3 md:grid-cols-[1.25fr_1fr_1fr]">
+        <Link href="/train/daily/" className="panel pressable relative min-h-[120px] overflow-hidden rounded-[28px] p-5 ring-1 ring-ember-500/30">
+          <LessonArt id="pk-hand-reading" variant="backdrop" />
+          <div className="relative flex items-center gap-4">
+            <Ring value={done / 3} size={64} stroke={6}>
+              <span className="tabular font-display text-base font-bold">{done}/3</span>
             </Ring>
             <div className="min-w-0">
-              <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.2em] text-ember-400">
+              <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-ember-400">
                 <IconCalendar className="h-3.5 w-3.5" /> Daily puzzles
               </p>
-              <h2 className="mt-1 font-display text-xl font-black">{done === 3 ? "Done for today" : "Today's three spots"}</h2>
-              <p className="mt-1 text-sm text-ash-400">One blackjack hand and two poker decisions. Solve them to keep your streak alive.</p>
+              <h2 className="mt-0.5 font-display text-lg font-black">{done === 3 ? "Done for today" : "Today's three spots"}</h2>
+              <p className="text-xs text-ash-300">One blackjack hand, two poker decisions. Keeps your streak alive.</p>
             </div>
           </div>
         </Link>
 
-        <div className="panel rounded-[28px] p-5 sm:p-6">
+        <div className="panel rounded-[28px] p-5">
           <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-ash-500">Training rating</p>
-          <div className="mt-1 flex items-baseline gap-2">
-            <span className="tabular font-display text-4xl font-black">{hydrated ? t.r : "–"}</span>
+          <div className="mt-0.5 flex items-baseline gap-2">
+            <span className="tabular font-display text-3xl font-black">{hydrated ? t.r : "–"}</span>
             <span className="text-sm font-bold text-ember-400">{hydrated ? ratingTitle(t.r) : ""}</span>
           </div>
-          <Sparkline points={hydrated ? t.history : []} className="mt-2 h-12 w-full" />
-          <p className="tabular mt-1 text-[11px] text-ash-500">
-            {hydrated ? `${t.games} answers · peak ${t.peak}` : " "}
-          </p>
+          <Sparkline points={hydrated ? t.history : []} className="mt-1 h-9 w-full" />
+          <p className="tabular mt-1 text-[11px] text-ash-500">{hydrated ? `${t.games} answers · peak ${t.peak}` : " "}</p>
         </div>
+
+        <Link href="/train/queue/" className={`panel pressable flex min-w-0 items-center gap-4 rounded-[28px] p-5 ${due ? "ring-1 ring-ember-500/40" : ""}`}>
+          <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-ash-850 ring-1 ring-ash-700">
+            <span className={`tabular font-display text-2xl font-black ${due ? "text-ember-300" : "text-ash-500"}`}>{due}</span>
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-ember-400">
+              <IconReview className="h-3.5 w-3.5" /> Review queue
+            </span>
+            <span className="mt-0.5 block font-display text-base font-bold">{due ? `${due} spot${due === 1 ? "" : "s"} due` : "Nothing due"}</span>
+            <span className="block text-xs text-ash-400">Missed spots return after 1, 3, 7… days.</span>
+          </span>
+        </Link>
       </div>
 
       <section className="mt-8">
-        <SectionTitle title="Learn" href="/train/learn/" cta="All lessons" />
-        <div className="grid gap-3 md:grid-cols-[1fr_1fr_0.9fr]">
-          {TRACK_IDS.map((id) => {
-            const track = TRACKS[id];
-            const next = hydrated ? nextLesson(p, id) : track.lessons[0];
-            const { done, total } = hydrated ? trackProgress(p, id) : { done: 0, total: track.lessons.length };
-            return (
-              <Link key={id} href={next ? `/train/learn/${next.id}/` : "/train/learn/"} className="panel pressable flex min-w-0 items-center gap-4 rounded-[28px] p-5">
-                <Ring value={done / total} size={60} stroke={6}>
-                  <span className="tabular text-xs font-bold">
-                    {done}/{total}
-                  </span>
-                </Ring>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[10px] font-bold uppercase tracking-[0.18em] text-ember-400">{track.title}</span>
-                  <span className="mt-0.5 block truncate font-display text-base font-bold">{next ? next.title : "Track complete"}</span>
-                  <span className="block truncate text-xs text-ash-400">{next ? `${next.minutes} min · ${next.blurb}` : "Revisit any lesson from the full list."}</span>
-                </span>
-                <IconChevron className="h-5 w-5 shrink-0 text-ash-500" />
-              </Link>
-            );
-          })}
-          <Link
-            href="/train/queue/"
-            className={`panel pressable flex min-w-0 items-center gap-4 rounded-[28px] p-5 ${due ? "ring-1 ring-ember-500/40" : ""}`}
-          >
-            <span className="grid h-[60px] w-[60px] shrink-0 place-items-center rounded-2xl bg-ash-850 ring-1 ring-ash-700">
-              <span className={`tabular font-display text-2xl font-black ${due ? "text-ember-300" : "text-ash-500"}`}>{due}</span>
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-ember-400">
-                <IconReview className="h-3.5 w-3.5" /> Review queue
-              </span>
-              <span className="mt-0.5 block font-display text-base font-bold">{due ? `${due} spot${due === 1 ? "" : "s"} due` : "Nothing due"}</span>
-              <span className="block text-xs text-ash-400">Missed spots come back after 1, 3, 7… days until they stick.</span>
-            </span>
-          </Link>
+        <SectionTitle title="Lessons" href="/train/learn/" cta="Full path" />
+        <div className="space-y-5">
+          {TRACK_IDS.map((id) => (
+            <LessonReel key={id} track={id} hydrated={hydrated} />
+          ))}
         </div>
       </section>
 
-      <section className="mt-8 grid gap-3 md:grid-cols-2">
-        <DrillCard
-          href="/train/blackjack/"
-          icon={<IconTrain className="h-6 w-6" />}
-          title="Blackjack strategy"
-          blurb="Opening decisions against every dealer upcard, for four rule sets."
-          acc={hydrated ? accuracy(bj) : null}
-          count={bj.length}
-          topics={DRILL_CATEGORIES.filter((c) => c.id !== "all" && c.id !== "leaks").map((c) => c.label)}
-        />
-        <DrillCard
-          href="/train/poker/"
-          icon={<IconSpade className="h-6 w-6" />}
-          title="Poker fundamentals"
-          blurb="Pre-flop ranges and pot odds through board texture, c-bets, sizing and hand reading."
-          acc={hydrated ? accuracy(pk) : null}
-          count={pk.length}
-          topics={POKER_DRILLS.map((d) => d.label)}
-        />
-        <DrillCard
-          href="/train/counting/"
-          icon={<IconFlame className="h-6 w-6" />}
-          title="Card counting"
-          blurb="Hi-Lo running and true count, deck countdowns, and the index plays that change with the count."
-          acc={hydrated ? accuracy(counting) : null}
-          count={counting.length}
-          topics={["Running count", "Deck countdown", "True count", "Index plays"]}
-          pro={hydrated && countingLocked(pro)}
-        />
-        <Link href="/train/charts/" className="panel pressable flex flex-col rounded-[28px] p-5 sm:p-6">
-          <div className="flex items-center gap-3">
-            <span className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-ember-500/25 to-ember-800/20 text-ember-300 ring-1 ring-ember-500/30">
-              <IconBolt className="h-6 w-6" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <h3 className="font-display text-lg font-bold">Strategy charts</h3>
-              <p className="text-xs text-ash-400">Reference, colored by your own accuracy</p>
-            </div>
-            <IconChevron className="h-5 w-5 text-ash-500" />
-          </div>
-          <p className="mt-4 text-sm text-ash-300">
-            The full basic-strategy chart for each table and the opening range for every seat. Tap any cell for the reason, the EV of each play, and a drill.
-          </p>
-        </Link>
+      <section className="mt-8">
+        <SectionTitle title="Drills" />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <DrillCard
+            href="/train/blackjack/"
+            art="bj-hard-totals"
+            icon={<IconTrain className="h-5 w-5" />}
+            title="Blackjack strategy"
+            blurb="Every opening decision against every dealer upcard, for four rule sets."
+            acc={hydrated ? accuracy(bj) : null}
+            count={bj.length}
+          />
+          <DrillCard
+            href="/train/poker/"
+            art="pk-board-texture"
+            icon={<IconSpade className="h-5 w-5" />}
+            title="Poker fundamentals"
+            blurb="Pre-flop ranges and pot odds through board texture, c-bets, sizing and hand reading."
+            acc={hydrated ? accuracy(pk) : null}
+            count={pk.length}
+          />
+          <DrillCard
+            href="/train/counting/"
+            art="bj-counting"
+            icon={<IconFlame className="h-5 w-5" />}
+            title="Card counting"
+            blurb="Hi-Lo running and true count, deck countdowns, and the index plays."
+            acc={hydrated ? accuracy(counting) : null}
+            count={counting.length}
+            pro={hydrated && countingLocked(pro)}
+          />
+          <DrillCard
+            href="/train/charts/"
+            art="pk-opening-ranges"
+            icon={<IconBolt className="h-5 w-5" />}
+            title="Strategy charts"
+            blurb="Basic strategy for each table and the opening range for every seat, colored by your own accuracy."
+          />
+        </div>
       </section>
 
       <section className="mt-8">
@@ -184,47 +165,172 @@ export function TrainHub() {
   );
 }
 
+/** A track's next lesson as a full-bleed poster: the art, what it is, and one button to start it. */
+function TrackHero({ track, hydrated }: { track: TrackId; hydrated: boolean }) {
+  const p = useProgress();
+  const pro = useIsPro();
+  const info = TRACKS[track];
+  const next = hydrated ? nextLesson(p, track) : info.lessons[0];
+  const { done, total } = hydrated ? trackProgress(p, track) : { done: 0, total: info.lessons.length };
+  const locked = hydrated && !!next && lessonLocked(next.id, pro);
+  const label = !next ? "Track complete" : done ? "Continue" : "Start here";
+
+  const body = (
+    <>
+      <LessonArt id={(next ?? info.lessons[info.lessons.length - 1]).id} variant="cover" className="transition-transform duration-700 group-hover:scale-[1.03]" />
+      <span className="relative flex h-full flex-col justify-end p-5 sm:p-6">
+        <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-ember-400">
+          {track === "poker" ? <IconSpade className="h-3.5 w-3.5" /> : <IconTrain className="h-3.5 w-3.5" />}
+          {info.title} · {label}
+        </span>
+        <span className="mt-1 block font-display text-2xl font-black leading-tight sm:text-[28px]">{next ? next.title : "Every lesson done"}</span>
+        <span className="mt-1 line-clamp-2 block max-w-md text-sm text-ash-300">{next ? next.blurb : "Revisit any lesson from the full path."}</span>
+        <span className="mt-4 flex items-center gap-3">
+          <span className={`inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl px-4 text-sm font-bold ${next ? "btn-fire" : "btn-ash"}`}>
+            {next ? `${label} · ${next.minutes} min` : "Open the path"}
+            {locked ? <ProBadge className="bg-ash-950/30 text-bone ring-ash-950/40" /> : <IconChevron className="h-4 w-4" />}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block h-1.5 overflow-hidden rounded-full bg-ash-800/80">
+              <span className="block h-full rounded-full bg-gradient-to-r from-ember-600 to-ember-400" style={{ width: `${(done / total) * 100}%` }} />
+            </span>
+            <span className="tabular mt-1 block text-[11px] text-ash-400">
+              {done}/{total} lessons
+            </span>
+          </span>
+        </span>
+      </span>
+    </>
+  );
+
+  const cls = "group panel pressable relative block aspect-[4/3] w-full overflow-hidden rounded-[28px] text-left ring-1 ring-ash-800 sm:aspect-[16/10]";
+  return locked && next ? (
+    <button
+      onClick={() => {
+        play("click");
+        openPaywall(paywallReason.lesson(next.id));
+      }}
+      className={cls}
+    >
+      {body}
+    </button>
+  ) : (
+    <Link href={next ? `/train/learn/${next.id}/` : "/train/learn/"} className={cls}>
+      {body}
+    </Link>
+  );
+}
+
+/** Every lesson in a track as a poster, scrolled sideways, so the whole path shows on the hub. */
+function LessonReel({ track, hydrated }: { track: TrackId; hydrated: boolean }) {
+  const p = useProgress();
+  const pro = useIsPro();
+  const info = TRACKS[track];
+  const next = hydrated ? nextLesson(p, track) : null;
+
+  return (
+    <div>
+      <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-ash-400">{info.title}</p>
+      <ol className="no-scrollbar -mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-1 sm:-mx-6 sm:scroll-px-6 sm:px-6">
+        {info.lessons.map((l, i) => {
+          const isDone = hydrated && lessonDone(p, l.id);
+          const open = hydrated && lessonUnlocked(p, l.id);
+          const proLocked = hydrated && lessonLocked(l.id, pro);
+          const current = next?.id === l.id;
+          const dim = !open || proLocked;
+          const body = (
+            <>
+              <LessonArt id={l.id} variant="cover" className={`transition-transform duration-500 group-hover:scale-[1.05] ${dim ? "opacity-75 grayscale-[70%]" : ""}`} />
+              <span className="relative flex h-full flex-col justify-between p-3">
+                <span className="flex items-center justify-between">
+                  <span
+                    className={`grid h-7 w-7 place-items-center rounded-full text-xs font-bold ring-1 ${
+                      isDone ? "bg-ember-500 text-ash-950 ring-ember-300" : current ? "bg-ash-950/80 text-ember-300 ring-2 ring-ember-500" : "bg-ash-950/80 text-bone ring-ash-600"
+                    }`}
+                  >
+                    {isDone ? <IconCheck className="h-3.5 w-3.5" /> : open ? i + 1 : <IconLock className="h-3 w-3" />}
+                  </span>
+                  {proLocked ? <ProBadge /> : <span className="tabular rounded-full bg-ash-950/80 px-2 py-0.5 text-[10px] font-semibold text-ash-300">{l.minutes} min</span>}
+                </span>
+                <span>
+                  {current && <span className="mb-0.5 block text-[9px] font-bold uppercase tracking-[0.2em] text-ember-400">Up next</span>}
+                  <span className="line-clamp-2 font-display text-sm font-bold leading-snug">{l.title}</span>
+                </span>
+              </span>
+            </>
+          );
+          const cls = `group relative block aspect-[3/4] w-36 overflow-hidden rounded-2xl bg-ash-900 text-left sm:w-40 ${
+            current ? "ring-2 ring-ember-500 shadow-[0_0_24px_-6px_rgba(255,90,31,0.8)]" : "ring-1 ring-ash-800"
+          }`;
+          return (
+            <li key={l.id} className="shrink-0 snap-start">
+              {proLocked ? (
+                // Pro lessons stay visible; tapping one says what Pro adds
+                <button
+                  onClick={() => {
+                    play("click");
+                    openPaywall(paywallReason.lesson(l.id));
+                  }}
+                  className={cls}
+                >
+                  {body}
+                </button>
+              ) : open ? (
+                <Link href={`/train/learn/${l.id}/`} className={`${cls} pressable`}>
+                  {body}
+                </Link>
+              ) : (
+                <div className={cls} aria-disabled>
+                  {body}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
 function DrillCard({
   href,
+  art,
   icon,
   title,
   blurb,
   acc,
   count,
-  topics,
   pro,
 }: {
   href: string;
+  /** lesson id whose art backs the card */
+  art: string;
   icon: React.ReactNode;
   title: string;
   blurb: string;
-  acc: number | null;
-  count: number;
-  topics: string[];
+  /** omitted for reference cards that have no accuracy */
+  acc?: number | null;
+  count?: number;
   /** needs Pro: show the badge */
   pro?: boolean;
 }) {
   return (
-    <Link href={href} className="panel pressable flex flex-col rounded-[28px] p-5 sm:p-6">
-      <div className="flex items-center gap-3">
-        <span className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-ember-500/25 to-ember-800/20 text-ember-300 ring-1 ring-ember-500/30">{icon}</span>
-        <div className="min-w-0 flex-1">
-          <h3 className="flex items-center gap-2 font-display text-lg font-bold">
-            {title}
-            {pro && <ProBadge />}
-          </h3>
-          <p className="tabular text-xs text-ash-400">{acc === null ? "Not started" : `${acc}% accuracy · ${count} answers`}</p>
+    <Link href={href} className="group panel pressable relative flex min-h-[180px] flex-col justify-end overflow-hidden rounded-[28px] p-5 ring-1 ring-ash-800">
+      <LessonArt id={art} variant="cover" className="transition-transform duration-700 group-hover:scale-[1.03]" />
+      <div className="relative">
+        <div className="flex items-center gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-ash-950/70 text-ember-300 ring-1 ring-ember-500/40">{icon}</span>
+          <div className="min-w-0 flex-1">
+            <h3 className="flex items-center gap-2 font-display text-lg font-bold">
+              {title}
+              {pro && <ProBadge />}
+            </h3>
+            {acc !== undefined && <p className="tabular text-xs text-ash-400">{acc === null ? "Not started" : `${acc}% accuracy · ${count} answers`}</p>}
+          </div>
+          <IconChevron className="h-5 w-5 shrink-0 text-ash-400" />
         </div>
-        <IconChevron className="h-5 w-5 text-ash-500" />
-      </div>
-      <Meter value={acc ?? 0} className="mt-4" />
-      <p className="mt-3 text-sm text-ash-300">{blurb}</p>
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        {topics.map((t) => (
-          <span key={t} className="rounded-full bg-ash-900 px-2.5 py-1 text-[11px] font-semibold text-ash-400 ring-1 ring-ash-700">
-            {t}
-          </span>
-        ))}
+        <p className="mt-2 text-sm text-ash-300">{blurb}</p>
+        {acc !== undefined && <Meter value={acc ?? 0} className="mt-3" />}
       </div>
     </Link>
   );

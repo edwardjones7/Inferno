@@ -2,10 +2,11 @@ import { lessonArt } from "@/lib/learn/art";
 
 /**
  * Lesson hero art. `thumb` is the small frame on the Learn path, `hero` the cinematic banner
- * at the top of a lesson, `backdrop` fills its (relative) parent behind other content.
+ * at the top of a lesson, `backdrop` fills its (relative) parent behind other content with a
+ * left-to-right fade, `cover` fills it with a bottom-up fade for text set over the image.
  * Renders nothing when a lesson has no art.
  */
-export function LessonArt({ id, variant, className = "" }: { id: string; variant: "thumb" | "hero" | "backdrop"; className?: string }) {
+export function LessonArt({ id, variant, className = "" }: { id: string; variant: "thumb" | "hero" | "backdrop" | "cover"; className?: string }) {
   const art = lessonArt(id);
   if (!art) return null;
 
@@ -28,6 +29,15 @@ export function LessonArt({ id, variant, className = "" }: { id: string; variant
       <div aria-hidden className={`pointer-events-none absolute inset-0 ${className}`}>
         {img}
         <div className="absolute inset-0 bg-gradient-to-r from-ash-950 via-ash-950/85 to-ash-950/30" />
+      </div>
+    );
+
+  if (variant === "cover")
+    return (
+      <div aria-hidden className={`pointer-events-none absolute inset-0 ${className}`}>
+        {img}
+        <div className="absolute inset-0 bg-gradient-to-t from-ash-950 via-ash-950/70 to-ash-950/5" />
+        <div className="absolute inset-0 shadow-[inset_0_0_60px_rgba(0,0,0,0.55)]" />
       </div>
     );
 
