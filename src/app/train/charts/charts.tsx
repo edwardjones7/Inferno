@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { IconChevron, IconX } from "@/components/icons";
 import { preflopKey, RangeChart } from "@/components/range-chart";
+import { ResponseChart, ResponseLegend, RESPONSE_STYLE } from "@/components/response-chart";
 import {
   ACCURACY_STYLE,
   AccuracyLegend,
@@ -26,6 +27,21 @@ import type { Rules } from "@/lib/blackjack/engine";
 import { formatEV, moveEVs } from "@/lib/blackjack/ev";
 import { MOVE_LABEL, type Move } from "@/lib/blackjack/strategy";
 import { isTableId, TABLE_IDS, TABLES } from "@/lib/blackjack/tables";
+import {
+  actionOf,
+  explainVs3bet,
+  explainVsOpen,
+  isPosition as isPos,
+  isSeat,
+  openerInPosition,
+  SEAT_NAME,
+  SEATS,
+  seatIndex,
+  vs3betChart,
+  vsOpenChart,
+  type ResponseChart as Chart,
+  type Seat,
+} from "@/lib/poker/preflop";
 import { codeName, combosOf, OPEN_RANGES, POSITION_NAME, POSITIONS, rangePercent, GRID, type Position } from "@/lib/poker/ranges";
 import { useProgress } from "@/lib/store";
 import { useStored } from "@/lib/use-stored";
@@ -33,7 +49,9 @@ import { useStored } from "@/lib/use-stored";
 type Tab = "blackjack" | "poker";
 const isTab = (v: unknown): v is Tab => v === "blackjack" || v === "poker";
 const isColorBy = (v: unknown): v is ColorBy => v === "move" || v === "accuracy";
-const isPosition = (v: unknown): v is Position => typeof v === "string" && (POSITIONS as string[]).includes(v);
+const isPosition = isPos;
+type PokerView = "open" | "vsopen" | "vs3bet";
+const isPokerView = (v: unknown): v is PokerView => v === "open" || v === "vsopen" || v === "vs3bet";
 
 export function Charts() {
   const sp = useSearchParams();
@@ -72,7 +90,7 @@ export function Charts() {
           </div>
         </div>
       </div>
-      {tab === "blackjack" ? <BlackjackCharts colorBy={colorBy} /> : <PokerCharts colorBy={colorBy} />}
+      {tab === "blackjack" ? <BlackjackCharts colorBy={colorBy} /> : <PokerCharts colorBy={colorBy} viewParam={sp.get("view")} />}
     </div>
   );
 }
@@ -177,7 +195,35 @@ function EvBreakdown({ spotKey, rules, best }: { spotKey: string; rules: Rules; 
 
 /* ------------------------------------------------------------------ poker */
 
-function PokerCharts({ colorBy }: { colorBy: ColorBy }) {
+/** Opening charts, plus the response charts for facing an open and facing a 3-bet. `?view=vsopen` picks one. */
+function PokerCharts({ colorBy, viewParam }: { colorBy: ColorBy; viewParam: string | null }) {
+  const [stored, setStored] = useStored<PokerView>("inferno:charts:pview", "open", isPokerView);
+  const router = useRouter();
+  const view: PokerView = isPokerView(viewParam) ? viewParam : stored;
+  const setView = (v: PokerView) => {
+    setStored(v);
+    if (viewParam) router.replace(`/train/charts/?tab=poker&view=${v}`, { scroll: false });
+  };
+  return (
+    <div>
+      <div className="mb-3">
+        <Segmented
+          label="Spot"
+          value={view}
+          onChange={setView}
+          options={[
+            { id: "open", label: "Opening" },
+            { id: "vsopen", label: "Facing an open" },
+            { id: "vs3bet", label: "Facing a 3-bet" },
+          ]}
+        />
+      </div>
+      {view === "open" ? <OpeningCharts colorBy={colorBy} /> : view === "vsopen" ? <VsOpenCharts colorBy={colorBy} /> : <Vs3betCharts colorBy={colorBy} />}
+    </div>
+  );
+}
+
+function OpeningCharts({ colorBy }: { colorBy: ColorBy }) {
   const [pos, setPos] = useStored<Position>("inferno:charts:pos", "BTN", isPosition);
   const progress = useProgress();
   const records = useMemo(() => pokerRecords(progress), [progress]);
@@ -271,6 +317,159 @@ function PokerCharts({ colorBy }: { colorBy: ColorBy }) {
               className="pressable mt-4 flex h-11 items-center justify-center gap-1.5 rounded-2xl bg-ember-500 text-sm font-bold text-ash-950"
             >
               Drill this position <IconChevron className="h-4 w-4" />
+            </Link>
+          </>
+        )}
+      </DetailPanel>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ poker: facing raises */
+
+const HEROES_VS_OPEN: Seat[] = ["HJ", "CO", "BTN", "SB", "BB"];
+const isHeroVsOpen = (v: unknown): v is Seat => isSeat(v) && v !== "UTG";
+
+function VsOpenCharts({ colorBy }: { colorBy: ColorBy }) {
+  const [hero, setHero] = useStored<Seat>("inferno:charts:vo-hero", "BB", isHeroVsOpen);
+  const [openerPick, setOpener] = useStored<Position>("inferno:charts:vo-opener", "BTN", isPosition);
+  const openers = POSITIONS.filter((p) => seatIndex(p) < seatIndex(hero));
+  const opener = openers.includes(openerPick) ? openerPick : openers[openers.length - 1];
+  const chart = vsOpenChart(hero, opener)!;
+  const keyFor = useCallback((code: string) => `vo-${hero}-${opener}-${code}`, [hero, opener]);
+  return (
+    <ResponseView
+      colorBy={colorBy}
+      chart={chart}
+      raiseLabel="3-bet"
+      title={`${SEAT_NAME[hero]} vs ${POSITION_NAME[opener].toLowerCase()} open`}
+      keyFor={keyFor}
+      explain={(code) => explainVsOpen(hero, opener, code).why}
+      drillHref={`/train/poker/?drill=vsopen&pos=${hero}&vs=${opener}`}
+      pickers={
+        <>
+          <Picker label="You" value={hero} options={HEROES_VS_OPEN} onChange={setHero} />
+          <Picker label="Opener" value={opener} options={openers} onChange={setOpener} />
+        </>
+      }
+    />
+  );
+}
+
+function Vs3betCharts({ colorBy }: { colorBy: ColorBy }) {
+  const [hero, setHero] = useStored<Position>("inferno:charts:v3-hero", "CO", isPosition);
+  const [villainPick, setVillain] = useStored<Seat>("inferno:charts:v3-villain", "BTN", isSeat);
+  const villains = SEATS.filter((v) => seatIndex(v) > seatIndex(hero));
+  const villain = villains.includes(villainPick) ? villainPick : villains[0];
+  const chart = vs3betChart(hero, villain)!;
+  const keyFor = useCallback((code: string) => `v3-${hero}-${villain}-${code}`, [hero, villain]);
+  const ip = openerInPosition(hero, villain);
+  return (
+    <ResponseView
+      colorBy={colorBy}
+      chart={chart}
+      raiseLabel="4-bet"
+      title={`${POSITION_NAME[hero]} open vs ${SEAT_NAME[villain].toLowerCase()} 3-bet · ${ip ? "in position" : "out of position"}`}
+      keyFor={keyFor}
+      explain={(code) => explainVs3bet(hero, villain, code).why}
+      drillHref={`/train/poker/?drill=vs3bet&pos=${hero}&vs=${villain}`}
+      onlyIn={OPEN_RANGES[hero]}
+      pickers={
+        <>
+          <Picker label="You opened" value={hero} options={POSITIONS} onChange={setHero} />
+          <Picker label="3-bettor" value={villain} options={villains} onChange={setVillain} />
+        </>
+      }
+    />
+  );
+}
+
+function Picker<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: readonly T[]; onChange: (v: T) => void }) {
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <span className="w-20 shrink-0 text-[11px] font-bold uppercase tracking-[0.16em] text-ash-500">{label}</span>
+      <div className="min-w-0 flex-1">
+        <Segmented label={label} value={value} onChange={onChange} options={options.map((o) => ({ id: o, label: o }))} />
+      </div>
+    </div>
+  );
+}
+
+function ResponseView({
+  colorBy,
+  chart,
+  raiseLabel,
+  title,
+  keyFor,
+  explain,
+  drillHref,
+  pickers,
+  onlyIn,
+}: {
+  colorBy: ColorBy;
+  chart: Chart;
+  raiseLabel: string;
+  title: string;
+  keyFor: (code: string) => string;
+  explain: (code: string) => string;
+  drillHref: string;
+  pickers: React.ReactNode;
+  /** hands outside this set never reach the spot (facing a 3-bet you only hold hands you opened) */
+  onlyIn?: Set<string>;
+}) {
+  const progress = useProgress();
+  const records = useMemo(() => pokerRecords(progress), [progress]);
+  const [selected, setSelected] = useState<string | null>(null);
+  const counts = useMemo(() => {
+    const c: Record<AccuracyState, number> = { unseen: 0, solid: 0, shaky: 0, leak: 0 };
+    for (const code of GRID.flat()) c[accuracyState(records.get(keyFor(code)))]++;
+    return c;
+  }, [records, keyFor]);
+  const act = selected ? actionOf(chart, selected) : null;
+  const rec = selected ? (records.get(keyFor(selected)) ?? { seen: 0, missed: 0 }) : null;
+  const word = (a: string) => (a === "raise" ? raiseLabel : a.charAt(0).toUpperCase() + a.slice(1));
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="panel min-w-0 rounded-[28px] p-3 sm:p-5">
+        <div className="space-y-2">{pickers}</div>
+        <div className="mb-3 mt-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+          <p className="text-sm font-semibold text-bone">{title}</p>
+          <p className="tabular text-xs text-ash-400">
+            {raiseLabel} <span className="font-bold text-ember-300">{rangePercent(chart.raise).toFixed(1)}%</span> · call{" "}
+            <span className="font-bold text-sky-300">{rangePercent(chart.call).toFixed(1)}%</span>
+          </p>
+        </div>
+        <ResponseChart chart={chart} raiseLabel={raiseLabel} label={title} keyFor={keyFor} records={records} colorBy={colorBy} selected={selected} onSelect={setSelected} />
+        <p className="mt-2 text-[11px] leading-relaxed text-ash-500">{chart.spec.note}</p>
+        <div className="mt-3 border-t border-ash-800 pt-3">
+          {colorBy === "accuracy" ? <AccuracyLegend /> : <ResponseLegend raiseLabel={raiseLabel} />}
+          <Counts counts={counts} />
+          <p className="mt-1 text-[11px] text-ash-500">6-max, 100bb, opens 2.5bb (small blind 3bb). Simplified from solver-style charts: each hand shows its main play.</p>
+        </div>
+      </div>
+
+      <DetailPanel open={!!selected} onClose={() => setSelected(null)} empty="Tap any hand to see the play, why, and how you've done on it.">
+        {selected && act && rec && (
+          <>
+            <p className="tabular text-[10px] font-bold uppercase tracking-[0.2em] text-ash-500">
+              {selected} · {combosOf(selected)} combos
+            </p>
+            <h2 className="mt-1 font-display text-xl font-black capitalize">{codeName(selected)}</h2>
+            <div className="mt-3 flex items-center gap-3">
+              <span className={`grid h-12 min-w-12 place-items-center rounded-xl px-3 font-display text-sm font-black ${RESPONSE_STYLE[act]} ${act === "fold" ? "ring-1 ring-ash-700" : ""}`}>
+                {word(act)}
+              </span>
+              {chart.mixed.has(selected) && <span className="rounded-full bg-ash-800 px-2.5 py-1 text-[11px] font-bold text-ash-300">Mixed spot</span>}
+            </div>
+            {onlyIn && !onlyIn.has(selected) ? (
+              <p className="mt-3 text-sm leading-relaxed text-ash-300">You wouldn&apos;t open {selected} from this seat, so you never face a 3-bet with it.</p>
+            ) : (
+              <p className="mt-3 text-sm leading-relaxed text-ash-300">{explain(selected)}</p>
+            )}
+            <RecordBox rec={rec} />
+            <Link href={drillHref} className="pressable mt-4 flex h-11 items-center justify-center gap-1.5 rounded-2xl bg-ember-500 text-sm font-bold text-ash-950">
+              Drill this spot <IconChevron className="h-4 w-4" />
             </Link>
           </>
         )}
