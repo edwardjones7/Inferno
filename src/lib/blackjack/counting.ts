@@ -113,6 +113,8 @@ export interface IndexPlay {
   index: number;
   /** "atLeast": deviate when TC ≥ index. "below": deviate when TC < index. */
   dir: "atLeast" | "below";
+  /** H17 index where it differs from the S17 one (same direction, same plays) */
+  h17Index?: number;
   /** why the count changes the play */
   why: string;
 }
@@ -121,10 +123,10 @@ export interface IndexPlay {
  * The Illustrious 18 (Don Schlesinger, "Blackjack Attack") and the Fab 4 late-surrender
  * indices, Hi-Lo, multi-deck (4–8 decks), dealer stands on soft 17.
  *
- * These are the published S17 numbers used as rule-agnostic approximations: under H17 a few
- * shift by about one (11 vs A doubles at −1, 10 vs A at +3, 15 vs A surrenders at −1). Where
- * H17 basic strategy already makes the deviation play (11 vs A double, 15 vs A surrender),
- * countAdjustedPlay simply keeps the basic play below the index, which matches H17 well.
+ * These are the published S17 numbers. Under H17 three of them shift (`h17Index`): 11 vs A
+ * doubles at −1, 10 vs A at +3, 15 vs A surrenders at −1. H17 basic strategy already doubles
+ * 11 vs A and surrenders 15 vs A, so below those indices countAdjustedPlay hits instead.
+ * The remaining indices move by less than one under H17 and are used as they are.
  */
 export const INDEX_PLAYS: readonly IndexPlay[] = [
   { id: "insurance", spot: "insurance", group: "i18", basic: "no-insurance", deviation: "insurance", index: 3, dir: "atLeast",
@@ -143,11 +145,11 @@ export const INDEX_PLAYS: readonly IndexPlay[] = [
     why: "A ten breaks your 12, and a ten-rich shoe also makes the dealer's 3 bust more: let the dealer draw." },
   { id: "hard-12-2", spot: "hard-12-2", group: "i18", basic: "hit", deviation: "stand", index: 3, dir: "atLeast",
     why: "Same idea as 12 vs 3, but the 2 is a stronger dealer card, so it takes a higher count." },
-  { id: "hard-11-11", spot: "hard-11-11", group: "i18", basic: "hit", deviation: "double", index: 1, dir: "atLeast",
+  { id: "hard-11-11", spot: "hard-11-11", group: "i18", basic: "hit", deviation: "double", index: 1, dir: "atLeast", h17Index: -1,
     why: "A slightly positive count tips 11 vs ace towards doubling: you catch a ten more often than the dealer has one underneath." },
   { id: "hard-9-2", spot: "hard-9-2", group: "i18", basic: "hit", deviation: "double", index: 1, dir: "atLeast",
     why: "Extra tens turn your 9 into 19 more often and bust the dealer's 2 more often." },
-  { id: "hard-10-11", spot: "hard-10-11", group: "i18", basic: "hit", deviation: "double", index: 4, dir: "atLeast",
+  { id: "hard-10-11", spot: "hard-10-11", group: "i18", basic: "hit", deviation: "double", index: 4, dir: "atLeast", h17Index: 3,
     why: "Against an ace you need a lot of tens left before doubling 10 pays." },
   { id: "hard-9-7", spot: "hard-9-7", group: "i18", basic: "hit", deviation: "double", index: 3, dir: "atLeast",
     why: "A ten-rich shoe makes 19 likely for you and 17 likely for the dealer: double." },
@@ -170,13 +172,19 @@ export const INDEX_PLAYS: readonly IndexPlay[] = [
     why: "Basic strategy surrenders 15 vs 10, but below zero the small cards left make hitting the better option." },
   { id: "hard-15-9-ls", spot: "hard-15-9", group: "fab4", basic: "hit", deviation: "surrender", index: 2, dir: "atLeast",
     why: "At +2 the dealer's 9 makes 19 often enough that surrendering 15 loses less than playing it." },
-  { id: "hard-15-11-ls", spot: "hard-15-11", group: "fab4", basic: "hit", deviation: "surrender", index: 1, dir: "atLeast",
+  { id: "hard-15-11-ls", spot: "hard-15-11", group: "fab4", basic: "hit", deviation: "surrender", index: 1, dir: "atLeast", h17Index: -1,
     why: "A slightly positive count tips 15 vs ace into a surrender." },
 ];
 
 export const indexPlayById = (id: string) => INDEX_PLAYS.find((p) => p.id === id);
 
-export const deviates = (p: IndexPlay, tc: number) => (p.dir === "atLeast" ? tc >= p.index : tc < p.index);
+/** The index for these rules: the H17 one when the dealer hits soft 17 and it differs. */
+export const ruleIndex = (p: IndexPlay, rules: Rules = DEFAULT_RULES) => (rules.dealerHitsSoft17 && p.h17Index !== undefined ? p.h17Index : p.index);
+
+export const deviates = (p: IndexPlay, tc: number, rules: Rules = DEFAULT_RULES) => {
+  const i = ruleIndex(p, rules);
+  return p.dir === "atLeast" ? tc >= i : tc < i;
+};
 
 const upLabel = (d: number) => (d === 11 ? "A" : String(d));
 
@@ -232,7 +240,9 @@ export function indexFor(cards: readonly Card[], up: Card, legal: readonly Actio
 export function countAdjustedPlay(cards: readonly Card[], up: Card, legal: readonly ActionType[], rules: Rules, tc: number): Move {
   const basic = basicStrategy(cards, up, legal, rules);
   const entry = indexFor(cards, up, legal, rules);
-  if (!entry || !deviates(entry, tc)) return basic;
+  if (!entry) return basic;
+  // H17 basic strategy already plays the deviation at these spots; below the index, hit
+  if (!deviates(entry, tc, rules)) return entry.h17Index !== undefined && rules.dealerHitsSoft17 && entry.basic === "hit" ? "hit" : basic;
   const dev = entry.deviation;
   if (dev === "insurance" || dev === "no-insurance") return basic;
   const opening = cards.length === 2;

@@ -80,7 +80,7 @@ export const BLACKJACK_LESSONS: Lesson[] = [
           kind: "explain",
           title: "Small upcards are bust cards",
           body: [
-            "Almost a third of the deck is worth ten. Under a 4, 5 or 6 that makes 14, 15 or 16, a total the dealer is forced to hit, and any card from 6 up busts it.",
+            "Almost a third of the deck is worth ten. Under a 4, 5 or 6 that makes 14, 15 or 16, a total the dealer is forced to hit, and plenty of cards bust it: 16 breaks on any 6 or higher, 15 on any 7 or higher.",
             `Under a big card the opposite happens: a ten under a ten is 20, done. A dealer showing 6 busts **${pct(b6)}** of the time; showing 10, only ${pct(b10)}.`,
           ],
           visual: bustBars(),
@@ -170,7 +170,7 @@ export const BLACKJACK_LESSONS: Lesson[] = [
         title: "The ace is a free hit",
         body: [
           "A **soft** hand has an ace counted as 11. If the next card would bust you, the ace drops to 1, so one card can never bust a soft hand.",
-          "That changes everything: soft 17 (A,6) is not a hand to stand on. It only wins when the dealer busts, and hitting costs you nothing.",
+          "That changes everything: soft 17 (A,6) is not a hand to stand on. It only wins when the dealer busts, and one more card can't bust it, so hitting is the better play.",
         ],
         visual: { kind: "cards", rows: [{ label: "Soft 17", cards: ["AH", "6C"] }, { label: "Soft 18", cards: ["AS", "7D"] }] },
       },
@@ -293,7 +293,7 @@ export const BLACKJACK_LESSONS: Lesson[] = [
           "With late surrender, after the dealer checks for blackjack you can give up your first two cards and get half your bet back.",
           "It's right when you'd lose more than half your bet on average by playing on. Hard 16 against a 10 loses roughly 54 cents per dollar even with perfect play, so surrendering for 50 cents is a saving.",
         ],
-        visual: { kind: "formula", text: "Surrender when you win < 25% of the time", note: "Losing half every time costs less than losing the whole bet three times in four." },
+        visual: { kind: "formula", text: "Surrender when you'd lose more than half your bet on average", note: "16 vs 10 loses about 54% of the bet played out; surrender loses exactly 50%." },
       },
       {
         kind: "explain",

@@ -100,7 +100,7 @@ describe("math", () => {
   it("counts Hi-Lo", () => {
     expect(runningCount(["2C", "6D", "7H", "TS", "AC"])).toBe(0);
     expect(trueCount(9, 3)).toBe(3);
-    expect(trueCount(-7, 2)).toBe(-3);
+    expect(trueCount(-7, 2)).toBe(-4); // floored, like the count trainer
   });
 
   it("classifies textures and odds", () => {
