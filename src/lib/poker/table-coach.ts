@@ -80,7 +80,8 @@ function heroEquity(s: PokerState, seatId: number, opps: number[]): { eq: number
   const dead = [...me.hole, ...s.board];
   const holdings = opps.map((id) => holdingOf(s, id, dead, acts));
   const rand = seeded(seedFor(dead) ^ (opps.length * 2654435761) ^ s.log.length);
-  const eq = equityVsHoldings(me.hole, s.board, holdings, 1500, rand);
+  // multiway pots need less precision and cost more per sample
+  const eq = equityVsHoldings(me.hole, s.board, holdings, opps.length >= 3 ? 600 : 1500, rand);
   const label =
     opps.length > 1
       ? `${opps.length} opponents' ranges`
@@ -94,22 +95,25 @@ function heroEquity(s: PokerState, seatId: number, opps: number[]): { eq: number
 
 /**
  * Share of pre-flop equity a caller turns into winnings after the flop (rough, but the
- * direction is well established): in position ~95%, out of position ~75%; suited hands
- * and connected hands realise more, gapped low offsuit hands less; each extra opponent or player left
- * to act behind (who can squeeze) costs a little more.
+ * direction is well established): in position ~88%, out of position ~75% for an average
+ * hand. Weak hands realise much less (they're dominated and can't continue on most flops),
+ * strong ones more, so it moves 1:1 with equity around 45%. Suited and connected hands
+ * realise more, gapped low offsuit hands less; each extra opponent or player left to act
+ * behind (who can squeeze) costs a little more. Calibrated so the big blind defends about
+ * 60% of hands against a button open and far fewer against UTG, as solver charts do.
  */
-function realisation(s: PokerState, seatId: number, opps: number[], code: string): { r: number; ip: boolean } {
+function realisation(s: PokerState, seatId: number, opps: number[], code: string, eq: number): { r: number; ip: boolean } {
   const ip = opps.every((o) => actsAfter(s, seatId, o));
-  let r = ip ? 0.95 : 0.75;
+  let r = (ip ? 0.88 : 0.75) + (eq - 0.45);
   if (code.length === 3) {
     const v = (c: string) => "23456789TJQKA".indexOf(c) + 2;
     const [hi, lo] = [v(code[0]), v(code[1])];
-    if (code[2] === "s") r += 0.06;
+    if (code[2] === "s") r += 0.08;
     if (hi - lo === 1) r += 0.03;
     else if (code[2] === "o" && hi < 10 && hi - lo >= 4) r -= 0.1;
   }
-  r -= 0.05 * Math.max(0, opps.length - 1) + 0.03 * yetToAct(s, seatId);
-  return { r: Math.max(0.5, Math.min(1.05, r)), ip };
+  r -= 0.05 * Math.max(0, opps.length - 1) + 0.04 * yetToAct(s, seatId);
+  return { r: Math.max(0.4, Math.min(1.1, r)), ip };
 }
 
 /* ------------------------------------------------------------------ entry point */
@@ -187,7 +191,7 @@ function coachVsRaise(s: PokerState, seatId: number, action: PlayerAction, code:
   const L = legal(s);
   const lvl = Math.min(raises, 3) - 1;
   const word = RERAISE_WORD[lvl];
-  const { r, ip } = realisation(s, seatId, opps, code);
+  const { r, ip } = realisation(s, seatId, opps, code, eq);
   const allIn = L.toCall >= s.seats[seatId].stack;
   const realise = allIn ? 1 : r;
   const price = L.toCall / (s.pot + L.toCall);
