@@ -14,7 +14,7 @@ import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useSceneFx } from "@/game/three/fx-context";
-import type { Accessory, Face, Look } from "./looks";
+import type { Accessory, Face, Look, Outfit } from "./looks";
 
 /* ------------------------------------------------------------------ poses */
 
@@ -82,6 +82,8 @@ function makeGeo(seg: number) {
     arc: new THREE.TorusGeometry(0.11, 0.024, 6, 18, Math.PI),
     band: new THREE.TorusGeometry(1, 0.06, 8, s, Math.PI),
     box: new THREE.BoxGeometry(1, 1, 1),
+    /** a hat crown: narrower at the top */
+    crown: new THREE.CylinderGeometry(0.86, 1, 1, s, 1),
     torso: torsoGeometry(s),
   };
 }
@@ -120,6 +122,30 @@ function useGeo(quality: "high" | "low") {
 
 const INK = new THREE.MeshBasicMaterial({ color: "#0a0503", side: THREE.BackSide });
 
+/**
+ * Pinstripes as a tiny tiling texture: a mid-grey cloth with one light thread, multiplied over
+ * the suit colour (which is brightened to compensate). Shared by every pinstriped figure.
+ */
+let pinstripeTex: THREE.CanvasTexture | null = null;
+const PINSTRIPE_GAIN = 1.3;
+function pinstripe() {
+  if (pinstripeTex || typeof document === "undefined") return pinstripeTex;
+  const c = document.createElement("canvas");
+  c.width = 16;
+  c.height = 2;
+  const g = c.getContext("2d")!;
+  g.fillStyle = "#b4b4b4";
+  g.fillRect(0, 0, 16, 2);
+  g.fillStyle = "#ffffff";
+  g.fillRect(0, 0, 2, 2);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(22, 1);
+  t.colorSpace = THREE.SRGBColorSpace;
+  pinstripeTex = t;
+  return t;
+}
+
 function useMats(look: Look) {
   return useMemo(() => {
     const std = (color: string, rough = 0.7, metal = 0, emissive?: string, ei = 0) =>
@@ -127,11 +153,30 @@ function useMats(look: Look) {
     const skin = std(look.skin, 0.62);
     // a little self-light so faces don't sink into the dark room
     skin.emissive = new THREE.Color(look.skin).multiplyScalar(0.18);
+    const stripes = look.outfit.pinstripe ? pinstripe() : null;
+    const main = std(look.outfit.main, 0.75);
+    const mainBase = new THREE.Color(look.outfit.main);
+    if (stripes) {
+      main.map = stripes;
+      mainBase.multiplyScalar(PINSTRIPE_GAIN);
+    }
+    const hatColor = look.hat?.main ?? "#1a1210";
     return {
       skin,
       hair: std(look.hair.color, 0.55),
-      main: std(look.outfit.main, 0.75),
+      main,
       accent: std(look.outfit.accent, 0.6),
+      shirt: std(look.outfit.shirt, 0.65),
+      hat: std(hatColor, 0.8),
+      band: std(look.hat?.band ?? "#000000", 0.55),
+      /** the lit end of a cigar; pulses in the frame loop */
+      ember: new THREE.MeshBasicMaterial({ color: "#ff5a14", toneMapped: false }),
+      cigar: std("#5a3520", 0.8),
+      ash: std("#8c8580", 0.9),
+      wood: std("#d8b880", 0.7),
+      carnation: std("#b3121a", 0.6, 0, "#5a0508", 0.3),
+      scar: new THREE.MeshBasicMaterial({ color: new THREE.Color(look.skin).multiplyScalar(0.62) }),
+      stubble: new THREE.MeshBasicMaterial({ color: "#1a0e08", transparent: true, opacity: 0.2, depthWrite: false }),
       white: new THREE.MeshStandardMaterial({ color: "#fbf4ea", roughness: 0.3, emissive: "#fbf4ea", emissiveIntensity: 0.25 }),
       pupil: new THREE.MeshStandardMaterial({ color: look.eyes, roughness: 0.2, emissive: look.eyes, emissiveIntensity: 0.15 }),
       dark: new THREE.MeshBasicMaterial({ color: "#1a0806" }),
@@ -145,7 +190,13 @@ function useMats(look: Look) {
       visor: new THREE.MeshStandardMaterial({ color: "#1f7a4a", roughness: 0.4, transparent: true, opacity: 0.85, emissive: "#0f3a22", emissiveIntensity: 0.4 }),
       leather: std("#1b0d08", 0.5, 0.1),
       /** undimmed colors, for fading a folded figure */
-      base: { main: new THREE.Color(look.outfit.main), accent: new THREE.Color(look.outfit.accent), hair: new THREE.Color(look.hair.color) },
+      base: {
+        main: mainBase,
+        accent: new THREE.Color(look.outfit.accent),
+        shirt: new THREE.Color(look.outfit.shirt),
+        hat: new THREE.Color(hatColor),
+        hair: new THREE.Color(look.hair.color),
+      },
     };
   }, [look]);
 }
@@ -343,7 +394,12 @@ export function Figure({ look, pose, face, stance = "seated", dim = 0, lookAt = 
     mm.skin.emissiveIntensity = lit;
     mm.main.color.copy(mm.base.main).multiplyScalar(lit);
     mm.accent.color.copy(mm.base.accent).multiplyScalar(lit);
+    mm.shirt.color.copy(mm.base.shirt).multiplyScalar(lit);
+    mm.hat.color.copy(mm.base.hat).multiplyScalar(lit);
     mm.hair.color.copy(mm.base.hair).multiplyScalar(lit);
+    // the cigar's lit end breathes, brighter on each slow draw
+    const draw = still ? 0.5 : Math.pow(Math.max(0, Math.sin(t * 0.8)), 6);
+    mm.ember.color.setRGB(1, 0.3 + draw * 0.25, 0.06).multiplyScalar((1.1 + draw * 1.2) * lit);
   });
 
   const acc = new Set<Accessory>(look.accessories);
@@ -368,21 +424,31 @@ export function Figure({ look, pose, face, stance = "seated", dim = 0, lookAt = 
           <OutfitDetails outfit={outfit} geo={geo} m={m} W={W} acc={acc} />
         </group>
 
-        {/* neck */}
-        <mesh geometry={geo.cyl} material={m.skin} position={[0, shoulderY + 0.08, 0]} scale={[0.14, 0.24, 0.14]} />
+        {/* neck (a turtleneck covers it) */}
+        {acc.has("turtleneck") ? (
+          <mesh geometry={geo.cyl} material={m.accent} position={[0, shoulderY + 0.1, 0]} scale={[0.19, 0.3, 0.19]} />
+        ) : (
+          <mesh geometry={geo.cyl} material={m.skin} position={[0, shoulderY + 0.08, 0]} scale={[0.14, 0.24, 0.14]} />
+        )}
 
-        {/* arms */}
+        {/* arms: jacket sleeves with a shirt cuff, bare shirt sleeves under a waistcoat, or
+            sleeves rolled to the elbow */}
         {[0, 1].map((i) => {
           const side = i === 0 ? -1 : 1;
+          const sleeve = outfit === "vest" ? m.shirt : m.main;
+          const jacket = outfit === "suit" || outfit === "doublebreast" || outfit === "overcoat";
           return (
             <group key={i} ref={(g) => void (shoulders.current[i] = g!)} position={[side * sw, shoulderY - 0.02, 0]}>
-              <mesh geometry={geo.sphere} material={m.main} scale={0.16} />
-              <mesh geometry={geo.capsule} material={m.main} position={[0, -upper / 2, 0]} scale={[0.15, upper / 2.2, 0.15]} />
+              <mesh geometry={geo.sphere} material={sleeve} scale={0.16} />
+              <mesh geometry={geo.capsule} material={sleeve} position={[0, -upper / 2, 0]} scale={[0.15, upper / 2.2, 0.15]} />
+              {acc.has("garters") && <mesh geometry={geo.cyl} material={m.accent} position={[0, -upper * 0.42, 0]} scale={[0.158, 0.04, 0.158]} />}
               <group ref={(g) => void (elbows.current[i] = g!)} position={[0, -upper, 0]}>
-                <mesh geometry={geo.capsule} material={outfit === "tee" ? m.skin : m.main} position={[0, -fore / 2, 0]} scale={[0.115, fore / 2.2, 0.115]} />
-                {/* cuff */}
-                {outfit !== "tee" && <mesh geometry={geo.cyl} material={m.accent} position={[0, -fore + 0.04, 0]} scale={[0.125, 0.05, 0.125]} />}
+                <mesh geometry={geo.capsule} material={outfit === "shirt" ? m.skin : sleeve} position={[0, -fore / 2, 0]} scale={[0.115, fore / 2.2, 0.115]} />
+                {outfit === "shirt" && <mesh geometry={geo.cyl} material={m.shirt} position={[0, -0.05, 0]} scale={[0.135, 0.08, 0.135]} />}
+                {jacket && <mesh geometry={geo.cyl} material={m.shirt} position={[0, -fore + 0.03, 0]} scale={[0.122, 0.05, 0.122]} />}
                 <mesh geometry={geo.sphere} material={m.skin} position={[0, -fore - 0.06, 0]} scale={[0.12, 0.13, 0.1]} />
+                {/* pinky ring on the right hand */}
+                {i === 1 && acc.has("ring") && <mesh geometry={geo.sphere} material={m.gold} position={[0.07, -fore - 0.13, 0.03]} scale={[0.03, 0.026, 0.03]} />}
               </group>
             </group>
           );
@@ -394,12 +460,8 @@ export function Figure({ look, pose, face, stance = "seated", dim = 0, lookAt = 
             <mesh geometry={geo.sphere} material={m.skin} scale={[HEAD_R, HEAD_R * 1.04, HEAD_R * 0.96]} castShadow={ink} />
             {ink && <mesh geometry={geo.sphere} material={INK} scale={[HEAD_R * 1.045, HEAD_R * 1.085, HEAD_R * 1.0]} />}
             {/* ears */}
-            {acc.has("headphones") || look.hair.style === "hood" ? null : (
-              <>
-                <mesh geometry={geo.sphere} material={m.skin} position={[-HEAD_R * 0.97, -0.02, 0]} scale={[0.06, 0.1, 0.07]} />
-                <mesh geometry={geo.sphere} material={m.skin} position={[HEAD_R * 0.97, -0.02, 0]} scale={[0.06, 0.1, 0.07]} />
-              </>
-            )}
+            <mesh geometry={geo.sphere} material={m.skin} position={[-HEAD_R * 0.97, -0.02, 0]} scale={[0.06, 0.1, 0.07]} />
+            <mesh geometry={geo.sphere} material={m.skin} position={[HEAD_R * 0.97, -0.02, 0]} scale={[0.06, 0.1, 0.07]} />
 
             {/* eyes */}
             {[-1, 1].map((side, i) => (
@@ -448,8 +510,9 @@ export function Figure({ look, pose, face, stance = "seated", dim = 0, lookAt = 
                 )),
               )}
 
-            <Hair look={look} geo={geo} m={m} ink={ink} />
+            <Hair look={look} geo={geo} m={m} />
             <HeadAccessories acc={acc} geo={geo} m={m} />
+            {look.hat && <Hat hat={look.hat} geo={geo} m={m} ink={ink} />}
           </group>
         </group>
       </group>
@@ -461,60 +524,82 @@ export function Figure({ look, pose, face, stance = "seated", dim = 0, lookAt = 
 
 type Mats = ReturnType<typeof useMats>;
 
-function OutfitDetails({ outfit, geo, m, W, acc }: { outfit: string; geo: Geo; m: Mats; W: number; acc: Set<Accessory> }) {
+function OutfitDetails({ outfit, geo, m, W, acc }: { outfit: Outfit; geo: Geo; m: Mats; W: number; acc: Set<Accessory> }) {
   const front = 0.38 * W;
+  // the wearer's left chest (+x: the figure faces +z)
+  const chest = 0.22 * W;
   return (
     <group>
-      {outfit === "hoodie" && (
-        <>
-          {/* hood bunched at the neck + drawstrings + pocket */}
-          <mesh geometry={geo.torus} material={m.main} position={[0, 1.02, -0.05]} rotation={[Math.PI / 2 - 0.25, 0, 0]} scale={[0.32, 0.3, 0.6]} />
-          <mesh geometry={geo.cyl} material={m.accent} position={[-0.08, 0.72, front]} scale={[0.012, 0.28, 0.012]} />
-          <mesh geometry={geo.cyl} material={m.accent} position={[0.08, 0.72, front]} scale={[0.012, 0.28, 0.012]} />
-          <mesh geometry={geo.box} material={m.main} position={[0, 0.0, front - 0.01]} scale={[0.6 * W, 0.24, 0.06]} />
-        </>
-      )}
       {outfit === "suit" && (
         <>
-          {/* shirt V and lapels */}
-          <mesh geometry={geo.cone} material={m.accent} position={[0, 0.78, front - 0.02]} rotation={[Math.PI, 0, 0]} scale={[0.17, 0.4, 0.05]} />
+          {/* shirt V, notched lapels, two buttons */}
+          <mesh geometry={geo.cone} material={m.shirt} position={[0, 0.78, front - 0.02]} rotation={[Math.PI, 0, 0]} scale={[0.17, 0.4, 0.05]} />
           <mesh geometry={geo.box} material={m.main} position={[-0.13, 0.7, front + 0.01]} rotation={[0, 0, -0.35]} scale={[0.1, 0.42, 0.03]} />
           <mesh geometry={geo.box} material={m.main} position={[0.13, 0.7, front + 0.01]} rotation={[0, 0, 0.35]} scale={[0.1, 0.42, 0.03]} />
+          {[0.3, 0.12].map((y) => (
+            <mesh key={y} geometry={geo.sphere} material={m.dark} position={[0, y, front + 0.03]} scale={0.026} />
+          ))}
+        </>
+      )}
+      {outfit === "doublebreast" && (
+        <>
+          {/* narrow V, wide peaked lapels, two columns of buttons */}
+          <mesh geometry={geo.cone} material={m.shirt} position={[0, 0.8, front - 0.02]} rotation={[Math.PI, 0, 0]} scale={[0.14, 0.34, 0.05]} />
+          <mesh geometry={geo.box} material={m.main} position={[-0.15, 0.68, front + 0.015]} rotation={[0, 0, -0.5]} scale={[0.15, 0.44, 0.03]} />
+          <mesh geometry={geo.box} material={m.main} position={[0.15, 0.68, front + 0.015]} rotation={[0, 0, 0.5]} scale={[0.15, 0.44, 0.03]} />
+          {[-0.1, 0.1].flatMap((x) =>
+            [0.36, 0.16].map((y) => <mesh key={`${x}${y}`} geometry={geo.sphere} material={m.dark} position={[x, y, front + 0.03]} scale={0.027} />),
+          )}
         </>
       )}
       {outfit === "vest" && (
         <>
-          {/* shirt sleeves read through the arms; vest V and buttons */}
-          <mesh geometry={geo.cone} material={m.accent} position={[0, 0.74, front - 0.02]} rotation={[Math.PI, 0, 0]} scale={[0.2, 0.5, 0.05]} />
+          {/* waistcoat V over the shirt, brass buttons */}
+          <mesh geometry={geo.cone} material={m.shirt} position={[0, 0.74, front - 0.02]} rotation={[Math.PI, 0, 0]} scale={[0.2, 0.5, 0.05]} />
           {[0.38, 0.2, 0.02].map((y) => (
             <mesh key={y} geometry={geo.sphere} material={m.gold} position={[0, y, front + 0.04]} scale={0.03} />
           ))}
         </>
       )}
-      {outfit === "cardigan" && (
+      {outfit === "shirt" && (
         <>
-          <mesh geometry={geo.box} material={m.accent} position={[0, 0.5, front - 0.01]} scale={[0.16, 0.85, 0.04]} />
-          {[0.62, 0.42, 0.22].map((y) => (
-            <mesh key={y} geometry={geo.sphere} material={m.frame} position={[0.1, y, front + 0.03]} scale={0.026} />
+          {/* collar points, button placket, suspenders */}
+          {[-1, 1].map((s) => (
+            <mesh key={s} geometry={geo.cone} material={m.shirt} position={[s * 0.07, 0.9, front - 0.06]} rotation={[0.2, 0, s * 2.6]} scale={[0.06, 0.12, 0.03]} />
+          ))}
+          {[0.62, 0.42, 0.22, 0.02].map((y) => (
+            <mesh key={y} geometry={geo.sphere} material={m.frame} position={[0, y, front + 0.02]} scale={0.018} />
+          ))}
+          {[-1, 1].map((s) => (
+            <mesh key={s} geometry={geo.box} material={m.accent} position={[s * 0.17 * W, 0.42, front * 0.95]} rotation={[0, s * 0.35, 0]} scale={[0.05, 1.0, 0.03]} />
           ))}
         </>
       )}
-      {outfit === "jacket" && (
+      {outfit === "overcoat" && (
         <>
-          <mesh geometry={geo.box} material={m.accent} position={[-0.12, 0.45, front]} scale={[0.03, 0.95, 0.03]} />
-          <mesh geometry={geo.box} material={m.accent} position={[0.12, 0.45, front]} scale={[0.03, 0.95, 0.03]} />
-          <mesh geometry={geo.cone} material={m.dark} position={[0, 0.78, front - 0.03]} rotation={[Math.PI, 0, 0]} scale={[0.14, 0.32, 0.04]} />
+          {/* collar turned up around the neck, broad lapels, two buttons */}
+          <mesh geometry={geo.torus} material={m.main} position={[0, 1.0, -0.03]} rotation={[Math.PI / 2 - 0.35, 0, 0]} scale={[0.36, 0.33, 1.1]} />
+          <mesh geometry={geo.cone} material={m.shirt} position={[0, 0.76, front - 0.02]} rotation={[Math.PI, 0, 0]} scale={[0.16, 0.36, 0.05]} />
+          <mesh geometry={geo.box} material={m.main} position={[-0.16, 0.62, front + 0.015]} rotation={[0, 0, -0.4]} scale={[0.16, 0.5, 0.035]} />
+          <mesh geometry={geo.box} material={m.main} position={[0.16, 0.62, front + 0.015]} rotation={[0, 0, 0.4]} scale={[0.16, 0.5, 0.035]} />
+          {[0.3, 0.08].map((y) => (
+            <mesh key={y} geometry={geo.sphere} material={m.dark} position={[0.12, y, front + 0.03]} scale={0.03} />
+          ))}
         </>
       )}
-      {outfit === "tee" && (
-        <mesh geometry={geo.torus} material={m.accent} position={[0, 0.92, 0.0]} rotation={[Math.PI / 2 - 0.2, 0, 0]} scale={[0.2, 0.15, 0.4]} />
-      )}
-      {acc.has("tie") && (
-        <>
-          <mesh geometry={geo.box} material={m.accent} position={[0, 0.88, front + 0.02]} rotation={[0, 0, Math.PI / 4]} scale={[0.06, 0.06, 0.04]} />
-          <mesh geometry={geo.cone} material={m.accent} position={[0, 0.62, front + 0.03]} rotation={[Math.PI, 0, 0]} scale={[0.07, 0.42, 0.02]} />
-        </>
-      )}
+      {acc.has("tie") &&
+        (outfit === "shirt" ? (
+          // pulled loose at the collar
+          <group position={[0.015, -0.05, 0]} rotation={[0, 0, 0.08]}>
+            <mesh geometry={geo.box} material={m.accent} position={[0, 0.86, front + 0.02]} rotation={[0, 0, Math.PI / 4 + 0.25]} scale={[0.06, 0.06, 0.04]} />
+            <mesh geometry={geo.cone} material={m.accent} position={[0, 0.6, front + 0.03]} rotation={[Math.PI, 0, 0]} scale={[0.07, 0.42, 0.02]} />
+          </group>
+        ) : (
+          <>
+            <mesh geometry={geo.box} material={m.accent} position={[0, 0.88, front + 0.02]} rotation={[0, 0, Math.PI / 4]} scale={[0.06, 0.06, 0.04]} />
+            <mesh geometry={geo.cone} material={m.accent} position={[0, 0.62, front + 0.03]} rotation={[Math.PI, 0, 0]} scale={[0.07, 0.42, 0.02]} />
+          </>
+        ))}
       {acc.has("bowtie") && (
         <group position={[0, 0.9, front + 0.03]}>
           <mesh geometry={geo.cone} material={m.dark} position={[-0.06, 0, 0]} rotation={[0, 0, Math.PI / 2]} scale={[0.05, 0.1, 0.03]} />
@@ -522,63 +607,58 @@ function OutfitDetails({ outfit, geo, m, W, acc }: { outfit: string; geo: Geo; m
           <mesh geometry={geo.sphere} material={m.dark} scale={0.03} />
         </group>
       )}
-      {acc.has("chain") && <mesh geometry={geo.torus} material={m.gold} position={[0, 0.84, 0.12]} rotation={[Math.PI / 2 - 0.5, 0, 0]} scale={[0.22, 0.18, 0.1]} />}
-      {acc.has("scarf") && <mesh geometry={geo.torus} material={m.accent} position={[0, 0.98, 0]} rotation={[Math.PI / 2 - 0.15, 0, 0]} scale={[0.24, 0.2, 0.9]} />}
+      {acc.has("pocketsquare") && (
+        <group position={[chest, 0.56, front * 0.9]} rotation={[0, 0.35, 0]}>
+          <mesh geometry={geo.box} material={m.shirt} scale={[0.11, 0.03, 0.03]} />
+          {[-0.028, 0.028].map((x) => (
+            <mesh key={x} geometry={geo.cone} material={m.shirt} position={[x, 0.035, 0]} scale={[0.026, 0.05, 0.014]} />
+          ))}
+        </group>
+      )}
+      {acc.has("carnation") && (
+        <group position={[0.15 * W, 0.76, front + 0.03]}>
+          {[
+            [0, 0],
+            [-0.025, -0.015],
+            [0.025, -0.015],
+            [0, 0.022],
+          ].map(([x, y]) => (
+            <mesh key={`${x}${y}`} geometry={geo.sphere} material={m.carnation} position={[x, y, 0]} scale={0.03} />
+          ))}
+        </group>
+      )}
+      {acc.has("watchchain") && (
+        <mesh geometry={geo.band} material={m.gold} position={[0.09, 0.24, front + 0.04]} rotation={[0, 0, Math.PI]} scale={[0.11, 0.08, 0.1]} />
+      )}
     </group>
   );
 }
 
-function Hair({ look, geo, m, ink }: { look: Look; geo: Geo; m: Mats; ink: boolean }) {
+/** Hair as it shows under a hat: the back and sides only (the crown hides the rest). */
+function HatHair({ look, geo, m }: { look: Look; geo: Geo; m: Mats }) {
   const r = HEAD_R;
+  if (look.hair.style === "bald") return <BaldFringe geo={geo} m={m} />;
+  return <mesh geometry={geo.hemi} material={m.hair} position={[0, 0.02, -0.05]} scale={[r * 1.05, r * 1.0, r * 1.05]} />;
+}
+
+function BaldFringe({ geo, m }: { geo: Geo; m: Mats }) {
+  const r = HEAD_R;
+  return <mesh geometry={geo.torus} material={m.hair} position={[0, -0.02, -0.06]} rotation={[Math.PI / 2 + 0.2, 0, 0]} scale={[r * 0.98, r * 0.92, r * 0.6]} />;
+}
+
+function Hair({ look, geo, m }: { look: Look; geo: Geo; m: Mats }) {
+  const r = HEAD_R;
+  if (look.hat) return <HatHair look={look} geo={geo} m={m} />;
   switch (look.hair.style) {
     case "bald":
-      // a fringe around the back and sides
-      return <mesh geometry={geo.torus} material={m.hair} position={[0, -0.02, -0.06]} rotation={[Math.PI / 2 + 0.2, 0, 0]} scale={[r * 0.98, r * 0.92, r * 0.6]} />;
-    case "beanie":
-      return (
-        <group>
-          <mesh geometry={geo.hemi} material={m.hair} position={[0, 0.06, 0]} scale={[r * 1.07, r * 1.12, r * 1.05]} />
-          {ink && <mesh geometry={geo.hemi} material={INK} position={[0, 0.06, 0]} scale={[r * 1.11, r * 1.16, r * 1.09]} />}
-          <mesh geometry={geo.cyl} material={m.accent} position={[0, 0.1, 0]} scale={[r * 1.1, 0.09, r * 1.08]} />
-          <mesh geometry={geo.sphere} material={m.accent} position={[0, r * 1.2, 0]} scale={0.1} />
-        </group>
-      );
-    case "spiky":
-      return (
-        <group>
-          <mesh geometry={geo.hemi} material={m.hair} position={[0, 0.04, -0.02]} scale={[r * 1.04, r * 1.0, r * 1.02]} />
-          {Array.from({ length: 9 }, (_, i) => {
-            const a = (i / 9) * Math.PI * 2;
-            const ring = i % 2 ? 0.55 : 0.3;
-            return (
-              <mesh
-                key={i}
-                geometry={geo.cone}
-                material={m.hair}
-                position={[Math.cos(a) * r * ring, r * 0.95 - ring * 0.2, Math.sin(a) * r * ring - 0.05]}
-                rotation={[Math.sin(a) * 0.6, 0, -Math.cos(a) * 0.6]}
-                scale={[0.09, 0.3, 0.09]}
-              />
-            );
-          })}
-        </group>
-      );
-    case "bob":
-      return (
-        <group>
-          <mesh geometry={geo.hemi} material={m.hair} position={[0, 0.0, -0.02]} scale={[r * 1.1, r * 1.12, r * 1.08]} />
-          <mesh geometry={geo.capsule} material={m.hair} position={[-r * 0.95, -0.12, -0.04]} scale={[0.12, 0.16, 0.24]} />
-          <mesh geometry={geo.capsule} material={m.hair} position={[r * 0.95, -0.12, -0.04]} scale={[0.12, 0.16, 0.24]} />
-          <mesh geometry={geo.sphere} material={m.hair} position={[0, -0.06, -r * 0.55]} scale={[r * 1.0, r * 0.9, r * 0.6]} />
-          {/* fringe */}
-          <mesh geometry={geo.sphere} material={m.hair} position={[0, r * 0.72, r * 0.5]} rotation={[0.3, 0, 0]} scale={[r * 0.95, 0.1, 0.2]} />
-        </group>
-      );
+      return <BaldFringe geo={geo} m={m} />;
     case "slick":
+      // combed straight back with a side part and a little lift at the front
       return (
         <group>
           <mesh geometry={geo.hemi} material={m.hair} position={[0, 0.06, -0.06]} rotation={[-0.25, 0, 0]} scale={[r * 1.05, r * 1.0, r * 1.06]} />
-          <mesh geometry={geo.sphere} material={m.hair} position={[0, r * 0.7, r * 0.3]} scale={[r * 0.9, 0.12, 0.28]} rotation={[-0.4, 0, 0]} />
+          <mesh geometry={geo.sphere} material={m.hair} position={[0.03, r * 0.72, r * 0.3]} scale={[r * 0.88, 0.12, 0.28]} rotation={[-0.4, 0, -0.06]} />
+          <mesh geometry={geo.box} material={m.dark} position={[-0.13, r * 0.86, r * 0.18]} rotation={[-0.5, 0, 0.12]} scale={[0.012, 0.012, 0.24]} />
         </group>
       );
     case "bun":
@@ -586,14 +666,6 @@ function Hair({ look, geo, m, ink }: { look: Look; geo: Geo; m: Mats; ink: boole
         <group>
           <mesh geometry={geo.hemi} material={m.hair} position={[0, 0.04, -0.02]} scale={[r * 1.06, r * 1.05, r * 1.05]} />
           <mesh geometry={geo.sphere} material={m.hair} position={[0, r * 1.05, -r * 0.35]} scale={0.17} />
-        </group>
-      );
-    case "mohawk":
-      return (
-        <group>
-          {[-0.75, -0.4, -0.05, 0.3, 0.6].map((z, i) => (
-            <mesh key={i} geometry={geo.cone} material={m.hair} position={[0, r * (1.0 - Math.abs(z) * 0.18), z * r]} rotation={[z * 0.6, 0, 0]} scale={[0.07, 0.36, 0.13]} />
-          ))}
         </group>
       );
     case "curly":
@@ -607,15 +679,6 @@ function Hair({ look, geo, m, ink }: { look: Look; geo: Geo; m: Mats; ink: boole
           <mesh geometry={geo.sphere} material={m.hair} position={[0, r * 0.95, -0.05]} scale={0.2} />
         </group>
       );
-    case "hood":
-      return (
-        <group>
-          <mesh geometry={geo.sphere} material={m.hair} position={[0, 0.07, -0.17]} scale={[r * 1.28, r * 1.32, r * 1.05]} />
-          {ink && <mesh geometry={geo.sphere} material={INK} position={[0, 0.07, -0.17]} scale={[r * 1.32, r * 1.36, r * 1.09]} />}
-          {/* thick rim framing the face */}
-          <mesh geometry={geo.torus} material={m.hair} position={[0, 0.03, r * 0.5]} scale={[r * 1.02, r * 1.12, r * 1.4]} />
-        </group>
-      );
     case "messy":
     default:
       return (
@@ -624,6 +687,49 @@ function Hair({ look, geo, m, ink }: { look: Look; geo: Geo; m: Mats; ink: boole
           {[-0.2, 0, 0.2].map((x, i) => (
             <mesh key={i} geometry={geo.sphere} material={m.hair} position={[x, r * 0.75, r * 0.5]} scale={[0.13, 0.08, 0.1]} />
           ))}
+        </group>
+      );
+  }
+}
+
+function Hat({ hat, geo, m, ink }: { hat: NonNullable<Look["hat"]>; geo: Geo; m: Mats; ink: boolean }) {
+  const r = HEAD_R;
+  const tilt = hat.tilt ?? 0;
+  switch (hat.style) {
+    case "fedora":
+      // wide snap brim, tapered crown with a centre crease, ribbon band
+      return (
+        <group position={[0, r * 0.55, 0.01]} rotation={[tilt, 0, 0.05]}>
+          <mesh geometry={geo.cyl} material={m.hat} scale={[r * 1.6, 0.022, r * 1.5]} castShadow={ink} />
+          {ink && <mesh geometry={geo.cyl} material={INK} scale={[r * 1.64, 0.036, r * 1.54]} />}
+          <mesh geometry={geo.crown} material={m.hat} position={[0, 0.15, -0.01]} scale={[r * 0.98, 0.3, r * 0.92]} />
+          {ink && <mesh geometry={geo.crown} material={INK} position={[0, 0.15, -0.01]} scale={[r * 1.02, 0.32, r * 0.96]} />}
+          {[-1, 1].map((s) => (
+            <mesh key={s} geometry={geo.sphere} material={m.hat} position={[s * 0.09, 0.3, -0.01]} scale={[r * 0.45, 0.06, r * 0.74]} />
+          ))}
+          <mesh geometry={geo.cyl} material={m.band} position={[0, 0.05, -0.01]} scale={[r * 0.995, 0.075, r * 0.935]} />
+        </group>
+      );
+    case "flatcap":
+      // a soft, flat newsboy cap sloping onto a short peak
+      return (
+        <group position={[0, r * 0.5, 0.02]} rotation={[tilt, 0, 0]}>
+          <mesh geometry={geo.hemi} material={m.hat} position={[0, 0, -0.02]} scale={[r * 1.1, r * 0.62, r * 1.16]} />
+          {ink && <mesh geometry={geo.hemi} material={INK} position={[0, 0, -0.02]} scale={[r * 1.14, r * 0.66, r * 1.2]} />}
+          <mesh geometry={geo.sphere} material={m.hat} position={[0, 0.12, r * 0.5]} rotation={[0.3, 0, 0]} scale={[r * 0.98, 0.09, r * 0.62]} />
+          <mesh geometry={geo.sphere} material={m.band} position={[0, 0.0, r * 1.0]} rotation={[0.12, 0, 0]} scale={[r * 0.8, 0.025, r * 0.42]} />
+          <mesh geometry={geo.sphere} material={m.band} position={[0, r * 0.62, -0.02]} scale={0.04} />
+        </group>
+      );
+    case "porkpie":
+      // short flat-topped crown, narrow brim
+      return (
+        <group position={[0, r * 0.62, 0]} rotation={[tilt, 0, -0.06]}>
+          <mesh geometry={geo.cyl} material={m.hat} scale={[r * 1.34, 0.022, r * 1.28]} castShadow={ink} />
+          {ink && <mesh geometry={geo.cyl} material={INK} scale={[r * 1.38, 0.036, r * 1.32]} />}
+          <mesh geometry={geo.cyl} material={m.hat} position={[0, 0.1, 0]} scale={[r * 0.94, 0.2, r * 0.88]} />
+          {ink && <mesh geometry={geo.cyl} material={INK} position={[0, 0.1, 0]} scale={[r * 0.98, 0.22, r * 0.92]} />}
+          <mesh geometry={geo.cyl} material={m.band} position={[0, 0.04, 0]} scale={[r * 0.96, 0.07, r * 0.9]} />
         </group>
       );
   }
@@ -649,29 +755,14 @@ function HeadAccessories({ acc, geo, m }: { acc: Set<Accessory>; geo: Geo; m: Ma
           <mesh geometry={geo.box} material={m.frame} position={[0, 0.03, 0]} scale={[0.5, 0.025, 0.02]} />
         </group>
       )}
-      {acc.has("headphones") && (
-        <group>
-          <mesh geometry={geo.band} material={m.frame} position={[0, 0.0, -0.04]} rotation={[-0.25, 0, 0]} scale={[r * 1.08, r * 1.12, r * 1.08]} />
-          {[-1, 1].map((s) => (
-            <mesh key={s} geometry={geo.cyl} material={m.accent} position={[s * r * 1.0, -0.02, 0]} rotation={[0, 0, Math.PI / 2]} scale={[0.13, 0.08, 0.13]} />
-          ))}
-        </group>
-      )}
-      {acc.has("crown") && (
-        <group position={[0, r * 0.95, -0.02]} rotation={[-0.12, 0, 0.08]}>
-          <mesh geometry={geo.cyl} material={m.gold} scale={[0.24, 0.1, 0.24]} />
-          {Array.from({ length: 6 }, (_, i) => {
-            const a = (i / 6) * Math.PI * 2;
-            return <mesh key={i} geometry={geo.cone} material={m.gold} position={[Math.cos(a) * 0.21, 0.1, Math.sin(a) * 0.21]} scale={[0.05, 0.14, 0.05]} />;
-          })}
-          <mesh geometry={geo.sphere} material={m.glint} position={[0, 0.0, 0.24]} scale={0.035} />
-        </group>
-      )}
       {acc.has("visor") && (
         <group position={[0, r * 0.5, 0]}>
           <mesh geometry={geo.cyl} material={m.frame} scale={[r * 1.04, 0.05, r * 1.04]} />
           <mesh geometry={geo.cyl} material={m.visor} position={[0, 0.0, r * 0.75]} rotation={[0.25, 0, 0]} scale={[r * 0.9, 0.02, r * 0.6]} />
         </group>
+      )}
+      {acc.has("stubble") && (
+        <mesh geometry={geo.sphere} material={m.stubble} position={[0, -r * 0.45, r * 0.22]} scale={[r * 0.93, r * 0.62, r * 0.8]} />
       )}
       {acc.has("beard") && (
         <mesh geometry={geo.sphere} material={m.hair} position={[0, -r * 0.45, r * 0.42]} scale={[r * 0.75, r * 0.52, r * 0.55]} />
@@ -680,6 +771,29 @@ function HeadAccessories({ acc, geo, m }: { acc: Set<Accessory>; geo: Geo; m: Ma
         <group position={[0, -0.115, r * 0.95]}>
           <mesh geometry={geo.capsule} material={m.hair} position={[-0.06, 0, 0]} rotation={[0, 0, Math.PI / 2 + 0.3]} scale={[0.028, 0.045, 0.03]} />
           <mesh geometry={geo.capsule} material={m.hair} position={[0.06, 0, 0]} rotation={[0, 0, Math.PI / 2 - 0.3]} scale={[0.028, 0.045, 0.03]} />
+        </group>
+      )}
+      {acc.has("scar") && (
+        // an old cut across the cheek, with two stitch marks
+        <group position={[0.2, 0.0, r * 0.89]} rotation={[0, 0.5, 0.55]}>
+          <mesh geometry={geo.box} material={m.scar} scale={[0.014, 0.14, 0.01]} />
+          {[-0.03, 0.03].map((y) => (
+            <mesh key={y} geometry={geo.box} material={m.scar} position={[0, y, 0]} scale={[0.04, 0.008, 0.01]} />
+          ))}
+        </group>
+      )}
+      {acc.has("cigar") && (
+        // clamped in the corner of the mouth, angled out and a little down, lit end glowing
+        <group position={[-0.09, -0.165, r * 0.9]} rotation={[0.22, -0.4, 0]}>
+          <mesh geometry={geo.capsule} material={m.cigar} position={[0, 0, 0.08]} rotation={[Math.PI / 2, 0, 0]} scale={[0.026, 0.075, 0.026]} />
+          <mesh geometry={geo.cyl} material={m.gold} position={[0, 0, 0.04]} rotation={[Math.PI / 2, 0, 0]} scale={[0.029, 0.018, 0.029]} />
+          <mesh geometry={geo.cyl} material={m.ash} position={[0, 0, 0.148]} rotation={[Math.PI / 2, 0, 0]} scale={[0.026, 0.014, 0.026]} />
+          <mesh geometry={geo.sphere} material={m.ember} position={[0, 0, 0.157]} scale={[0.022, 0.022, 0.01]} />
+        </group>
+      )}
+      {acc.has("toothpick") && (
+        <group position={[0.08, -0.17, r * 0.9]} rotation={[0.1, 0.45, 0]}>
+          <mesh geometry={geo.cyl} material={m.wood} position={[0, 0, 0.06]} rotation={[Math.PI / 2, 0, 0]} scale={[0.006, 0.13, 0.006]} />
         </group>
       )}
       {acc.has("earring") && <mesh geometry={geo.torus} material={m.gold} position={[r * 0.98, -0.12, 0.02]} rotation={[0, Math.PI / 2, 0]} scale={0.035} />}
