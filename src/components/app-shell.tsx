@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useSyncExternalStore } from "react";
 import { formatChips, unitsToChips } from "@/lib/chips";
 import { isMuted, onMuteChange, play, setMuted } from "@/lib/sound";
 import { streakOf, useHydrated, useProgress } from "@/lib/store";
-import { IconBack, IconFlame, IconHome, IconPlay, IconProfile, IconReview, IconSound, IconTrain } from "./icons";
-import { FlameMark, Wordmark } from "./logo";
+import { IconFlame, IconHome, IconPlay, IconProfile, IconReview, IconSound, IconTrain } from "./icons";
+import { Wordmark } from "./logo";
 
 const NAV = [
   { href: "/", label: "Home", Icon: IconHome },
@@ -17,7 +17,7 @@ const NAV = [
   { href: "/profile/", label: "Profile", Icon: IconProfile },
 ];
 
-/** Full-bleed game screens: on phones they hide the tab bar and show a back button instead. */
+/** Full-screen game screens: the 3D table fills the viewport with its own HUD. */
 const GAME_ROUTES = ["/play/blackjack", "/play/poker/match", "/play/poker/table"];
 
 const norm = (p: string) => (p.length > 1 && p.endsWith("/") ? p.slice(0, -1) : p);
@@ -30,14 +30,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const inGame = GAME_ROUTES.some((r) => norm(path).startsWith(r));
 
+  // Game screens own the whole viewport: no sidebar, top bar or tab bar. The table draws
+  // its own HUD (back, balance, settings) over the 3D scene.
+  if (inGame) return <main className="relative h-dvh overflow-hidden bg-ash-950">{children}</main>;
+
   return (
     <div className="flex min-h-dvh">
       <Sidebar path={path} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <TopBar inGame={inGame} />
-        <main className={`flex-1 ${inGame ? "pb-[env(safe-area-inset-bottom)]" : "pb-[calc(72px+env(safe-area-inset-bottom))]"} lg:pb-0`}>{children}</main>
+        <TopBar />
+        <main className="flex-1 pb-[calc(72px+env(safe-area-inset-bottom))] lg:pb-0">{children}</main>
       </div>
-      {!inGame && <TabBar path={path} />}
+      <TabBar path={path} />
     </div>
   );
 }
@@ -95,30 +99,16 @@ function PlayerCard() {
 
 /* ------------------------------------------------------------------ mobile */
 
-function TopBar({ inGame }: { inGame: boolean }) {
-  const router = useRouter();
+function TopBar() {
   return (
     <header className="sticky top-0 z-40 border-b border-ash-800/70 bg-ash-950/80 pt-[env(safe-area-inset-top)] backdrop-blur-xl lg:hidden">
       <div className="flex h-14 items-center gap-2 px-4">
-        {inGame ? (
-          <button
-            onClick={() => {
-              play("click");
-              if (window.history.length > 1) router.back();
-              else router.push("/play/");
-            }}
-            aria-label="Back"
-            className="-ml-2 grid h-10 w-10 place-items-center rounded-xl text-ash-300 active:bg-ash-800"
-          >
-            <IconBack className="h-6 w-6" />
-          </button>
-        ) : null}
         <Link href="/" aria-label="Inferno home" className="flex items-center gap-1.5">
-          {inGame ? <FlameMark className="h-7 w-7" /> : <Wordmark />}
+          <Wordmark />
         </Link>
         <div className="ml-auto flex items-center gap-1.5">
           <StreakPill />
-          {!inGame && <ChipsPill />}
+          <ChipsPill />
           <MuteButton />
         </div>
       </div>
@@ -185,7 +175,7 @@ function ChipsPill() {
   );
 }
 
-function MuteButton({ wide }: { wide?: boolean }) {
+export function MuteButton({ wide }: { wide?: boolean }) {
   const muted = useSyncExternalStore(onMuteChange, isMuted, () => false);
   return (
     <button

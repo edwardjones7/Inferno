@@ -106,7 +106,7 @@ export function HeatMeter({ heat }: { heat: number }) {
       aria-valuenow={Number(heat.toFixed(2))}
       aria-valuetext={label}
     >
-      <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-ash-400">Heat</span>
+      <span className="hidden text-[10px] font-bold uppercase tracking-[0.2em] text-ash-400 sm:inline">Heat</span>
       <span className="relative h-1.5 w-20 overflow-hidden rounded-full bg-gradient-to-r from-sky-400/70 via-ash-500 to-ember-400 sm:w-28">
         <motion.span
           className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-bone shadow-[0_0_10px_rgba(255,194,75,0.9)]"

@@ -76,7 +76,8 @@ export type Anchors = Record<string, [number, number, number]>;
 export function labelAnchors(view: RoundView | null): Anchors {
   const out: Anchors = {};
   if (!view) {
-    out.pending = [0, 0.02, BET_Z + 0.62];
+    // beside the betting circle, so it never sits under the controls
+    out.pending = [0.95, 0.02, BET_Z];
     return out;
   }
   out.dealer = [0, 0.02, DEALER_Z + 0.78];
