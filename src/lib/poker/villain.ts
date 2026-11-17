@@ -21,13 +21,11 @@ import { DECK, evaluate } from "./eval";
 import { positionOf, type TablePosition } from "./game";
 import type { PokerState, Street } from "./game-types";
 import { BB_DEFEND, combosOfCode, handClass, parseRangeWithDashes, type HandClass } from "./postflop";
-import { FOUR_BET_NOTATION, LINE_RANGES, THREE_BET_NOTATION, vs3betChart, vsOpenChart, type Seat } from "./preflop";
+import { FOUR_BET, LINE_RANGES, THREE_BET, vs3betChart, vsOpenChart, type Seat } from "./preflop";
 import { GRID, OPEN_RANGES, type Position } from "./ranges";
 
-/** Typical 3-bet range when the seats don't pick a chart (preflop.ts, ~10%). */
-export const THREE_BET = parseRangeWithDashes(THREE_BET_NOTATION);
-/** Typical 4-bet range: QQ+/AK for value, A5s/A4s as blocker bluffs (preflop.ts). */
-export const FOUR_BET = parseRangeWithDashes(FOUR_BET_NOTATION);
+/** Typical 3-bet (~10%) and 4-bet (QQ+/AK, A5s/A4s) ranges when the seats don't pick a chart; defined in preflop.ts. */
+export { FOUR_BET, THREE_BET };
 /** Calling an open from a seat other than the big blind (the strongest hands 3-bet instead). */
 export const COLD_CALL = parseRangeWithDashes("22-JJ, AJs-AQs, KTs+, QTs+, JTs, T9s, 98s, 87s, 76s, 65s, AQo, KQo");
 /** The opener calling a 3-bet. */

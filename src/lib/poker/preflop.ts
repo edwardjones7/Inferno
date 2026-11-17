@@ -9,6 +9,10 @@
  *   solver output would.
  * - Sizes: opens 2.5bb (small blind 3bb). 3-bets about 3x in position (7.5bb) and about
  *   3.5-4x out of position (10-11bb from the blinds). 4-bets about 2.2-2.5x the 3-bet.
+ * - Calibration: total big-blind defence (call + 3-bet) is about 32% vs UTG, 35% vs HJ, 45%
+ *   vs CO and 62% vs BTN, in line with widely published 100bb 6-max solver outputs (e.g. GTO
+ *   Wizard's cash charts put the BB at roughly 30-35% vs UTG and 55-65% vs BTN). Cold-call
+ *   ranges (HJ/CO/BTN) are kept small, as rake-aware charts are.
  * - Basis: simplified from widely published solver-approximated 100bb 6-max charts. Every
  *   hand shows the dominant action. Hands that solvers genuinely mix between two actions
  *   are listed in `mixed`; the drills and the coach accept only the dominant action but say
@@ -87,9 +91,9 @@ export const VS_OPEN_SPECS: Record<string, ChartSpec> = {
   },
   BBvUTG: {
     raise: "QQ+, AKs, AKo, AQs, A5s, A4s",
-    call: "22-JJ, A2s, A3s, A6s-AJs, K6s-KQs, Q8s-QJs, J8s-JTs, T8s-T9s, 97s-98s, 86s-87s, 75s-76s, 64s-65s, 54s, ATo-AQo, KJo-KQo, QJo",
-    mixed: "JJ, AQs, KQs, K6s, ATo, QJo, 22-33",
-    note: "You close the action and need only about 27% equity to call 1.5bb, but UTG is strong: defend suited hands and pairs, and only the best offsuit broadways.",
+    call: "22-JJ, A2s, A3s, A6s-AJs, K2s-KQs, Q6s-QJs, J7s-JTs, T7s-T9s, 96s-98s, 85s-87s, 74s-76s, 63s-65s, 53s-54s, 43s, A9o-AQo, KTo-KQo, QTo-QJo, JTo, T9o",
+    mixed: "JJ, AQs, KQs, K2s-K4s, A9o, KTo, QTo, T9o, 22-33, 63s",
+    note: "You close the action and need only about 27% equity to call 1.5bb, so even against UTG's strong range the big blind defends about a third of its hands: pairs, most suited hands and the better offsuit broadways.",
   },
   // ---- versus a hijack open (~23%)
   COvHJ: {
@@ -112,9 +116,9 @@ export const VS_OPEN_SPECS: Record<string, ChartSpec> = {
   },
   BBvHJ: {
     raise: "TT+, AJs+, KQs, AKo, A5s, A4s",
-    call: "22-99, A2s, A3s, A6s-ATs, K5s-KJs, Q7s-QJs, J7s-JTs, T7s-T9s, 96s-98s, 85s-87s, 74s-76s, 64s-65s, 53s-54s, ATo-AQo, KJo-KQo, QJo, JTo",
-    mixed: "TT, AJs, KQs, AQo, K5s, JTo",
-    note: "A bit wider than against UTG: most suited hands and the better offsuit broadways defend at this price.",
+    call: "22-99, A2s, A3s, A6s-ATs, K2s-KJs, Q5s-QJs, J6s-JTs, T6s-T9s, 95s-98s, 84s-87s, 74s-76s, 63s-65s, 53s-54s, 43s, A9o-AQo, KTo-KQo, QTo-QJo, J9o-JTo, T9o",
+    mixed: "TT, AJs, KQs, AQo, K2s-K4s, A9o, J9o, 95s",
+    note: "A bit wider than against UTG, about 35% in all: every suited king, most suited hands, and offsuit broadways down to A9o and T9o.",
   },
   // ---- versus a cutoff open (~29%)
   BTNvCO: {
@@ -131,9 +135,9 @@ export const VS_OPEN_SPECS: Record<string, ChartSpec> = {
   },
   BBvCO: {
     raise: "TT+, ATs+, KJs+, QJs, AQo+, A5s, A4s",
-    call: "22-99, A2s, A3s, A6s-A9s, K2s-KTs, Q5s-QTs, J6s-JTs, T6s-T9s, 96s-98s, 85s-87s, 74s-76s, 63s-65s, 53s-54s, 43s, A8o-AJo, K9o-KQo, Q9o-QJo, J9o-JTo, T9o",
-    mixed: "TT, ATs, QJs, AQo, A8o, K2s, T9o",
-    note: "The cutoff opens wider, so the big blind defends about 37%: every suited king, most suited connectors and offsuit broadways.",
+    call: "22-99, A2s, A3s, A6s-A9s, K2s-KTs, Q2s-QTs, J4s-JTs, T5s-T9s, 95s-98s, 84s-87s, 73s-76s, 63s-65s, 52s-54s, 43s, A5o-AJo, K8o-KQo, Q8o-QJo, J8o-JTo, T9o, 98o",
+    mixed: "TT, ATs, QJs, AQo, A5o-A6o, K8o, Q8o, J8o, 98o, 52s",
+    note: "The cutoff opens wider, so the big blind defends about 45%: almost every suited hand, weak aces and most offsuit broadways.",
   },
   // ---- versus a button open (~47%)
   SBvBTN: {
@@ -144,9 +148,9 @@ export const VS_OPEN_SPECS: Record<string, ChartSpec> = {
   },
   BBvBTN: {
     raise: "88+, ATs+, A2s-A5s, KTs+, QJs, AJo+, KQo, 65s, 54s",
-    call: "22-77, A6s-A9s, K2s-K9s, Q2s-QTs, J4s-JTs, T5s-T9s, 95s-98s, 84s-87s, 74s-76s, 63s-64s, 52s-53s, 43s, A2o-ATo, K6o-KJo, Q8o-QJo, J8o-JTo, T8o-T9o, 98o, 87o",
-    mixed: "88, A2s, 65s, 54s, AJo, KQo, K6o, Q8o, J8o, 52s",
-    note: "The widest defence: you close the action, need about 27%, and the button opens almost half its hands. Defend over half your hands, 3-betting about 12%.",
+    call: "22-77, A6s-A9s, K2s-K9s, Q2s-QTs, J2s-JTs, T3s-T9s, 93s-98s, 83s-87s, 73s-76s, 62s-64s, 52s-53s, 43s, A2o-ATo, K2o-KJo, Q7o-QJo, J7o-JTo, T7o-T9o, 97o-98o, 87o",
+    mixed: "88, A2s, 65s, 54s, AJo, KQo, K2o-K4o, Q7o, J7o, T7o, 97o, 93s, 62s",
+    note: "The widest defence: you close the action, need about 27%, and the button opens almost half its hands. Defend about 60% of your hands, 3-betting about 11%.",
   },
   // ---- versus a small-blind open (~43%, 3bb)
   BBvSB: {
@@ -258,6 +262,9 @@ export const VS_3BET_SPOTS: { hero: Position; villain: Seat }[] = POSITIONS.flat
  */
 export const THREE_BET_NOTATION = VS_OPEN_SPECS.BTNvCO.raise;
 export const FOUR_BET_NOTATION = VS_3BET_SPECS["CO-oop"].raise;
+/** The same ranges as sets (the very chart sets, so identity checks hold). */
+export const THREE_BET = VS_OPEN.BTNvCO.raise;
+export const FOUR_BET = VS_3BET["CO-oop"].raise;
 
 /* ------------------------------------------------------------------ rarer spots (coach and bots only) */
 

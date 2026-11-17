@@ -236,7 +236,7 @@ function chartSpot(s: PokerState, seatId: number, opps: number[], raises: number
 }
 
 /** Grade a pre-flop response against the chart. `evCall` (bb, realisation-adjusted) only sizes the cost. */
-function coachVsChart(s: PokerState, seatId: number, action: PlayerAction, code: string, spot: ChartSpot, vs: string, evCall: number): CoachNote {
+function coachVsChart(s: PokerState, seatId: number, action: PlayerAction, code: string, spot: ChartSpot, vs: string, evCall: number, ip: boolean): CoachNote {
   const pos = positionOf(s, seatId);
   const want = actionOf(spot.chart, code);
   const did: ResponseAction = action.kind === "raise" ? "raise" : action.kind === "call" ? "call" : "fold";
@@ -250,20 +250,23 @@ function coachVsChart(s: PokerState, seatId: number, action: PlayerAction, code:
         : "As a bluff: it blocks strong hands and plays well when called."
       : want === "call"
         ? pos === "BB" && spot.word === "3-bet"
-          ? "You close the action at a good price; not a value 3-bet."
-          : "Good enough to continue, not to raise."
+          ? "Good price closing the action, even out of position; not a value 3-bet."
+          : `Good enough to continue ${ip ? "in position" : "out of position"}, not to raise.`
         : sb3betOrFold
           ? "Small blind: 3-bet or fold."
-          : "Dominated too often by their range.";
+          : `Dominated too often by their range${ip ? "" : ", and out of position"}.`;
   const head = `${code} ${spot.ctx}: the chart says ${say(want)}. ${reason}`;
   if (did === want) {
     const title = want === "raise" ? `Good ${spot.word}` : want === "call" ? (pos === "BB" && spot.word === "3-bet" ? "Good defend" : "Good call") : "Good fold";
     return note(true, title, `${head} ${vs}.`);
   }
   if (spot.chart.mixed.has(code)) return note(null, "Mixed spot", `${head} Solvers play it both ways. ${vs}.`);
+  // A small-blind flat is a strategy error, not a hand-strength one, when the hand is playable
+  // (the chart 3-bets it, or the big blind would defend it): flag it softly. Junk is a mistake.
+  if (sb3betOrFold && did === "call" && spot.opener && (spot.chart.raise.has(code) || vsOpenChart("BB", spot.opener)?.call.has(code)))
+    return note(spot.chart.raise.has(code) && value ? false : null, "3-bet or fold from the SB", `${head} Flatting out of position with the big blind behind loses money.`);
   if (want === "raise") {
     if (did === "call") {
-      if (sb3betOrFold) return note(false, "3-bet or fold from the SB", `${head} Flatting out of position with the big blind behind loses money.`);
       return note(null, value ? `${spot.word[0].toUpperCase()}${spot.word.slice(1)} for value` : "Calling is OK", `${head} ${value ? "Calling lets worse hands in cheaply." : "Calling instead of the bluff is reasonable."}`);
     }
     return value ? note(false, `Don't fold ${code}`, head, evCall) : note(null, "Folding is OK", `${head} It's a bluff, so folding gives up little.`);
@@ -280,8 +283,8 @@ function coachVsRaise(s: PokerState, seatId: number, action: PlayerAction, code:
   const L = legal(s);
   const spot = chartSpot(s, seatId, opps, raises);
   if (spot) {
-    const { r } = realisation(s, seatId, opps, code);
-    return coachVsChart(s, seatId, action, code, spot, vs, (eq * r * (s.pot + L.toCall) - L.toCall) / s.bb);
+    const { r, ip } = realisation(s, seatId, opps, code, eq);
+    return coachVsChart(s, seatId, action, code, spot, vs, (eq * r * (s.pot + L.toCall) - L.toCall) / s.bb, ip);
   }
   const lvl = Math.min(raises, 3) - 1;
   const word = RERAISE_WORD[lvl];
