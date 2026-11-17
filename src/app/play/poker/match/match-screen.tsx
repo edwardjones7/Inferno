@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ProLock } from "@/components/pro/pro-badge";
 import { botLocked, paywallReason } from "@/lib/gates";
-import { botById, isUnlocked } from "@/lib/poker/roster";
+import { botById, isUnlocked, TIER_LABEL } from "@/lib/poker/roster";
 import { useIsPro } from "@/lib/pro";
 import { useHydrated, useProgress } from "@/lib/store";
 import { PokerTable } from "../poker-table";
@@ -39,7 +39,7 @@ export function MatchScreen() {
             </Link>
           }
         >
-          {bot.tier} bots, the top of the ladder, come with Pro. Every other bot and the 6-max cash game stay free.
+          {TIER_LABEL[bot.tier]} bots, the top of the ladder, come with Pro. Every other bot and the 6-max cash game stay free.
         </ProLock>
       </div>
     );

@@ -43,11 +43,16 @@ export const SPOT_DIFFICULTY: Record<string, number> = {
 
 export const difficultyOf = (kind: string) => SPOT_DIFFICULTY[kind] ?? 1000;
 
+/**
+ * The rating ladder, named like a back-room crew from greenhorn to kingpin; the top band
+ * keeps the house name. (The old fire names clashed with the bots called Ember and Blaze.)
+ * The bots' own tiers (Associate, Soldier, Capo, Boss) are a separate ladder in poker/roster.ts.
+ */
 export function ratingTitle(r: number): string {
   if (r >= 2000) return "Inferno";
-  if (r >= 1700) return "Blaze";
-  if (r >= 1400) return "Flame";
-  if (r >= 1100) return "Ember";
-  if (r >= 800) return "Spark";
-  return "Kindling";
+  if (r >= 1700) return "Kingpin";
+  if (r >= 1400) return "Wiseguy";
+  if (r >= 1100) return "Sharp";
+  if (r >= 800) return "Hustler";
+  return "Greenhorn";
 }

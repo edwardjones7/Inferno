@@ -4,7 +4,7 @@ import { motion } from "motion/react";
 import { useId, type CSSProperties } from "react";
 import { usePortraitsEnabled, useBotPortrait } from "@/components/bot-portraits/portraits";
 import { IconLock } from "@/components/icons";
-import type { BotProfile } from "@/lib/poker/roster";
+import { TIER_LABEL, type BotProfile } from "@/lib/poker/roster";
 import { SIGIL_SVG } from "@/lib/poker/sigils";
 
 interface AvatarProps {
@@ -227,5 +227,5 @@ export function TierBadge({ tier }: { tier: BotProfile["tier"] }) {
         : tier === "Intermediate"
           ? "bg-ash-800 text-ash-200 ring-1 ring-ash-600"
           : "bg-ash-900 text-ash-400 ring-1 ring-ash-700";
-  return <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${tone}`}>{tier}</span>;
+  return <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${tone}`}>{TIER_LABEL[tier]}</span>;
 }
