@@ -108,7 +108,7 @@ function PokerCamera({ focus, span, insets }: { focus: "table" | "hand"; span: n
     const portrait = aspect < 1.15;
     const fov = portrait ? 54 : 44;
     // phones sit a little lower so the hanging lamp clears the line to the far seats
-    const elev = THREE.MathUtils.degToRad(portrait ? 43 : 36);
+    const elev = THREE.MathUtils.degToRad(portrait ? 35 : 36);
     const half = Math.tan(THREE.MathUtils.degToRad(fov / 2));
     const dist = Math.max(portrait ? 6.4 : 6.6, span / (half * aspect));
     const still = fx.reducedMotion;

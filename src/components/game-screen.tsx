@@ -46,6 +46,7 @@ export function GameScreen({
   drawerOpen,
   onDrawerChange,
   backHref = "/play/",
+  onBack,
   children,
 }: {
   /** accessible name for the screen */
@@ -60,6 +61,8 @@ export function GameScreen({
   drawerOpen: boolean;
   onDrawerChange: (open: boolean) => void;
   backHref?: string;
+  /** replaces the default back navigation (e.g. closing an overlay) */
+  onBack?: () => void;
   /** the 3D scene; fills the screen */
   children: React.ReactNode;
 }) {
@@ -78,7 +81,8 @@ export function GameScreen({
 
   const back = () => {
     play("click");
-    if (window.history.length > 1) router.back();
+    if (onBack) onBack();
+    else if (window.history.length > 1) router.back();
     else router.push(backHref);
   };
 

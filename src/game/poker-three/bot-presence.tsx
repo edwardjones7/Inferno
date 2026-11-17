@@ -60,7 +60,7 @@ export function BotPresence({ bot, place, mood, actKey }: { bot: BotProfile; pla
   const base = useMemo(() => {
     const a = (seatAngle(place) * Math.PI) / 180;
     // lifted a little so the coin sits above the seat's name tag rather than behind it
-    return new THREE.Vector3(Math.cos(a) * RING, 1.05, Math.sin(a) * (RING * 0.66));
+    return new THREE.Vector3(Math.cos(a) * RING, 0.8, Math.sin(a) * (RING * 0.66));
   }, [place]);
   const phase = useMemo(() => place * 1.7, [place]);
 
