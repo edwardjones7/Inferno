@@ -276,6 +276,8 @@ export function PokerTable(props: PokerMode) {
     if (game.handNo !== 0) return;
     queueMicrotask(() => deal());
     if (bot) say(1, bot.lines.greet, 700);
+    // the boss lights a cigar before the first hand
+    if (bot?.id === "scorch") play("lighter", 0.4);
   }, [game.handNo, deal, bot, say]);
 
   /* ---------------------------------------------------------------- cash table seat */
@@ -696,7 +698,9 @@ export function PokerTable(props: PokerMode) {
               <div className="flex items-center gap-3">
                 <BotAvatar bot={bot} size={44} />
                 <div>
-                  <p className="font-display text-sm font-bold">{bot.name}</p>
+                  <p className="font-display text-sm font-bold">
+                    {bot.name} <span className="font-normal italic text-brass-300">&ldquo;{bot.nickname}&rdquo;</span>
+                  </p>
                   <p className="eyebrow">{STYLE_LABEL[bot.style]}</p>
                 </div>
               </div>

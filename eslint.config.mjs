@@ -15,6 +15,8 @@ const eslintConfig = defineConfig([
     // native shells (Capacitor copies the built web app into these)
     "ios/**",
     "android/**",
+    // agent worktrees (each has its own checkout and build output)
+    ".claude/**",
   ]),
 ]);
 

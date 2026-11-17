@@ -90,6 +90,7 @@ export function BotLobby() {
                 <div className="min-w-0">
                   <TierBadge tier={selected.tier} />
                   <h2 className="mt-1.5 font-display text-2xl font-black leading-none">{selected.name}</h2>
+                  <p className="mt-1 font-display text-sm italic text-brass-300">&ldquo;{selected.nickname}&rdquo;</p>
                   <p className="mt-1 text-sm text-ash-400">{selected.title}</p>
                 </div>
               </div>
