@@ -9,6 +9,7 @@ import { Eyebrow, Ring } from "@/components/ui";
 import { lessonAfter, lessonById, lessonDone, lessonUnlocked, TRACKS, type CheckStep, type Lesson, type Step } from "@/lib/learn";
 import { play } from "@/lib/sound";
 import { completeLesson, useHydrated, useProgress } from "@/lib/store";
+import { LessonArt } from "../lesson-art";
 import { Rich, VisualView } from "../visual";
 
 export function LessonPlayer({ id }: { id: string }) {
@@ -166,6 +167,8 @@ function Player({ lesson, alreadyDone }: { lesson: Lesson; alreadyDone: boolean 
           {finished ? (
             <Finish lesson={lesson} right={right} checks={checkIdx.length} alreadyDone={review} />
           ) : step ? (
+            <>
+            {at === 0 && <LessonArt id={lesson.id} variant="hero" />}
             <div className="panel rounded-[28px] p-5 sm:p-6">
               {step.kind === "explain" ? (
                 <ExplainView title={step.title} body={step.body}>
@@ -195,6 +198,7 @@ function Player({ lesson, alreadyDone }: { lesson: Lesson; alreadyDone: boolean 
                 </button>
               </div>
             </div>
+            </>
           ) : null}
         </motion.div>
       </AnimatePresence>

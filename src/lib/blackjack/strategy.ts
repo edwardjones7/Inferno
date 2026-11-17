@@ -86,6 +86,8 @@ export interface Spot {
 }
 
 const upLabel = (d: number) => (d === 11 ? "A" : String(d));
+/** "a 6", "an 8", "an ace" */
+const vsUp = (d: number) => (d === 11 ? "an ace" : d === 8 ? "an 8" : `a ${d}`);
 const pairLabel = (v: number) => (v === 1 ? "A,A" : v === 10 ? "10,10" : `${v},${v}`);
 
 /** Classify an opening decision into a chart cell. Multi-card hands use their total. */
@@ -112,17 +114,49 @@ export function spotLabel(key: string): string {
 
 export const MOVE_LABEL: Record<Move, string> = { hit: "Hit", stand: "Stand", double: "Double", split: "Split", surrender: "Surrender" };
 
-/** One-line reason behind the correct play, for coach feedback and the drill trainer. */
-export function explain(spot: Spot, correct: Move): string {
+const ALL_MOVES: ActionType[] = ["hit", "stand", "double", "split", "surrender"];
+const repCard = (v: number, suit: "S" | "H") => `${v === 1 || v === 11 ? "A" : v === 10 ? "T" : v}${suit}` as Card;
+
+/**
+ * The chart play for a spot with every option available (double, split, and surrender if
+ * the rules offer it). Differs from `basicStrategy` on a real hand when the chart play isn't
+ * allowed there: a three-card 11, a split limit, no double after split.
+ */
+export function chartMove(spot: Spot, rules: Rules = DEFAULT_RULES): Move {
+  const legal = rules.surrender ? ALL_MOVES : ALL_MOVES.filter((m) => m !== "surrender");
+  const up = repCard(spot.dealer, "H");
+  if (spot.kind === "pair") return basicStrategy([repCard(spot.value, "S"), repCard(spot.value, "H")], up, legal, rules);
+  if (spot.kind === "soft") {
+    if (spot.value <= 12) return "hit";
+    if (spot.value >= 21) return "stand";
+    return basicStrategy([repCard(1, "S"), repCard(spot.value - 11, "H")], up, legal, rules);
+  }
+  for (let a = 2; a <= 10; a++) {
+    const b = spot.value - a;
+    if (b >= 2 && b <= 10 && a !== b) return basicStrategy([repCard(a, "S"), repCard(b, "H")], up, legal, rules);
+  }
+  return spot.value >= 17 ? "stand" : "hit";
+}
+
+/**
+ * One-line reason behind the correct play, for coach feedback and the drill trainer.
+ * Pass `chart` (from `chartMove`) when grading a real hand: if the chart play wasn't
+ * allowed, the reason says so instead of explaining the fallback as if it were the chart.
+ */
+export function explain(spot: Spot, correct: Move, chart: Move = correct): string {
   const { kind, value, dealer } = spot;
   const weakDealer = dealer >= 2 && dealer <= 6;
+  if (chart !== correct)
+    return `${MOVE_LABEL[chart]} is the chart play, but it isn't allowed on this hand, so ${MOVE_LABEL[correct].toLowerCase()} instead.`;
   if (correct === "surrender") return "You lose this hand often enough that giving up half the bet costs less than playing it.";
   if (kind === "pair") {
     if (value === 1) return "Always split aces: two hands starting from 11 beat one soft 12.";
     if (value === 8) return "Always split 8s: 16 is the worst total, two hands starting from 8 are far better.";
     if (value === 10) return "Never split tens: 20 already wins most hands.";
-    if (value === 5) return "Never split 5s: play them as a hard 10.";
+    if (value === 5) return `Never split 5s: play them as a hard 10${correct === "double" ? " and double" : correct === "hit" ? ", which only hits against a 10 or ace" : ""}.`;
     if (correct === "split") return weakDealer ? "The dealer is likely to bust, so put more money out with two hands." : "Splitting turns a weak total into two playable hands here.";
+    if (value === 9) return dealer === 7 ? "Stand: 18 already beats the dealer's most likely total of 17." : "Stand on 18: two hands starting from 9 do even worse against a 10 or ace.";
+    if (weakDealer) return `Two hands starting from ${value} are worse than one hard ${value * 2} against ${vsUp(dealer)}: don't split.`;
     return "Splitting here just makes two weak hands against a strong dealer card.";
   }
   if (correct === "double") {
@@ -139,7 +173,7 @@ export function explain(spot: Spot, correct: Move): string {
   if (kind === "soft") return "You can't bust a soft hand with one card, and this total won't win often enough as is.";
   if (value <= 11) {
     return value >= 9
-      ? `You can't bust, but ${value} isn't strong enough to double against a ${upLabel(dealer)}: just take a card.`
+      ? `You can't bust, but ${value} isn't strong enough to double against ${vsUp(dealer)}: just take a card.`
       : "You can't bust, so always take a card.";
   }
   return dealer >= 7 ? "Against a 7 or higher the dealer usually makes 17+, so a stiff hand has to improve." : "Hit: the dealer isn't weak enough here to stand on this total.";

@@ -63,8 +63,8 @@ export function hiLo(c: Card): number {
 
 export const runningCount = (cards: readonly Card[]) => cards.reduce((n, c) => n + hiLo(c), 0);
 
-/** True count: running count per deck still to be dealt, rounded toward zero like most counters do. */
-export const trueCount = (running: number, decksLeft: number) => Math.trunc(running / decksLeft);
+/** True count: running count per deck still to be dealt, rounded down (floored), the same convention as the count trainer in blackjack/counting.ts. */
+export { trueCount } from "../blackjack/counting";
 
 /**
  * Expected value of a 1-unit insurance bet (pays 2:1) in a fresh shoe of `decks` decks,
