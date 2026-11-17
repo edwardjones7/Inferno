@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { IconBolt, IconCalendar, IconCheck, IconChevron, IconFlame, IconLock, IconReview, IconSpade, IconTrain } from "@/components/icons";
 import { ProBadge } from "@/components/pro/pro-badge";
 import { Meter, PageHeader, Ring, SectionTitle, Sparkline } from "@/components/ui";
@@ -227,11 +228,58 @@ function LessonReel({ track, hydrated }: { track: TrackId; hydrated: boolean }) 
   const pro = useIsPro();
   const info = TRACKS[track];
   const next = hydrated ? nextLesson(p, track) : null;
+  const reel = useRef<HTMLOListElement>(null);
+  const [edges, setEdges] = useState({ left: false, right: true });
+
+  const measure = useCallback(() => {
+    const el = reel.current;
+    if (!el) return;
+    setEdges({ left: el.scrollLeft > 4, right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4 });
+  }, []);
+
+  // open with the up-next lesson in view, not scrolled off the right edge
+  useEffect(() => {
+    const el = reel.current;
+    if (!el) return;
+    const idx = next ? info.lessons.findIndex((l) => l.id === next.id) : 0;
+    const li = el.children[idx] as HTMLElement | undefined;
+    if (li && li.offsetLeft + li.offsetWidth > el.clientWidth) el.scrollLeft = li.offsetLeft - parseFloat(getComputedStyle(el).paddingLeft);
+    measure();
+  }, [next, info.lessons, measure]);
+
+  useEffect(() => {
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [measure]);
+
+  const page = (dir: 1 | -1) => {
+    const el = reel.current;
+    if (el) el.scrollBy({ left: dir * el.clientWidth * 0.85, behavior: "smooth" });
+  };
+
+  const arrow = "grid h-7 w-7 place-items-center rounded-full bg-ash-900 text-ash-300 ring-1 ring-ash-700 transition-opacity hover:text-bone disabled:opacity-30";
 
   return (
     <div>
-      <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-ash-400">{info.title}</p>
-      <ol className="no-scrollbar -mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-1 sm:-mx-6 sm:scroll-px-6 sm:px-6">
+      <div className="mb-1 flex items-center justify-between">
+        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-ash-400">{info.title}</p>
+        <div className="hidden gap-1.5 sm:flex">
+          <button aria-label={`Earlier ${info.title} lessons`} disabled={!edges.left} onClick={() => page(-1)} className={arrow}>
+            <IconChevron className="h-4 w-4 rotate-180" />
+          </button>
+          <button aria-label={`Later ${info.title} lessons`} disabled={!edges.right} onClick={() => page(1)} className={arrow}>
+            <IconChevron className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+      <ol
+        ref={reel}
+        onScroll={measure}
+        style={{
+          maskImage: `linear-gradient(to right, ${edges.left ? "transparent, black 28px" : "black"}, black calc(100% - 28px), ${edges.right ? "transparent" : "black"})`,
+        }}
+        className="no-scrollbar relative -mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 py-2 sm:mx-0 sm:scroll-px-0 sm:px-0"
+      >
         {info.lessons.map((l, i) => {
           const isDone = hydrated && lessonDone(p, l.id);
           const open = hydrated && lessonUnlocked(p, l.id);
@@ -254,16 +302,19 @@ function LessonReel({ track, hydrated }: { track: TrackId; hydrated: boolean }) 
                 </span>
                 <span>
                   {current && <span className="mb-0.5 block text-[9px] font-bold uppercase tracking-[0.2em] text-ember-400">Up next</span>}
-                  <span className="line-clamp-2 font-display text-sm font-bold leading-snug">{l.title}</span>
+                  <span className="line-clamp-3 font-display text-sm font-bold leading-snug">{l.title}</span>
                 </span>
               </span>
+              {/* drawn over the art, which would otherwise cover an inset ring */}
+              {current && <span className="pointer-events-none absolute inset-0 rounded-2xl ring-2 ring-inset ring-ember-500" />}
             </>
           );
-          const cls = `group relative block aspect-[3/4] w-36 overflow-hidden rounded-2xl bg-ash-900 text-left sm:w-40 ${
-            current ? "ring-2 ring-ember-500 shadow-[0_0_24px_-6px_rgba(255,90,31,0.8)]" : "ring-1 ring-ash-800"
+          const cls = `group relative block aspect-[3/4] w-full overflow-hidden rounded-2xl bg-ash-900 text-left ${
+            current ? "shadow-[0_0_24px_-6px_rgba(255,90,31,0.8)]" : "ring-1 ring-ash-800"
           }`;
           return (
-            <li key={l.id} className="shrink-0 snap-start">
+            // whole cards per row: 4 on tablets, 6 on desktop; phones peek the next one
+            <li key={l.id} className="w-36 shrink-0 snap-start sm:w-[calc((100%-36px)/4)] lg:w-[calc((100%-60px)/6)]">
               {proLocked ? (
                 // Pro lessons stay visible; tapping one says what Pro adds
                 <button
