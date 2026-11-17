@@ -2,7 +2,10 @@
 
 import * as THREE from "three";
 import { isRed, RANK_LABEL, rankOf, SUIT_SYMBOL, suitOf, type Card } from "@/lib/blackjack/cards";
-import { canvas, display, FLAME, prng, roundRect, sans, texture } from "./canvas-utils";
+import { paintCardBack } from "@/game/designs/card-backs";
+import type { CardBackId } from "@/lib/cosmetics";
+import { readTableLook } from "@/lib/settings";
+import { canvas, display, prng, roundRect, sans, texture } from "./canvas-utils";
 
 /* ------------------------------------------------------------------ cards */
 
@@ -161,45 +164,32 @@ export function cardFoilMask(card: Card) {
   }, 4);
 }
 
+let back: { tex: THREE.CanvasTexture; g: CanvasRenderingContext2D; id: CardBackId } | null = null;
+
+/**
+ * The card back. One texture shared by every card, the shoe and the lobby props; changing
+ * the design repaints it in place (`setCardBackDesign`), so nothing has to swap maps.
+ */
 export function cardBack() {
-  return texture("card:back", () => {
-    const [c, g] = canvas(W, H);
-    const bg = g.createRadialGradient(192, 310, 10, 192, 290, 360);
-    bg.addColorStop(0, "#ff5a1f");
-    bg.addColorStop(0.35, "#b3200c");
-    bg.addColorStop(0.85, "#3d0805");
-    g.fillStyle = bg;
-    g.fillRect(0, 0, W, H);
+  if (back) return back.tex;
+  const [c, g] = canvas(W, H);
+  const id = readTableLook().back;
+  paintCardBack(g, id);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  back = { tex, g, id };
+  return tex;
+}
 
-    g.save();
-    roundRect(g, 22, 22, 340, 496, 22);
-    g.clip();
-    g.strokeStyle = "rgba(255,194,75,.16)";
-    g.lineWidth = 3;
-    for (let i = -540; i < 900; i += 22) {
-      g.beginPath();
-      g.moveTo(i, 0);
-      g.lineTo(i + 540, 540);
-      g.moveTo(i + 540, 0);
-      g.lineTo(i, 540);
-      g.stroke();
-    }
-    g.restore();
-    g.strokeStyle = "rgba(255,194,75,.6)";
-    g.lineWidth = 4;
-    roundRect(g, 22, 22, 340, 496, 22);
-    g.stroke();
-
-    g.save();
-    g.translate(192 - 64, 270 - 64);
-    g.scale(4, 4);
-    g.shadowColor = "#ffc24b";
-    g.shadowBlur = 6;
-    g.fillStyle = "#ffe1a1";
-    g.fill(new Path2D(FLAME));
-    g.restore();
-    return c;
-  });
+/** Repaint the shared card back with another design (no-op if it's already showing). */
+export function setCardBackDesign(id: CardBackId) {
+  cardBack();
+  const b = back!;
+  if (b.id === id) return;
+  paintCardBack(b.g, id);
+  b.id = id;
+  b.tex.needsUpdate = true;
 }
 
 let grain: THREE.Texture | null = null;

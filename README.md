@@ -58,7 +58,8 @@ Native setup, once per machine: install Xcode (full app, not just the command li
 | `scripts/admob-app-ids.mjs` | Writes the AdMob app ids into `Info.plist` and `strings.xml` during `npm run cap:sync`. |
 | `src/lib/pro.ts` | Inferno Pro entitlement, cached on the device: `useIsPro()`, `isPro()`, `openPaywall(reason)`. |
 | `src/lib/purchases.ts` | RevenueCat (native only): offerings, purchase, restore, entitlement refresh. The only caller of `setPro()`. |
-| `src/lib/gates.ts` | Every free vs Pro rule in one place (lessons, counting, bots, review history). |
+| `src/lib/gates.ts` | Every free vs Pro rule in one place (lessons, counting, bots, review history, table and card designs). |
+| `src/lib/cosmetics.ts`, `src/game/designs/` | Table felts and card backs: the catalogue (ids, names), and the canvas painters and colours shared by the 3D tables, 2D cards and the picker in Profile. The choice is a device preference in localStorage (`useFeltChoice`, `useBackChoice`, `useTableLook` in `settings.ts`). |
 | `src/components/pro/` | The paywall (mounted once in `layout.tsx`, opened by `openPaywall()`), the Pro badge and the in-page lock card. |
 
 ## Ads
@@ -115,7 +116,7 @@ Neither the app nor our code adds analytics or crash reporting of its own. If th
 
 The membership is sold through Apple and Google in-app purchases, with [RevenueCat](https://www.revenuecat.com) validating receipts and holding the entitlement (there is no Inferno server). Pro is cached on the device, so it keeps working offline; on launch and on resume the app asks RevenueCat for the current state. If RevenueCat can't be reached, the cached state stays.
 
-**What Pro unlocks** (`src/lib/gates.ts`): lessons after the first 3 of each track, the card counting drills, the Capo and Boss bots (tiers `Advanced` and `Master` in code), and replays of poker hands and blackjack rounds older than the newest 10. No ads, and chip grants (handled elsewhere). Blackjack, the poker cash game, daily puzzles, basic drills, charts and the review queue stay free.
+**What Pro unlocks** (`src/lib/gates.ts`): lessons after the first 3 of each track, the card counting drills, the Capo and Boss bots (tiers `Advanced` and `Master` in code), and replays of poker hands and blackjack rounds older than the newest 10, and the member table and card designs (Back Room and Midnight felts, Gilded and Marquee card backs; the saved choice falls back to the free Crimson felt and House back if Pro lapses). No ads, and chip grants (handled elsewhere). Blackjack, the poker cash game, daily puzzles, basic drills, charts and the review queue stay free.
 
 **Build environment.** Set these before `npm run build` / `npm run cap:sync` (they are inlined at build time):
 

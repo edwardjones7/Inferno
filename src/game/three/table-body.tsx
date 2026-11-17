@@ -6,6 +6,8 @@ import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { TABLE } from "./canvas-utils";
+import { FELT_LOOKS } from "@/game/designs/felt-looks";
+import type { FeltId } from "@/lib/cosmetics";
 import { cardBack } from "./card-textures";
 import { tableOf, type TableId } from "@/lib/blackjack/tables";
 import { feltTexture } from "./felt-texture";
@@ -13,6 +15,7 @@ import { useSceneFx, type SceneFx } from "./fx-context";
 import { railGlowFragment, railGlowUniforms, railGlowVertex, stepRailGlow } from "./rail-glow";
 import { HAND_Z, SHOE_POS } from "./table-layout";
 import { feltNormalTexture, leatherNormalTexture } from "./table-textures";
+import { useSceneLook } from "./use-scene-look";
 
 /** Polished brass, shared by the rail trim, dealer lip and shoe. */
 export const BRASS = { color: "#c9954a", metalness: 1, roughness: 0.26, clearcoat: 0.4, clearcoatRoughness: 0.18 } as const;
@@ -20,6 +23,16 @@ export const BRASS = { color: "#c9954a", metalness: 1, roughness: 0.26, clearcoa
 export const LEATHER = { color: "#3a1009", roughness: 0.52, clearcoat: 0.45, clearcoatRoughness: 0.35, sheen: 0.35, sheenColor: "#8a3a22", sheenRoughness: 0.45 } as const;
 /** Baize sheen: the lamp catching the nap of the cloth. */
 export const BAIZE = { roughness: 0.94, sheen: 0.45, sheenColor: "#6f9a7c", sheenRoughness: 0.6 } as const;
+
+/** Cloth, rail leather and trim for a table design (the constants above are the Back Room green). */
+export function tableMaterials(design: FeltId) {
+  const look = FELT_LOOKS[design];
+  return {
+    baize: { ...BAIZE, sheenColor: look.sheen },
+    leather: { ...LEATHER, color: look.leather.color, sheenColor: look.leather.sheenColor },
+    trim: { ...BRASS, color: look.trim.color, roughness: look.trim.roughness },
+  };
+}
 
 const damp = (from: number, to: number, rate: number, dt: number) => from + (to - from) * (1 - Math.exp(-rate * dt));
 
@@ -46,9 +59,11 @@ export function useRailMood(fx: SceneFx) {
   };
 }
 
-/** Baize felt, padded oxblood leather rail, brass trim, a low warm glow at the rail, dealer lip. */
+/** Baize in the player's table design, padded leather rail, metal trim, a low warm glow at the rail, dealer lip. */
 export function TableBody({ tableId = "classic" }: { tableId?: TableId }) {
   const fx = useSceneFx();
+  const { felt: design } = useSceneLook();
+  const mats = useMemo(() => tableMaterials(design), [design]);
 
   const { felt, weave, leather, shape } = useMemo(() => {
     const { halfWidth: W, halfDepth: D } = TABLE;
@@ -58,11 +73,11 @@ export function TableBody({ tableId = "classic" }: { tableId?: TableId }) {
     shape.absellipse(0, D, W, D * 2, 0, Math.PI, true);
     // the felt cap's UVs are raw table coordinates; map them onto the whole canvas
     const rules = tableOf(tableId).rules;
-    const felt = feltTexture({ payout: rules.blackjackPays === 1.5 ? "3 TO 2" : "6 TO 5", dealerHitsSoft17: rules.dealerHitsSoft17 });
+    const felt = feltTexture({ payout: rules.blackjackPays === 1.5 ? "3 TO 2" : "6 TO 5", dealerHitsSoft17: rules.dealerHitsSoft17 }, design);
     felt.repeat.set(1 / (W * 2), 1 / (D * 2));
     felt.offset.set(0.5, 0.5);
     return { felt, weave: feltNormalTexture(), leather: leatherNormalTexture(), shape };
-  }, [tableId]);
+  }, [tableId, design]);
 
   const geometry = useMemo(
     () => new THREE.ExtrudeGeometry(shape, { depth: 0.3, bevelEnabled: true, bevelThickness: 0.04, bevelSize: 0.04, bevelSegments: 3, curveSegments: 96 }),
@@ -99,18 +114,18 @@ export function TableBody({ tableId = "classic" }: { tableId?: TableId }) {
   return (
     <group>
       <mesh geometry={geometry} rotation-x={-Math.PI / 2} position-y={-0.34} receiveShadow>
-        <meshPhysicalMaterial attach="material-0" map={felt} normalMap={weave} normalScale={[0.35, 0.35]} {...BAIZE} />
+        <meshPhysicalMaterial attach="material-0" map={felt} normalMap={weave} normalScale={[0.35, 0.35]} {...mats.baize} />
         <meshStandardMaterial attach="material-1" color="#140a06" roughness={0.6} metalness={0.2} />
       </mesh>
       {/* padded leather rail */}
       <mesh castShadow receiveShadow>
         <tubeGeometry args={[railCurves.rail, 240, 0.2, 20, false]} />
-        <meshPhysicalMaterial {...LEATHER} normalMap={leather} normalScale={[0.8, 0.8]} />
+        <meshPhysicalMaterial {...mats.leather} normalMap={leather} normalScale={[0.8, 0.8]} />
       </mesh>
       {/* brass trim where the rail meets the felt */}
       <mesh castShadow>
         <tubeGeometry args={[railCurves.brass, 240, 0.024, 10, false]} />
-        <meshPhysicalMaterial {...BRASS} />
+        <meshPhysicalMaterial {...mats.trim} />
       </mesh>
       {/* low warm glow in the groove inside the trim */}
       <mesh>
@@ -120,11 +135,11 @@ export function TableBody({ tableId = "classic" }: { tableId?: TableId }) {
       {/* dealer-side lip, leather with a brass nosing toward the felt */}
       <mesh position={[0, 0.02, -TABLE.halfDepth - 0.04]} receiveShadow>
         <boxGeometry args={[TABLE.halfWidth * 2 + 0.3, 0.08, 0.1]} />
-        <meshPhysicalMaterial {...LEATHER} />
+        <meshPhysicalMaterial {...mats.leather} />
       </mesh>
       <mesh position={[0, 0.06, -TABLE.halfDepth + 0.012]} rotation-z={Math.PI / 2}>
         <cylinderGeometry args={[0.018, 0.018, TABLE.halfWidth * 2 + 0.3, 12]} />
-        <meshPhysicalMaterial {...BRASS} />
+        <meshPhysicalMaterial {...mats.trim} />
       </mesh>
     </group>
   );

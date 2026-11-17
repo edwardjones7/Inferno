@@ -1,5 +1,8 @@
 "use client";
 
+import { BACK_KEY, DEFAULT_BACK, DEFAULT_FELT, FELT_KEY, isBackId, isFeltId, type CardBackId, type FeltId } from "./cosmetics";
+import { activeCosmetic } from "./gates";
+import { isPro, useIsPro } from "./pro";
 import { useStored } from "./use-stored";
 
 /**
@@ -36,3 +39,43 @@ export function resolveQuality(g: Graphics): "high" | "low" {
 export type Toggle = "0" | "1";
 export const isToggle = (v: unknown): v is Toggle => v === "0" || v === "1";
 export const HAPTICS_KEY = "inferno:haptics";
+
+/* ------------------------------------------------------------------ table and card designs */
+
+/**
+ * The player's chosen designs: a device preference (like graphics), so it lives in
+ * localStorage beside the other settings rather than in the progress document.
+ * These hooks return the saved choice, which may be a member design.
+ */
+export function useFeltChoice() {
+  return useStored<FeltId>(FELT_KEY, DEFAULT_FELT, isFeltId);
+}
+
+export function useBackChoice() {
+  return useStored<CardBackId>(BACK_KEY, DEFAULT_BACK, isBackId);
+}
+
+export interface TableLook {
+  felt: FeltId;
+  back: CardBackId;
+}
+
+/** The designs to draw: the saved choice, or the free default when it needs Pro and the player doesn't have it. */
+export function useTableLook(): TableLook {
+  const pro = useIsPro();
+  const [felt] = useFeltChoice();
+  const [back] = useBackChoice();
+  return { felt: activeCosmetic("felt", felt, pro), back: activeCosmetic("back", back, pro) };
+}
+
+/** Same as `useTableLook()`, outside React (texture painters that run before any component). */
+export function readTableLook(): TableLook {
+  let felt: string | null = null;
+  let back: string | null = null;
+  try {
+    felt = localStorage.getItem(FELT_KEY);
+    back = localStorage.getItem(BACK_KEY);
+  } catch {}
+  const pro = typeof window !== "undefined" && isPro();
+  return { felt: activeCosmetic("felt", felt, pro), back: activeCosmetic("back", back, pro) };
+}

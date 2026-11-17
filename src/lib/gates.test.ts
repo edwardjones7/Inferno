@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { BACK_IDS, CARD_BACKS, DEFAULT_BACK, DEFAULT_FELT, FELT_IDS, FELTS } from "./cosmetics";
 import {
+  activeCosmetic,
   botIsPro,
+  canUseCosmetic,
+  cosmeticIsPro,
   botLocked,
   countingLocked,
   FREE_LESSONS_PER_TRACK,
@@ -8,7 +12,9 @@ import {
   lessonIsPro,
   lessonLocked,
   lockedReviewIds,
+  paywallReason,
   PRO_BOT_TIERS,
+  PRO_COSMETICS,
 } from "./gates";
 import { lessonUnlocked, TRACK_IDS, TRACKS } from "./learn";
 import { ROSTER, TIER_LABEL } from "./poker/roster";
@@ -89,5 +95,57 @@ describe("review gate", () => {
 
   it("locks nothing for Pro", () => {
     expect(lockedReviewIds(records(150), true).size).toBe(0);
+  });
+});
+
+describe("table and card designs", () => {
+  it("keeps the defaults free and offers member designs of both kinds", () => {
+    expect(cosmeticIsPro(DEFAULT_FELT)).toBe(false);
+    expect(cosmeticIsPro(DEFAULT_BACK)).toBe(false);
+    expect(FELT_IDS.filter(cosmeticIsPro).length).toBeGreaterThanOrEqual(2);
+    expect(BACK_IDS.filter(cosmeticIsPro).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("lists every design once, with ids unique across kinds", () => {
+    const ids = [...FELTS, ...CARD_BACKS].map((c) => c.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(FELTS.map((f) => f.id)).toEqual([...FELT_IDS]);
+    expect(CARD_BACKS.map((b) => b.id)).toEqual([...BACK_IDS]);
+    for (const id of PRO_COSMETICS) expect(ids).toContain(id);
+  });
+
+  it("lets free players use only the free designs", () => {
+    expect(canUseCosmetic("crimson", false)).toBe(true);
+    expect(canUseCosmetic("house", false)).toBe(true);
+    expect(canUseCosmetic("back-room", false)).toBe(false);
+    expect(canUseCosmetic("gilded", false)).toBe(false);
+    for (const id of [...FELT_IDS, ...BACK_IDS]) expect(canUseCosmetic(id, true)).toBe(true);
+    expect(canUseCosmetic("not-a-design", true)).toBe(false);
+  });
+
+  it("draws the saved choice when allowed", () => {
+    expect(activeCosmetic("felt", "midnight", true)).toBe("midnight");
+    expect(activeCosmetic("back", "marquee", true)).toBe("marquee");
+    expect(activeCosmetic("felt", "crimson", false)).toBe("crimson");
+  });
+
+  it("falls back to the free default when membership lapses, without needing the choice changed", () => {
+    const saved = "back-room";
+    expect(activeCosmetic("felt", saved, false)).toBe(DEFAULT_FELT);
+    expect(activeCosmetic("back", "gilded", false)).toBe(DEFAULT_BACK);
+    // rejoining brings the same saved choice back
+    expect(activeCosmetic("felt", saved, true)).toBe("back-room");
+  });
+
+  it("falls back on missing, unknown or wrong-kind choices", () => {
+    expect(activeCosmetic("felt", null, true)).toBe(DEFAULT_FELT);
+    expect(activeCosmetic("felt", undefined, false)).toBe(DEFAULT_FELT);
+    expect(activeCosmetic("back", "lava", true)).toBe(DEFAULT_BACK);
+    expect(activeCosmetic("felt", "gilded", true)).toBe(DEFAULT_FELT);
+    expect(activeCosmetic("back", "midnight", true)).toBe(DEFAULT_BACK);
+  });
+
+  it("names the design in the paywall reason", () => {
+    expect(paywallReason.design("marquee")).toBe("design:marquee");
   });
 });

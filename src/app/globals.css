@@ -76,6 +76,30 @@
   /* Canvas textures in src/game read the display face from this name; keep it pointing at
      the current one. */
   --font-unbounded: var(--font-marcellus);
+  /* The flat table (the felt utility) in the active table design; <html data-felt> is set
+     by TableLookSync. Keep in step with src/game/designs/felt-looks.ts. */
+  --felt-pool: rgb(132 36 34 / 0.72);
+  --felt-top: #3e0e0f;
+  --felt-bottom: #200708;
+  --felt-rail: #1a0d09;
+  --felt-trim: rgb(207 157 78 / 0.6);
+  --felt-trim-faint: rgb(207 157 78 / 0.32);
+}
+:root[data-felt="back-room"] {
+  --felt-pool: rgb(46 92 58 / 0.75);
+  --felt-top: #123020;
+  --felt-bottom: #0a1a12;
+  --felt-rail: #3a1410;
+  --felt-trim: rgb(174 147 93 / 0.55);
+  --felt-trim-faint: rgb(174 147 93 / 0.3);
+}
+:root[data-felt="midnight"] {
+  --felt-pool: rgb(40 66 104 / 0.7);
+  --felt-top: #12223a;
+  --felt-bottom: #08111e;
+  --felt-rail: #0d0d10;
+  --felt-trim: rgb(185 188 194 / 0.55);
+  --felt-trim-faint: rgb(185 188 194 / 0.28);
 }
 
 html {
@@ -307,17 +331,17 @@ body::after {
   }
 }
 
-/* The table as it reads under the lamp: green baize pooled with light, a brass trim line inside
+/* The table as it reads under the lamp: baize (red by default) pooled with light, a brass trim line inside
    an oxblood leather edge, and a faint warm glow at the rail (matches the 3D tables). */
 @utility felt {
   background:
-    radial-gradient(ellipse 65% 55% at 50% 36%, rgb(46 92 58 / 0.75), transparent 72%),
+    radial-gradient(ellipse 65% 55% at 50% 36%, var(--felt-pool), transparent 72%),
     radial-gradient(ellipse at 50% 120%, rgb(255 140 60 / 0.1), transparent 55%),
-    linear-gradient(180deg, #123020, #0a1a12 70%);
+    linear-gradient(180deg, var(--felt-top), var(--felt-bottom) 70%);
   box-shadow:
-    inset 0 0 0 1px rgb(174 147 93 / 0.55),
-    inset 0 0 0 5px #3a1410,
-    inset 0 0 0 6px rgb(174 147 93 / 0.3),
+    inset 0 0 0 1px var(--felt-trim),
+    inset 0 0 0 5px var(--felt-rail),
+    inset 0 0 0 6px var(--felt-trim-faint),
     inset 0 0 80px rgb(0 0 0 / 0.8),
     inset 0 -30px 80px -40px rgb(255 120 40 / 0.22),
     0 30px 80px -30px rgb(0 0 0 / 0.9);

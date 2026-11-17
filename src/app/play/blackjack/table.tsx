@@ -999,6 +999,18 @@ function TableDrawer(props: {
         <p className="mt-2 text-[11px] leading-relaxed text-ash-500">{props.blurb}</p>
       </DrawerSection>
 
+      {!props.inPlay && (
+        <DrawerSection>
+          <Link href="/profile/#designs" className="flex items-center justify-between gap-3">
+            <span>
+              <span className="caps-label block text-brass-300">Table &amp; cards</span>
+              <span className="mt-1 block text-xs text-ash-400">Change the felt and the card backs.</span>
+            </span>
+            <span className="text-xs font-semibold text-ember-400">Open →</span>
+          </Link>
+        </DrawerSection>
+      )}
+
       <DrawerSection title="Shortcuts">
         <ul className="grid grid-cols-2 gap-y-1.5 text-xs text-ash-400">
           <li><Kbd show>Space</Kbd> Deal</li>

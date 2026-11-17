@@ -1,7 +1,10 @@
 "use client";
 
 import { motion } from "motion/react";
+import { useSyncExternalStore } from "react";
+import { cardBackUrl } from "@/game/designs/card-backs";
 import { isRed, RANK_LABEL, rankOf, SUIT_SYMBOL, suitOf, type Card } from "@/lib/blackjack/cards";
+import { useTableLook } from "@/lib/settings";
 
 interface Props {
   card: Card | null;
@@ -78,28 +81,23 @@ function Face({ card, small }: { card: Card; small: boolean }) {
   );
 }
 
+/** The back in the player's card design (the same painter as the 3D cards). */
 function Back() {
+  const { back } = useTableLook();
+  const url = useSyncExternalStore(
+    noop,
+    () => cardBackUrl(back, 192),
+    () => null,
+  );
   return (
     <div
-      className="relative h-full w-full overflow-hidden rounded-[inherit]"
+      className="relative h-full w-full overflow-hidden rounded-[inherit] bg-[#4d110d] bg-cover bg-center"
       style={{
-        background: "radial-gradient(circle at 50% 60%, #ff5a1f 0%, #b3200c 35%, #3d0805 80%)",
-        boxShadow: "0 10px 24px -10px rgba(0,0,0,.9), inset 0 0 0 1px rgba(255,194,75,.35)",
+        backgroundImage: url ? `url(${url})` : undefined,
+        boxShadow: "0 10px 24px -10px rgba(0,0,0,.9), inset 0 0 0 1px rgba(203,177,124,.35)",
       }}
-    >
-      <div
-        className="absolute inset-[5px] rounded-[6px] border border-ember-300/40"
-        style={{
-          backgroundImage:
-            "repeating-linear-gradient(45deg, rgba(255,194,75,.12) 0 2px, transparent 2px 9px), repeating-linear-gradient(-45deg, rgba(255,194,75,.12) 0 2px, transparent 2px 9px)",
-        }}
-      />
-      <svg viewBox="0 0 32 32" className="absolute left-1/2 top-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 opacity-90">
-        <path
-          fill="#ffe1a1"
-          d="M16.6 1.5c.9 4.6-1.4 7-3.6 9.6-2 2.3-4.2 4.7-4.2 8.6 0 2.5 1 4.6 2.6 6-1-2.9.4-5.2 2.3-6.8-.2 2.6.9 4 2.6 4.8-.6-3.1 1.2-5.5 3.3-7.3.3 3.4 3.4 4.6 3.4 8.5 0 .3 0 .6-.1.8 1.6-1.4 2.6-3.5 2.6-5.9 0-5.4-4-8.2-5.6-12.2-.9-2.2-1.4-4-3.3-6.1Z"
-        />
-      </svg>
-    </div>
+    />
   );
 }
+
+const noop = () => () => {};

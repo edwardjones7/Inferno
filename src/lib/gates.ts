@@ -4,9 +4,10 @@
  *
  * The principle (AGENTS.md): free offline play stays free and genuinely good. Pro adds
  * depth on top: the later lessons, the counting course, the strongest bots and unlimited
- * hand reviews. Blackjack, the poker cash game, daily puzzles, basic drills, charts and the
- * review queue are free for everyone.
+ * hand reviews, plus the member table and card designs. Blackjack, the poker cash game,
+ * daily puzzles, basic drills, charts and the review queue are free for everyone.
  */
+import { cosmeticById, DEFAULT_COSMETIC, type CardBackId, type CosmeticId, type CosmeticKind, type FeltId } from "./cosmetics";
 import { lessonById, TRACKS } from "./learn";
 import { botById, type Tier } from "./poker/roster";
 
@@ -60,6 +61,32 @@ export function lockedReviewIds(records: readonly { id: string }[], pro: boolean
   return new Set(records.slice(0, records.length - FREE_REVIEW_HANDS).map((r) => r.id));
 }
 
+/* ------------------------------------------------------------------ table and card designs */
+
+/**
+ * Member designs ("exclusive table and card designs" in the membership). The defaults stay
+ * free, and every kind keeps at least one free design.
+ */
+export const PRO_COSMETICS: readonly CosmeticId[] = ["back-room", "midnight", "gilded", "marquee"];
+
+export const cosmeticIsPro = (id: string): boolean => (PRO_COSMETICS as readonly string[]).includes(id);
+
+/** True when this player may use the design (free designs for everyone, member designs for Pro). */
+export const canUseCosmetic = (id: string, pro: boolean): boolean => !!cosmeticById(id) && (pro || !cosmeticIsPro(id));
+
+/**
+ * The design to actually draw for a saved choice. An unknown choice, one of the wrong kind,
+ * or a member design without Pro (a lapsed membership) draws the free default. The saved
+ * choice itself is left alone, so it comes back if the player rejoins.
+ */
+export function activeCosmetic(kind: "felt", chosen: string | null | undefined, pro: boolean): FeltId;
+export function activeCosmetic(kind: "back", chosen: string | null | undefined, pro: boolean): CardBackId;
+export function activeCosmetic(kind: CosmeticKind, chosen: string | null | undefined, pro: boolean): CosmeticId {
+  const c = chosen ? cosmeticById(chosen) : undefined;
+  if (!c || c.kind !== kind || !canUseCosmetic(c.id, pro)) return DEFAULT_COSMETIC[kind];
+  return c.id;
+}
+
 /* ------------------------------------------------------------------ paywall reasons */
 
 /**
@@ -73,4 +100,5 @@ export const paywallReason = {
   bot: (id: string) => `bot:${id}`,
   review: (game: "poker" | "blackjack") => `review:${game}`,
   profile: "profile",
+  design: (id: string) => `design:${id}`,
 } as const;
