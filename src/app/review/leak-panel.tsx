@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
-import { leakDrillHref, leakTitle, leakWhere } from "@/lib/leaks/describe";
+import { leakDrillHref, leakTitle, leakWhere, missAction } from "@/lib/leaks/describe";
 import { findLeaks, gradedOf, type Leak, type Priors } from "@/lib/leaks/model";
 import PRIORS from "@/lib/leaks/priors.json";
 import { play } from "@/lib/sound";
@@ -10,6 +10,8 @@ import { useProgress } from "@/lib/store";
 
 /** Graded decisions before the leak finder says anything: below this it's mostly noise. */
 export const LEAK_MIN_DECISIONS = 40;
+/** Hands (or rounds) before a cost is projected per 100: earlier, show what one mistake costs. */
+const PER_100_MIN = 100;
 
 const pctText = (x: number) => `${x < 0.1 ? (x * 100).toFixed(1) : Math.round(x * 100)}%`;
 
@@ -55,7 +57,7 @@ export function LeakPanel({ game }: { game: "poker" | "blackjack" }) {
       ) : (
         <ul className="mt-3 divide-y divide-ash-800">
           {leaks.map((l) => (
-            <LeakRow key={l.id} leak={l} href={leakDrillHref(l, decisions)} unit={unit} per={per} />
+            <LeakRow key={l.id} leak={l} title={leakTitle(l, missAction(l, decisions))} href={leakDrillHref(l, decisions)} unit={unit} per={per} perHundred={report.hands[game] >= PER_100_MIN} />
           ))}
           {tilt && (
             <li className="py-3">
@@ -72,23 +74,31 @@ export function LeakPanel({ game }: { game: "poker" | "blackjack" }) {
   );
 }
 
-function LeakRow({ leak: l, href, unit, per }: { leak: Leak; href: string; unit: string; per: string }) {
+function LeakRow({ leak: l, title, href, unit, per, perHundred }: { leak: Leak; title: string; href: string; unit: string; per: string; perHundred: boolean }) {
   const where = leakWhere(l);
+  const amount = (x: number) => x.toFixed(x < 10 ? 1 : 0);
   return (
     <li className="flex items-center gap-3 py-3">
       <div className="min-w-0 flex-1">
         <p className="text-sm font-bold text-bone">
-          {leakTitle(l)}
+          {title}
           {where && <span className="font-semibold text-ash-400"> {where}</span>}
         </p>
         <p className="mt-0.5 text-xs text-ash-400">
           {l.k} of {l.n} spots ({pctText(l.k / l.n)}); a typical player misses {pctText(l.normal)}.
-          {l.costPer100 >= 0.05 && (
-            <span className="text-ember-300">
-              {" "}
-              About {l.costPer100.toFixed(l.costPer100 < 10 ? 1 : 0)} {unit} per {per}.
-            </span>
-          )}
+          {perHundred
+            ? (l.costPer100 ?? 0) >= 0.05 && (
+                <span className="text-ember-300">
+                  {" "}
+                  About {amount(l.costPer100!)} {unit} per {per}.
+                </span>
+              )
+            : (l.perMiss ?? 0) >= 0.05 && (
+                <span className="text-ember-300">
+                  {" "}
+                  Each one costs about {amount(l.perMiss!)} {unit === "bets" ? "of a bet" : unit}.
+                </span>
+              )}
         </p>
       </div>
       <Link

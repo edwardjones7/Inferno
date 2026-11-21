@@ -28,7 +28,41 @@ const BLACKJACK: Record<string, Pair> = {
   insurance: { tight: "Declining insurance", loose: "Taking insurance" },
 };
 
-export function leakTitle(l: Pick<Leak, "game" | "family" | "dir">): string {
+/**
+ * When the misses are mostly one particular action, say what the player actually does: a
+ * limp is "too passive" next to a raise and "too loose" next to a fold, and "opening too
+ * few hands" would be wrong for someone who limps them.
+ */
+const BY_ACTION: Record<string, string> = {
+  "open|-1|call": "Limping hands you should raise",
+  "open|1|call": "Limping hands you should fold",
+  "iso|-1|call": "Limping behind with hands you should raise",
+  "iso|1|call": "Limping behind with hands you should fold",
+  "vs-open|-1|call": "Flatting hands you should 3-bet",
+  "vs-open|1|raise": "3-betting too light",
+  "vs-3bet|-1|call": "Flatting hands you should 4-bet",
+  "vs-3bet|1|raise": "4-betting too light",
+  "vs-bet|1|raise": "Raising bets too light",
+};
+
+/** The action behind most of this leak's misses, when one accounts for at least two thirds of them. */
+export function missAction(l: Pick<Leak, "game" | "family" | "dir" | "group">, rows: readonly DecisionRow[]): string | undefined {
+  const counts = new Map<string, number>();
+  let total = 0;
+  for (const r of rows) {
+    const s = r.poker ?? r.bj;
+    if (!s || r.game !== l.game || s.family !== l.family || s.dir !== l.dir) continue;
+    if (l.group && (r.poker ? r.poker.pos !== l.group : !r.bj!.key.startsWith(`${l.group}-`))) continue;
+    counts.set(s.chosen, (counts.get(s.chosen) ?? 0) + 1);
+    total++;
+  }
+  for (const [a, n] of counts) if (n * 3 >= total * 2) return a;
+  return undefined;
+}
+
+export function leakTitle(l: Pick<Leak, "game" | "family" | "dir">, action?: string): string {
+  const specific = l.game === "poker" && action ? BY_ACTION[`${l.family}|${l.dir}|${action}`] : undefined;
+  if (specific) return specific;
   const pair = (l.game === "poker" ? POKER : BLACKJACK)[l.family];
   if (!pair) return `${l.family}: ${l.dir < 0 ? "too passive" : "too aggressive"}`;
   return l.dir < 0 ? pair.tight : pair.loose;

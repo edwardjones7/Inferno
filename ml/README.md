@@ -19,7 +19,7 @@ Each graded decision is a chance to miss in one of two directions:
 - **Too tight or passive (−1):** folding instead of calling, checking instead of betting, standing instead of hitting.
 - **Too loose or aggressive (+1):** the reverse.
 
-Spots the coach calls mixed or close have no single right answer, so they're left out.
+Spots the coach calls mixed or close have no single right answer, so they're left out. A miss is a play the coach marks as a mistake; deviations it rates fine (a light 3-bet, a semi-bluff raise) don't count.
 
 Chances are counted in cells:
 
@@ -38,7 +38,7 @@ The mixture is fitted per cell with EM on a population of players. For one playe
 P(leak) = π·BB(k|n, leak) / (π·BB(k|n, leak) + (1−π)·BB(k|n, normal))
 ```
 
-BB is the beta-binomial likelihood. Cells above the threshold are reported, ranked by estimated loss per 100 hands. The threshold and other settings are tuned for F0.5, which counts precision twice as much as recall: a wrong "you have a leak" costs more trust than finding a real one a few hands later. A family-wide leak lists its worst positions.
+BB is the beta-binomial likelihood. Cells above the threshold are reported, ranked by estimated loss per 100 hands. Costs come only from the coach's own prices: where the coach doesn't price a kind of mistake (opening mistakes, for one), no cost is shown. Under 100 hands the panel shows what one mistake costs instead of projecting per 100. The threshold and other settings are tuned for F0.5, which counts precision twice as much as recall: a wrong "you have a leak" costs more trust than finding a real one a few hands later. A family-wide leak lists its worst positions.
 
 Two further pieces:
 

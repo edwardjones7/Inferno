@@ -112,7 +112,8 @@ function choose<A extends string>(
     for (const l of leaks) {
       if (l.spec.groups && (!group || !l.spec.groups.includes(group))) continue;
       // a near-miss costs at most NEAR_MISS of a bet: nobody "too passive with soft hands" surrenders soft 20
-      const miss = keys.filter((k) => options[k]!.dir === l.spec.dir && (!nearMisses || (options[k]!.cost ?? 0) <= NEAR_MISS));
+      // a leak is a mistake the coach flags, in the leak's direction
+      const miss = keys.filter((k) => options[k]!.dir === l.spec.dir && options[k]!.ok === false && (!nearMisses || (options[k]!.cost ?? 0) <= NEAR_MISS));
       if (!miss.length || rand() >= l.rate) continue;
       if (nearMisses) return miss.reduce((a, b) => ((options[b]!.cost ?? 0) < (options[a]!.cost ?? 0) ? b : a));
       return miss[Math.floor(rand() * miss.length)];

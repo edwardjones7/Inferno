@@ -7,7 +7,7 @@ import type { DecisionRow } from "../decisions";
 import { seeded } from "../poker/equity";
 import { anyMiss, keyOf, rateRule } from "./baselines";
 import { betaCdf, betaSf, lnGamma, normalCdf } from "./beta";
-import { leakDrillHref, leakTitle, leakWhere } from "./describe";
+import { leakDrillHref, leakTitle, leakWhere, missAction } from "./describe";
 import { countCells, DEFAULT_TILT, findLeaks, fitCell, gradedOf, leakProbability, probWorse, skillOf, tiltSplit, type CellPrior, type Leak, type Priors } from "./model";
 import { buildBlackjackPool, buildPokerPool } from "./pool";
 import shipped from "./priors.json";
@@ -216,12 +216,24 @@ describe("decision pool and synthetic players", () => {
 
 describe("leak descriptions", () => {
   const FAMILIES = ["open", "iso", "bb-option", "vs-open", "vs-3bet", "vs-4bet", "cold", "vs-bet", "cbet", "lead", "first-in"];
-  const leak = (over: Partial<Leak>): Leak => ({ id: "x", game: "poker", family: "vs-3bet", dir: -1, n: 20, k: 8, p: 0.99, rate: 0.4, normal: 0.03, costPer100: 2, ...over });
+  const leak = (over: Partial<Leak>): Leak => ({ id: "x", game: "poker", family: "vs-3bet", dir: -1, n: 20, k: 8, p: 0.99, rate: 0.4, normal: 0.03, costPer100: 2, perMiss: 1, ...over });
 
   it("every situation the coach records has words in both directions", () => {
     for (const family of FAMILIES)
       for (const dir of [-1, 1] as const) expect(leakTitle({ game: "poker", family, dir })).not.toContain(":");
     for (const family of ["hard", "soft", "pair", "insurance"]) expect(leakTitle({ game: "blackjack", family, dir: 1 })).not.toContain(":");
+  });
+
+  it("names the action when one explains the misses, so limping isn't called opening too few or too many", () => {
+    const limps = [pokerRow("open", "BTN", "raise", -1), pokerRow("open", "BTN", "fold", 1), pokerRow("open", "BTN", "fold", 1)];
+    for (const r of limps) r.poker!.chosen = "call";
+    const tight = leak({ family: "open", dir: -1, group: "BTN" });
+    const loose = leak({ family: "open", dir: 1, group: "BTN" });
+    expect(leakTitle(tight, missAction(tight, limps))).toBe("Limping hands you should raise");
+    expect(leakTitle(loose, missAction(loose, limps))).toBe("Limping hands you should fold");
+    // real folds keep the general wording
+    const folds = [pokerRow("open", "BTN", "raise", -1)];
+    expect(leakTitle(tight, missAction(tight, folds))).toBe("Opening too few hands");
   });
 
   it("says where it happens", () => {

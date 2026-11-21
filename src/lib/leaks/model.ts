@@ -2,7 +2,8 @@
  * Leak detection: which mistakes does THIS player keep repeating, and how sure are we?
  *
  * Every graded decision is an opportunity to miss in a direction: too tight / passive (-1)
- * or too loose / aggressive (+1). Opportunities are grouped into cells:
+ * or too loose / aggressive (+1). A miss is a play the coach marks as a mistake; deviations
+ * it rates fine or close (a light 3-bet, a mixed spot) don't count. Opportunities are grouped into cells:
  *   family level:   game | situation family      | dir   e.g. poker|vs-3bet|*|-1
  *   position level: game | family | pos or total  | dir   e.g. poker|vs-3bet|CO|-1, blackjack|soft|soft-18|-1
  *
@@ -37,8 +38,12 @@ export interface CellPrior {
   m1: number;
   /** prior share of players with this leak */
   pi: number;
-  /** average cost of one miss here: big blinds (poker) or bets (blackjack) */
-  cost: number;
+  /**
+   * Average cost of one miss here, big blinds (poker) or bets (blackjack), from the coach's
+   * own estimates. Absent where the coach doesn't price these mistakes: no number beats a
+   * made-up one.
+   */
+  cost?: number;
   /** players with data in this cell when fitted */
   players?: number;
 }
@@ -106,8 +111,10 @@ export interface Leak {
   /** this player's estimated miss rate (posterior mean) and the normal rate */
   rate: number;
   normal: number;
-  /** estimated loss per 100 hands (poker: big blinds; blackjack: opening bets) */
-  costPer100: number;
+  /** estimated loss per 100 hands (poker: big blinds; blackjack: opening bets); absent when the coach doesn't price these misses */
+  costPer100?: number;
+  /** what one of these misses costs on average, in the same units */
+  perMiss?: number;
   /** for a family-wide leak, the positions / totals with the most misses beyond normal (up to 2) */
   worst?: string[];
 }
@@ -145,6 +152,8 @@ interface Graded {
   canTight: boolean;
   canLoose: boolean;
   dir?: -1 | 0 | 1;
+  /** the coach's verdict: only plays it calls mistakes (false) count as misses */
+  ok: boolean | null;
   cost?: number;
 }
 
@@ -161,6 +170,7 @@ export function gradedOf(r: DecisionRow): Graded | null {
       // a raise can still be too loose when the coach recommends a size
       canLoose: s.best !== "raise" || s.bestSize !== undefined,
       dir: s.dir,
+      ok: r.ok,
       cost: r.cost,
     };
   }
@@ -175,6 +185,7 @@ export function gradedOf(r: DecisionRow): Graded | null {
       canTight: !insurance && rank > 0,
       canLoose: insurance || rank < 3,
       dir: b.dir,
+      ok: r.ok,
       cost: r.cost,
     };
   }
@@ -199,7 +210,8 @@ export function countCells(rows: readonly DecisionRow[]): Map<string, CellCount>
       cells.set(id, c);
     }
     c.n++;
-    if (g.dir === dir) {
+    // a miss is a play the coach calls a mistake; deviations it rates fine or close don't count
+    if (g.dir === dir && g.ok === false) {
       c.k++;
       if (g.cost !== undefined) {
         c.costSum += g.cost;
@@ -318,10 +330,17 @@ export function findLeaks(rows: readonly DecisionRow[], priors: Priors): LeakRep
     const rate = posteriorRate(c.k, c.n, mine(c), c.p);
     // what it costs is measured against a typical player, not against this player's own average
     const normal = prior.mu0;
-    const perMiss = c.costN >= 3 ? c.costSum / c.costN : prior.cost;
-    const extraMisses = Math.max(0, rate - normal) * c.n;
-    const per100 = hands[c.game] > 0 ? (extraMisses * perMiss * 100) / hands[c.game] : 0;
-    return { id: c.id, game: c.game, family: c.family, group: c.group, dir: c.dir, n: c.n, k: c.k, p: c.p, rate, normal, costPer100: Math.round(per100 * 100) / 100 };
+    // the player's own priced misses when most of them are priced, else what the population's cost
+    const own = c.costN >= 3 && c.costN * 2 >= c.k ? c.costSum / c.costN : undefined;
+    const { game, family, dir } = parseCellId(c.id);
+    const perMiss = own ?? prior.cost ?? priors.cells[cellId(game, family, undefined, dir)]?.cost;
+    const leak: Leak = { id: c.id, game: c.game, family: c.family, group: c.group, dir: c.dir, n: c.n, k: c.k, p: c.p, rate, normal };
+    if (perMiss !== undefined) {
+      const extraMisses = Math.max(0, rate - normal) * c.n;
+      leak.perMiss = Math.round(perMiss * 100) / 100;
+      leak.costPer100 = hands[c.game] > 0 ? Math.round(((extraMisses * perMiss * 100) / hands[c.game]) * 100) / 100 : 0;
+    }
+    return leak;
   };
 
   // a family-wide leak absorbs its flagged positions; otherwise positions stand alone
@@ -345,7 +364,8 @@ export function findLeaks(rows: readonly DecisionRow[], priors: Priors): LeakRep
     if (families.some((f) => f.game === c.game && f.family === c.family && f.dir === c.dir)) continue;
     leaks.push(toLeak(c));
   }
-  leaks.sort((a, b) => b.costPer100 - a.costPer100 || b.p - a.p);
+  // costliest first; unpriced leaks after the priced ones, most certain first
+  leaks.sort((a, b) => (b.costPer100 ?? -1) - (a.costPer100 ?? -1) || b.p - a.p);
   return { leaks, tilt: tiltOf(rows, priors.tilt), skill, scored, hands };
 }
 
@@ -432,7 +452,7 @@ export function fitCell(data: readonly { n: number; k: number }[], opt: FitOptio
   let m0 = 60;
   let pi = 0.15;
   for (let it = 0; it < opt.iterations; it++) {
-    const prior = { mu0, m0, mu1, m1: opt.m1, pi, cost: 0 };
+    const prior = { mu0, m0, mu1, m1: opt.m1, pi };
     const r = useful.map((d) => leakProbability(d.k, d.n, prior));
     const w1 = r.reduce((s, x) => s + x, 0);
     const w0 = useful.length - w1;
@@ -468,43 +488,46 @@ export function fitCell(data: readonly { n: number; k: number }[], opt: FitOptio
 }
 
 /** Fit priors for every cell from a population of players' decision logs. */
+/**
+ * Average priced miss cost per cell across a population: only cells with at least 5 priced
+ * misses where at least half the misses were priced (opening mistakes, for one, never are).
+ */
+export function cellCosts(players: readonly (readonly DecisionRow[])[]): Record<string, number> {
+  const t = new Map<string, { sum: number; n: number; k: number }>();
+  for (const rows of players)
+    for (const c of countCells(rows).values()) {
+      const x = t.get(c.id) ?? { sum: 0, n: 0, k: 0 };
+      x.sum += c.costSum;
+      x.n += c.costN;
+      x.k += c.k;
+      t.set(c.id, x);
+    }
+  const out: Record<string, number> = {};
+  for (const [id, x] of t) if (x.n >= 5 && x.n * 2 >= x.k) out[id] = round4(x.sum / x.n);
+  return out;
+}
+
 export function fitPriors(players: readonly (readonly DecisionRow[])[], base: Pick<Priors, "threshold" | "tilt">, opt: FitOptions = DEFAULT_FIT): Priors {
   const perCell = new Map<string, { n: number; k: number }[]>();
-  const costs = new Map<string, { sum: number; n: number }>();
   for (const rows of players) {
     for (const c of countCells(rows).values()) {
       if (!perCell.has(c.id)) perCell.set(c.id, []);
       perCell.get(c.id)!.push({ n: c.n, k: c.k });
-      const t = costs.get(c.id) ?? { sum: 0, n: 0 };
-      t.sum += c.costSum;
-      t.n += c.costN;
-      costs.set(c.id, t);
     }
   }
-  const gameCost = (game: string) => {
-    let s = 0;
-    let n = 0;
-    for (const [id, t] of costs) {
-      if (!id.startsWith(`${game}|`) || !id.includes("|*|")) continue;
-      s += t.sum;
-      n += t.n;
-    }
-    return n ? s / n : game === "poker" ? 1 : 0.15;
-  };
+  const costs = cellCosts(players);
   const cells: Record<string, CellPrior> = {};
   // family level first: position-level cells with too few players fall back to them
   const ids = [...perCell.keys()].sort((a, b) => Number(!a.includes("|*|")) - Number(!b.includes("|*|")));
   for (const id of ids) {
     const data = perCell.get(id)!;
     if (data.filter((d) => d.n > 0).length < opt.minPlayers) continue;
-    const fit = fitCell(data, opt);
-    const t = costs.get(id)!;
-    const { game } = parseCellId(id);
-    cells[id] = { ...fit, cost: t.n >= 5 ? round4(t.sum / t.n) : round4(gameCost(game)) };
+    cells[id] = { ...fitCell(data, opt) };
     for (const k of ["mu0", "m0", "mu1", "pi"] as const) cells[id][k] = round4(cells[id][k]);
+    if (costs[id] !== undefined) cells[id].cost = costs[id];
   }
-  const fallback = (game: "poker" | "blackjack"): CellPrior => ({ mu0: 0.05, m0: 40, mu1: 0.35, m1: opt.m1, pi: 0.1, cost: round4(gameCost(game)) });
-  return { version: 1, threshold: base.threshold, tilt: base.tilt, fallback: { poker: fallback("poker"), blackjack: fallback("blackjack") }, cells };
+  const fallback = (): CellPrior => ({ mu0: 0.05, m0: 40, mu1: 0.35, m1: opt.m1, pi: 0.1 });
+  return { version: 1, threshold: base.threshold, tilt: base.tilt, fallback: { poker: fallback(), blackjack: fallback() }, cells };
 }
 
 const round4 = (x: number) => Math.round(x * 10000) / 10000;
