@@ -54,6 +54,13 @@ describe("placeCallout", () => {
     expect(p.overlap).toBe(0);
   });
 
+  it("steps past a label beside the cards instead of covering it", () => {
+    const total = rect(270, 470, 310, 510); // the hand total, just right of the cards
+    const p = placeCallout(HAND, { w: 60, h: 40 }, ["right"], BAND, [total]);
+    expect(p.overlap).toBe(0);
+    expect(p.rect.x0).toBeGreaterThanOrEqual(total.x1);
+  });
+
   it("stays inside the band between the HUD and the controls", () => {
     const lowHand = rect(150, 520, 260, 630);
     const p = placeCallout(lowHand, NOTE, ["below", "above"], BAND, []);

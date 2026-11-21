@@ -859,8 +859,9 @@ function Dock(props: {
 
 /* ------------------------------------------------------------------ callouts */
 
-// over the cards first, so the advice reads before the cards; below them when that's taken
-const COACH_SIDES = ["above", "below", "top", "bottom"] as const;
+// over the cards first, so the advice reads before the cards; below them when that's taken,
+// then beside them (a phone in landscape has width to spare but almost no height)
+const COACH_SIDES = ["above", "below", "right", "left", "top", "bottom"] as const;
 const ODDS_SIDES = ["right", "left", "below", "above"] as const;
 
 function CoachBubble({ note }: { note: CoachNote }) {
@@ -870,7 +871,7 @@ function CoachBubble({ note }: { note: CoachNote }) {
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ type: "spring", stiffness: 380, damping: 26 }}
       aria-live="polite"
-      className={`relative w-[min(78vw,300px)] whitespace-normal rounded-2xl px-3.5 py-2.5 text-[13px] leading-snug shadow-[0_12px_30px_rgba(0,0,0,0.55)] ring-1 backdrop-blur-md ${
+      className={`relative w-[min(78vw,300px)] whitespace-normal group-data-[fit=tight]:w-[min(78vw,240px)] rounded-2xl px-3.5 py-2.5 text-[13px] leading-snug shadow-[0_12px_30px_rgba(0,0,0,0.55)] ring-1 backdrop-blur-md ${
         note.ok ? "bg-emerald-950/85 text-emerald-100 ring-emerald-400/40" : "bg-ash-950/90 text-ember-50 ring-ember-400/60"
       }`}
     >
