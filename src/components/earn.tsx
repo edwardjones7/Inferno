@@ -37,7 +37,7 @@ import { useHydrated, useProgress } from "@/lib/store";
 const noop = () => () => {};
 
 /** Run a claim, then celebrate it or explain why it didn't go through. */
-function claim(fn: () => number, what: string) {
+export function claim(fn: () => number, what: string) {
   try {
     const n = fn();
     play("win");
