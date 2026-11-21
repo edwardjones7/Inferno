@@ -6,9 +6,9 @@
  */
 import type { Card } from "../blackjack/cards";
 import { DECK, describe } from "./eval";
-import type { BotStyle, HandEvent, LegalOptions, PlayerAction, PokerState, Pot, Seat, Street, Winner } from "./game-types";
+import type { BotStyle, HandEvent, LegalOptions, PlayerAction, PokerState, Pot, Seat, Street, TablePosition, Winner } from "./game-types";
 
-export type TablePosition = "UTG" | "HJ" | "CO" | "BTN" | "SB" | "BB";
+export type { TablePosition };
 
 export interface NewTableOptions {
   heroName: string;

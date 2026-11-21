@@ -59,6 +59,22 @@ Planned. None of this is built yet; the app currently has no accounts, server or
 - All saved progress goes through `update()` in `src/lib/store.ts`. Graded answers go through `recordDrills`, which feeds ratings, leaks and the review queue.
 - The build is a static export (`out/`) wrapped by Capacitor for iOS and Android. Don't add anything that needs a server at runtime unless the task is to add one, such as accounts or payments.
 
+### Ship every iteration
+
+When a piece of work is finished and the checks above pass, commit and push it. Don't ask first, and don't leave finished work uncommitted.
+
+1. Run `npm run build` as well, so the static export that Vercel builds also passes locally.
+2. Stage everything (`git add -A`) and write a commit message that describes the change. Never commit secrets (`.env*`, keystores, `google-services.json` with live keys and similar files).
+3. Push the current branch (`git push`, or `git push -u origin <branch>` for a new branch). Never force-push.
+4. Confirm the Vercel deploy. The GitHub repo is public and Vercel's Git integration posts a commit status, so this works without the Vercel CLI or a GitHub login:
+
+   ```sh
+   curl -s https://api.github.com/repos/edwardjones7/Inferno/commits/$(git rev-parse HEAD)/status
+   ```
+
+   Look at the `Vercel` entry. Re-check every minute or so while it's `pending`. It's done when it reads `success` ("Deployment has completed").
+5. If it reads `failure` or `error`, open its `target_url` for the build log (or reproduce with `npm run build`), fix the cause, then commit, push and check again. Work isn't finished until the deploy is green.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 ## This is NOT the Next.js you know
