@@ -5,8 +5,11 @@ import { usePathname } from "next/navigation";
 import { useSyncExternalStore } from "react";
 import { formatChips, unitsToChips } from "@/lib/chips";
 import { isMuted, onMuteChange, play, setMuted } from "@/lib/sound";
-import { streakOf, useHydrated, useProgress } from "@/lib/store";
-import { IconFlame, IconHome, IconPlay, IconProfile, IconReview, IconSound, IconTrain } from "./icons";
+import { useIsPro } from "@/lib/pro";
+import { useStreak } from "@/lib/streak-actions";
+import { StreakFlame } from "@/components/streak/streak-flame";
+import { useHydrated, useProgress } from "@/lib/store";
+import { IconHome, IconPlay, IconProfile, IconReview, IconSound, IconTrain } from "./icons";
 import { Wordmark } from "./logo";
 
 const NAV = [
@@ -147,17 +150,19 @@ function TabBar({ path }: { path: string }) {
 }
 
 function StreakPill() {
-  const p = useProgress();
-  const hydrated = useHydrated();
-  const n = hydrated ? streakOf(p.days) : 0;
+  const v = useStreak(useIsPro());
+  const n = v.streak;
   return (
-    <span
-      title={`${n}-day streak`}
-      className={`tabular flex h-9 items-center gap-1 rounded-xl px-2 text-sm font-bold ${n > 0 ? "text-ember-300" : "text-ash-500"}`}
+    <Link
+      href="/"
+      title={v.metToday ? `${n}-day streak, goal met` : n ? `${n}-day streak: ${v.goal - v.todayXp} XP left today` : "Hit today's goal to start a streak"}
+      aria-label={`${n}-day streak`}
+      className={`tabular relative flex h-9 items-center gap-0.5 rounded-xl px-1.5 text-sm font-bold ${n > 0 ? (v.atRisk ? "text-ember-200/70" : "text-ember-300") : "text-ash-500"}`}
     >
-      <IconFlame className={`h-4 w-4 ${n > 0 ? "text-ember-400 drop-shadow-[0_0_6px_rgba(255,122,31,0.8)]" : ""}`} />
+      <StreakFlame streak={n} dim={v.atRisk} size={22} />
       {n}
-    </span>
+      {v.atRisk && <span className="absolute right-0.5 top-1.5 h-1.5 w-1.5 rounded-full bg-ember-400 shadow-[0_0_6px_rgba(255,122,31,0.9)]" />}
+    </Link>
   );
 }
 

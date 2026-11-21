@@ -15,6 +15,7 @@ const REASON: Record<GrantReason, string> = {
   comeback: "Comeback chips",
   "pro-signup": "Pro welcome bonus",
   "pro-monthly": "Pro monthly chips",
+  streak: "Streak milestone",
 };
 
 function when(at: number, now: number) {

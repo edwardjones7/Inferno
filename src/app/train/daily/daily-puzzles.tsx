@@ -13,7 +13,8 @@ import { MOVE_LABEL, spotOf, type Move } from "@/lib/blackjack/strategy";
 import { dailyPuzzles, type DailyPuzzle } from "@/lib/daily";
 import { gradePoker, type PokerGrade } from "@/lib/poker/drills";
 import { play } from "@/lib/sound";
-import { recordDrills, streakOf, today, update, useHydrated, useProgress } from "@/lib/store";
+import { recordDrills, today, update, useHydrated, useProgress } from "@/lib/store";
+import { streakLength } from "@/lib/streak";
 import { choicesFor, Prompt, SpotView } from "../poker/poker-trainer";
 
 type Graded = { kind: "blackjack"; d: Decision } | { kind: "poker"; g: PokerGrade & { answer: string } };
@@ -83,7 +84,7 @@ export function DailyPuzzles() {
       </div>
 
       {finished ? (
-        <Summary answers={answers} streak={streakOf(p.days)} />
+        <Summary answers={answers} streak={streakLength(p.streak)} />
       ) : viewing ? (
         <div className="relative mt-5">
           {burst > 0 && (

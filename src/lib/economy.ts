@@ -75,7 +75,7 @@ export const LEDGER_LIMIT = 100;
 
 /* ------------------------------------------------------------------ state */
 
-export type GrantReason = "checkin" | "challenge" | "ad" | "comeback" | "pro-signup" | "pro-monthly";
+export type GrantReason = "checkin" | "challenge" | "ad" | "comeback" | "pro-signup" | "pro-monthly" | "streak";
 
 export interface LedgerEntry {
   at: number;

@@ -16,7 +16,9 @@ import { ratingTitle } from "@/lib/rating";
 import { autoQuality, HAPTICS_KEY, isToggle, useGraphics, type Graphics } from "@/lib/settings";
 import { isMuted, onMuteChange, setMuted } from "@/lib/sound";
 import { exportDataset, exportFileName } from "@/lib/decisions";
-import { accuracy, getProgress, leaksOf, resetProgress, streakOf, update, useHydrated, useProgress, type RatingKey } from "@/lib/store";
+import { accuracy, getProgress, leaksOf, resetProgress, update, useHydrated, useProgress, type RatingKey } from "@/lib/store";
+import { streakLength } from "@/lib/streak";
+import { StreakSettings } from "./streak-section";
 import { useStored } from "@/lib/use-stored";
 import { DesignsSection } from "./designs-section";
 import { DevProToggle, ProSection } from "./pro-section";
@@ -33,7 +35,7 @@ export function Profile() {
   const bjNet = unitsToChips(p.bjRounds.reduce((n, r) => n + r.payout - r.wagered, 0));
   const wins = p.matches.filter((m) => m.result === "win").length;
   const losses = p.matches.filter((m) => m.result === "loss").length;
-  const streak = streakOf(p.days);
+  const streak = streakLength(p.streak);
 
   const bjDecisions = [...p.bjRounds.flatMap((r) => r.decisions), ...p.drills.filter((d) => d.game === "blackjack")];
   const kinds = ["hard", "soft", "pair", "insurance"].map((k) => {
@@ -162,6 +164,7 @@ export function Profile() {
 
       <DesignsSection />
 
+      <StreakSettings />
       <Settings />
     </div>
   );

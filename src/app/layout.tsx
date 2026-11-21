@@ -6,6 +6,7 @@ import { EmberField } from "@/components/ember-field";
 import { NativeBridge } from "@/components/native-bridge";
 import { PrefetchTable } from "@/components/prefetch-table";
 import { PaywallHost } from "@/components/pro/paywall-host";
+import { StreakKeeper } from "@/components/streak/streak-keeper";
 import { TableLookSync } from "@/components/table-look-sync";
 import "./globals.css";
 
@@ -45,6 +46,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <PrefetchTable />
         <NativeBridge />
         <PaywallHost />
+        <StreakKeeper />
         <TableLookSync />
         <Toaster
           theme="dark"

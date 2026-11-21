@@ -13,10 +13,12 @@ import type { HandResult, RoundState } from "./blackjack/engine";
 import type { TableId } from "./blackjack/tables";
 import { chipsToUnits } from "./chips";
 import { sessionFor, type DecisionRow } from "./decisions";
-import { freshEconomy, STARTING_CHIPS, type CashSeat, type EconomyState } from "./economy";
+import { freshEconomy, grantChips, STARTING_CHIPS, type CashSeat, type EconomyState } from "./economy";
 import type { CoachSpot, HandEvent } from "./poker/game-types";
 import { difficultyOf, rate, START_RATING } from "./rating";
+import { isPro } from "./pro";
 import { schedule, srsId, type SrsCard } from "./srs";
+import { addXp, freshStreak, migrateStreak, settleStreak, trimStreak, XP, type StreakState, type XpKind, type XpResult } from "./streak";
 
 const KEY = "inferno:progress:v1";
 
@@ -127,6 +129,8 @@ export interface Progress {
   lessons: Record<string, number>;
   /** spaced-repetition cards keyed by srsId(game, key) */
   srs: Record<string, SrsCard>;
+  /** the daily goal streak: XP per day, freezes, repairs, milestones (see streak.ts) */
+  streak: StreakState;
 }
 
 // Full hand records are large (logs, cards); the decision log is compact, so it keeps far more
@@ -155,6 +159,7 @@ export function freshProgress(now = 0): Progress {
     days: [],
     lessons: {},
     srs: {},
+    streak: freshStreak(),
   };
 }
 
@@ -175,13 +180,16 @@ function load(): Progress {
     const raw = localStorage.getItem(KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<Progress>;
-      if (parsed && parsed.v === 1) p = { ...freshProgress(), ...parsed } as Progress;
+      if (parsed && parsed.v === 1) {
+        p = { ...freshProgress(), ...parsed } as Progress;
+        p.streak = migrateStreak(parsed.streak, parsed.days ?? []);
+      }
     }
   } catch {}
-  if (!p) {
-    p = { ...freshProgress(Date.now()), name: randomName() };
-    persist(p);
-  }
+  if (!p) p = { ...freshProgress(Date.now()), name: randomName() };
+  // spend freezes on missed days (or offer a repair) once a day, before anything reads the streak
+  settleStreak(p.streak);
+  persist(p);
   cache = p;
   return p;
 }
@@ -229,6 +237,7 @@ export function getProgress(): Progress {
 /** Apply a change. `fn` receives a deep copy it may mutate. */
 export function update(fn: (p: Progress) => void): Progress {
   const next = structuredClone(load());
+  settleStreak(next.streak);
   fn(next);
   trim(next);
   cache = next;
@@ -245,6 +254,7 @@ function trim(p: Progress) {
   p.pokerHands = cap(p.pokerHands, LIMITS.pokerHands);
   p.matches = cap(p.matches, LIMITS.matches);
   p.days = cap(p.days, LIMITS.days);
+  trimStreak(p.streak);
   for (const k of Object.keys(p.ratings) as RatingKey[]) p.ratings[k].history = cap(p.ratings[k].history, LIMITS.history);
   const dailyKeys = Object.keys(p.daily).sort();
   for (const k of dailyKeys.slice(0, Math.max(0, dailyKeys.length - 60))) delete p.daily[k];
@@ -257,12 +267,16 @@ function trim(p: Progress) {
 }
 
 export function resetProgress() {
-  const { name, economy } = load();
+  const { name, economy, streak } = load();
   cache = null;
   const p = { ...freshProgress(Date.now()), name };
-  // a reset starts the chips over, but one-off member grants stay claimed
+  // a reset starts the chips over, but one-off member grants and paid streak milestones stay claimed
   p.economy.proSignup = economy.proSignup;
   p.economy.proMonth = economy.proMonth;
+  p.streak.milestones = streak.milestones;
+  p.streak.proFreezeMonth = streak.proFreezeMonth;
+  p.streak.goal = streak.goal;
+  p.streak.reminder = streak.reminder;
   cache = p;
   persist(p);
   listeners.forEach((l) => l());
@@ -281,6 +295,17 @@ export function today(d = new Date()): string {
 export function touchDay(p: Progress) {
   const t = today();
   if (p.days.at(-1) !== t) p.days.push(t);
+}
+
+/**
+ * Add skill XP toward today's goal (mutates the draft) and pay any streak milestone it
+ * reaches. Learning XP comes from lessons, drills and puzzles; live XP from graded decisions
+ * at the tables, capped per day in streak.ts.
+ */
+export function gainXp(p: Progress, kind: XpKind, n: number, now = new Date()): XpResult {
+  const r = addXp(p.streak, kind, n, now, isPro());
+  for (const m of r.milestones) grantChips(p, m.chips, "streak", now.getTime(), `${m.days}-day streak`);
+  return r;
 }
 
 /** Consecutive active days ending today (or yesterday, so the streak survives until midnight). */
@@ -313,6 +338,7 @@ export function recordDrills(records: Omit<DrillRecord, "at">[]) {
       p.drills.push({ ...r, at });
       applyRating(p, "training", difficultyOf(r.kind), r.ok ? 1 : 0);
       reviewSpot(p, r);
+      gainXp(p, "learn", r.ok ? XP.drillRight : XP.drillWrong);
     }
     touchDay(p);
   });
@@ -327,12 +353,16 @@ export function reviewSpot(p: Progress, r: { game: "blackjack" | "poker"; key: s
 
 /** Append decision-log rows (mutates the draft). `make` gets the current session id. */
 export function logDecisions(p: Progress, make: (sid: string) => DecisionRow[], now = Date.now()) {
-  p.decisions.push(...make(sessionFor(p.decisions, now)));
+  const rows = make(sessionFor(p.decisions, now));
+  p.decisions.push(...rows);
+  const right = rows.filter((r) => r.ok === true).length;
+  if (right) gainXp(p, "live", right * XP.liveRight, new Date(now));
 }
 
 /** Mark a lesson finished. */
 export function completeLesson(id: string) {
   update((p) => {
+    gainXp(p, "learn", p.lessons[id] ? XP.lessonRepeat : XP.lesson);
     if (!p.lessons[id]) p.lessons[id] = Date.now();
     touchDay(p);
   });
