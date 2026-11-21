@@ -161,7 +161,7 @@ export function GameScreen({
                 <div className="sticky top-0 z-10 bg-ash-900/95 px-5 pb-2 pt-3 backdrop-blur-xl lg:pt-[calc(env(safe-area-inset-top)+20px)]">
                   <span className="mx-auto mb-2 block h-1 w-10 rounded-full bg-ash-600 lg:hidden" aria-hidden />
                   <div className="flex items-center justify-between">
-                    <h2 className="font-display text-lg tracking-[0.05em] text-brass-100">{drawerTitle}</h2>
+                    <h2 className="font-display text-lg text-brass-100">{drawerTitle}</h2>
                     <button
                       onClick={() => onDrawerChange(false)}
                       aria-label="Close"

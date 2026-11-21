@@ -28,7 +28,7 @@ export function Wordmark({ className = "" }: { className?: string }) {
   return (
     <span className={`inline-flex items-center gap-1.5 sm:gap-2 ${className}`}>
       <FlameMark className="h-7 w-7 animate-flicker drop-shadow-[0_0_10px_rgba(255,90,31,0.6)]" />
-      <span className="font-marquee text-[19px] leading-none tracking-[0.12em] molten-text sm:text-[22px] sm:tracking-[0.16em]">INFERNO</span>
+      <span className="font-display text-[15px] font-bold leading-none tracking-[0.1em] molten-text sm:text-lg sm:tracking-[0.18em]">INFERNO</span>
     </span>
   );
 }

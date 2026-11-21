@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Courier_Prime, Limelight, Manrope, Marcellus_SC } from "next/font/google";
+import { JetBrains_Mono, Manrope, Unbounded } from "next/font/google";
 import { Toaster } from "sonner";
 import { AppShell } from "@/components/app-shell";
 import { EmberField } from "@/components/ember-field";
@@ -9,13 +9,12 @@ import { PaywallHost } from "@/components/pro/paywall-host";
 import { TableLookSync } from "@/components/table-look-sync";
 import "./globals.css";
 
-// Speakeasy type: a marquee face for the big headlines, a calm deco small-caps face for
-// the other headings and labels, a typewriter for numbers (the bookie's ledger), and
-// Manrope for reading.
-const limelight = Limelight({ variable: "--font-limelight", subsets: ["latin"], weight: "400" });
-const marcellus = Marcellus_SC({ variable: "--font-marcellus", subsets: ["latin"], weight: "400" });
+// Modern back-room type: Unbounded for headings and buttons (heavy, wide, confident),
+// Manrope for reading, JetBrains Mono for numbers. The mob flavour comes from the brass and
+// ember palette and the copy, not from period fonts.
+const unbounded = Unbounded({ variable: "--font-unbounded", subsets: ["latin"] });
 const manrope = Manrope({ variable: "--font-manrope", subsets: ["latin"] });
-const courier = Courier_Prime({ variable: "--font-courier", subsets: ["latin"], weight: ["400", "700"] });
+const jetbrains = JetBrains_Mono({ variable: "--font-jetbrains", subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: { default: "Inferno: Poker & Blackjack Trainer", template: "%s · Inferno" },
@@ -39,7 +38,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${limelight.variable} ${marcellus.variable} ${manrope.variable} ${courier.variable} antialiased`}>
+    <html lang="en" className={`${unbounded.variable} ${manrope.variable} ${jetbrains.variable} antialiased`}>
       <body>
         <EmberField />
         <AppShell>{children}</AppShell>

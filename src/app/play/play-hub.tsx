@@ -25,7 +25,7 @@ export function PlayHub() {
         {/* poker vs bots: the ladder, so it gets the big poster */}
         <Link
           href="/play/poker/"
-          className="deco-corners pressable group relative flex min-h-[380px] flex-col justify-end overflow-hidden rounded-3xl ring-1 ring-ash-800 sm:min-h-[420px]"
+          className="pressable group relative flex min-h-[380px] flex-col justify-end overflow-hidden rounded-3xl ring-1 ring-ash-800 sm:min-h-[420px]"
         >
           <SceneArt base="/tables/heads-up" className="transition-transform duration-1000 group-hover:scale-[1.03]" />
 
@@ -40,7 +40,7 @@ export function PlayHub() {
 
           <div className="relative p-5 sm:p-8">
             <p className="eyebrow">Hold&apos;em · Heads-up ladder</p>
-            <h2 className="mt-1 font-marquee text-4xl sm:text-5xl">Poker vs bots</h2>
+            <h2 className="mt-1 font-display font-black tracking-tight text-4xl sm:text-5xl">Poker vs bots</h2>
             <p className="mt-2 max-w-md text-sm leading-relaxed text-ash-300">
               Eight bots, each with their own style and rating. Beat one to unlock the next. Your poker rating moves with every match.
             </p>
@@ -114,11 +114,11 @@ function TableCard({
   meta: React.ReactNode;
 }) {
   return (
-    <Link href={href} className="deco-corners pressable group relative flex min-h-[320px] flex-col justify-end overflow-hidden rounded-3xl ring-1 ring-ash-800">
+    <Link href={href} className="pressable group relative flex min-h-[320px] flex-col justify-end overflow-hidden rounded-3xl ring-1 ring-ash-800">
       <SceneArt base={art} className="transition-transform duration-1000 group-hover:scale-[1.04]" />
       <div className="relative p-5 sm:p-6">
         <p className="eyebrow">{eyebrow}</p>
-        <h2 className="mt-1 font-marquee text-3xl">{title}</h2>
+        <h2 className="mt-1 font-display font-black tracking-tight text-3xl">{title}</h2>
         <p className="mt-1.5 text-sm text-ash-300">{blurb}</p>
         <div className="mt-4 flex items-center justify-between gap-3">
           <span className="btn-fire inline-flex h-10 items-center gap-1.5 rounded-xl px-4 text-sm font-bold">

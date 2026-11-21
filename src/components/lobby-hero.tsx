@@ -216,7 +216,7 @@ export function LobbyHero({ fallback }: { fallback: ReactNode }) {
                 role="tab"
                 aria-selected={on}
                 onClick={() => go(i)}
-                className={`relative flex h-9 items-center rounded-md px-3.5 font-display text-[13px] tracking-[0.05em] transition-colors sm:px-5 ${on ? "text-[#fff3df]" : "text-ash-300 hover:text-bone"}`}
+                className={`relative flex h-9 items-center rounded-md px-3.5 font-display text-[13px] transition-colors sm:px-5 ${on ? "text-[#fff3df]" : "text-ash-300 hover:text-bone"}`}
               >
                 {on && (
                   <motion.span

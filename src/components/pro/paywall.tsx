@@ -188,7 +188,6 @@ export function Paywall({ reason, onClose }: { reason: string | null; onClose: (
       >
         {/* firelight from below the fold, a hot rim on top */}
         <div className="pointer-events-none absolute inset-x-0 top-0 h-[420px] bg-[radial-gradient(ellipse_70%_60%_at_50%_0%,rgba(255,90,31,0.32),transparent_70%)]" />
-        <div className="guilloche pointer-events-none absolute inset-x-0 top-0 h-[360px]" />
         <div className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-brass-300/80 to-transparent" />
         <Sparks />
 
@@ -283,7 +282,7 @@ function Hero({ pitch, titleId }: { pitch: Pitch; titleId: string }) {
         <FlameMark className="relative h-20 w-20 animate-flicker drop-shadow-[0_0_24px_rgba(255,90,31,0.8)]" />
       </div>
       <p className="mt-3 eyebrow">{pitch.eyebrow}</p>
-      <h2 id={titleId} className="mx-auto mt-2 max-w-sm font-marquee text-[28px] leading-[1.08] sm:text-[32px]">
+      <h2 id={titleId} className="mx-auto mt-2 max-w-sm font-display font-black tracking-tight text-[28px] leading-[1.08] sm:text-[32px]">
         <span className="molten-text">{pitch.title}</span>
       </h2>
       <p className="mx-auto mt-2.5 max-w-sm text-sm leading-relaxed text-ash-300">{pitch.sub}</p>
@@ -364,7 +363,7 @@ function Plans({
             }`}
           >
             {o.id === "annual" && save && (
-              <span className="absolute -top-2.5 right-4 rounded-sm border border-brass-300/80 bg-gradient-to-b from-[#c95c26] to-[#7f2810] px-2 py-0.5 font-display text-[11px] tracking-[0.08em] text-[#fff3df] shadow-[0_4px_14px_-4px_rgba(255,90,31,0.9)]">
+              <span className="absolute -top-2.5 right-4 rounded-sm border border-brass-300/80 bg-gradient-to-b from-[#c95c26] to-[#7f2810] px-2 py-0.5 font-display text-[11px] text-[#fff3df] shadow-[0_4px_14px_-4px_rgba(255,90,31,0.9)]">
                 Save {save}%
               </span>
             )}
@@ -419,7 +418,7 @@ function Welcome({ titleId, fresh, store, onClose }: { titleId: string; fresh: b
       )}
       <FlameMark className="h-24 w-24 animate-flicker drop-shadow-[0_0_30px_rgba(255,90,31,0.9)]" />
       <p className="mt-4 eyebrow">{PRO_NAME}</p>
-      <h2 id={titleId} className="mt-2 font-marquee text-3xl leading-tight">
+      <h2 id={titleId} className="mt-2 font-display font-black tracking-tight text-3xl leading-tight">
         <span className="molten-text">{fresh ? "You're in." : "You're already Pro."}</span>
       </h2>
       <p className="mt-2 max-w-xs text-sm text-ash-300">Every lesson, every bot and every hand you&apos;ve played is open. Go get better.</p>

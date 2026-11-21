@@ -62,7 +62,7 @@ function Sidebar({ path }: { path: string }) {
             <Link
               key={href}
               href={href}
-              className={`group relative flex h-11 items-center gap-3 rounded-md px-3 font-display text-[15px] tracking-[0.06em] transition-colors ${
+              className={`group relative flex h-11 items-center gap-3 rounded-md px-3 font-display text-[14px] font-medium transition-colors ${
                 on ? "bg-[linear-gradient(90deg,rgb(255_122_46/0.14),transparent_85%)] text-bone" : "text-ash-300 hover:bg-ash-850 hover:text-brass-100"
               }`}
             >
@@ -87,11 +87,11 @@ function PlayerCard() {
   const best = Math.max(p.ratings.poker.r, p.ratings.blackjack.r, p.ratings.training.r);
   return (
     <Link href="/profile/" className="panel flex items-center gap-3 rounded-2xl p-3 transition-colors hover:border-ember-500/40">
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-[linear-gradient(160deg,#c95c26,#7f2810)] font-display text-sm tracking-[0.08em] text-[#fff3df] shadow-[inset_0_0_0_2px_rgb(58_12_4/0.35)] ring-1 ring-brass-300/60">
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-[linear-gradient(160deg,#c95c26,#7f2810)] font-display text-sm text-[#fff3df] shadow-[inset_0_0_0_2px_rgb(58_12_4/0.35)] ring-1 ring-brass-300/60">
         {hydrated ? p.name.slice(0, 2).toUpperCase() : ""}
       </span>
       <span className="min-w-0">
-        <span className="block truncate font-display text-sm tracking-[0.04em] text-brass-100">{hydrated ? p.name : " "}</span>
+        <span className="block truncate font-display text-sm text-brass-100">{hydrated ? p.name : " "}</span>
         <span className="tabular block text-xs text-ash-400">{hydrated ? `Best rating ${best}` : " "}</span>
       </span>
     </Link>
@@ -131,7 +131,7 @@ function TabBar({ path }: { path: string }) {
               key={href}
               href={href}
               onClick={() => play("click")}
-              className={`relative flex flex-col items-center justify-center gap-1 whitespace-nowrap font-display text-[11px] tracking-[0.05em] transition-colors ${
+              className={`relative flex flex-col items-center justify-center gap-1 whitespace-nowrap text-[10px] font-bold tracking-wide transition-colors ${
                 on ? "text-bone" : "text-ash-400 active:text-ash-200"
               }`}
             >

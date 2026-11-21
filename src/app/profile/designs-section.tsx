@@ -98,7 +98,7 @@ function Tile({ item, on, pro, onPick, children }: { item: Cosmetic; on: boolean
         )}
       </span>
       <span className="flex min-h-9 items-center justify-between gap-1 px-2.5 py-2">
-        <span className={`truncate font-display text-[13px] tracking-[0.04em] ${on ? "text-bone" : "text-brass-100"}`}>{item.name}</span>
+        <span className={`truncate font-display text-[13px] ${on ? "text-bone" : "text-brass-100"}`}>{item.name}</span>
         {members && <ProBadge />}
       </span>
     </button>

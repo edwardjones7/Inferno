@@ -47,12 +47,12 @@ export function Profile() {
   return (
     <div className="mx-auto max-w-5xl px-4 pb-10 pt-5 sm:px-6 lg:pt-10">
       <div className="flex items-center gap-4">
-        <span className="grid h-16 w-16 shrink-0 place-items-center rounded-lg bg-[linear-gradient(160deg,#c95c26,#7f2810)] font-display text-xl tracking-[0.08em] text-[#fff3df] shadow-[inset_0_0_0_3px_rgb(58_12_4/0.35),0_0_40px_-12px_rgba(255,90,31,0.8)] ring-1 ring-brass-300/60">
+        <span className="grid h-16 w-16 shrink-0 place-items-center rounded-lg bg-[linear-gradient(160deg,#c95c26,#7f2810)] font-display text-xl text-[#fff3df] shadow-[inset_0_0_0_3px_rgb(58_12_4/0.35),0_0_40px_-12px_rgba(255,90,31,0.8)] ring-1 ring-brass-300/60">
           {p.name.slice(0, 2).toUpperCase()}
         </span>
         <div className="min-w-0">
           <Eyebrow>Your File</Eyebrow>
-          <h1 className="truncate font-marquee text-[26px] leading-tight sm:text-4xl">{p.name}</h1>
+          <h1 className="truncate font-display font-black tracking-tight text-[26px] leading-tight sm:text-4xl">{p.name}</h1>
           <p className="text-xs text-ash-400">
             Since {new Date(p.createdAt).toLocaleDateString("en-US", { dateStyle: "medium" })} ·{" "}
             <span className="inline-flex items-center gap-1 font-semibold text-ember-300">

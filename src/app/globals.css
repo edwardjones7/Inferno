@@ -33,18 +33,15 @@
   --color-brass-700: #45391f;
   --color-brass-800: #2a2314;
 
-  /* Deco corners are crisp: the radii are tighter than Tailwind's defaults everywhere. */
-  --radius-xl: 0.4rem;
-  --radius-2xl: 0.5rem;
-  --radius-3xl: 0.75rem;
+  /* A little tighter than Tailwind's defaults: tailored, not bubbly. */
+  --radius-xl: 0.6rem;
+  --radius-2xl: 0.8rem;
+  --radius-3xl: 1.1rem;
 
-  /* display: calm deco small caps for headings, labels and buttons.
-     marquee: the big headlines only (page titles, the home hero), like a club's sign.
-     mono: a typewriter for numbers, so ratings and balances read like a bookie's ledger. */
-  --font-display: var(--font-marcellus), "Marcellus SC", Georgia, serif;
-  --font-marquee: var(--font-limelight), var(--font-marcellus), Georgia, serif;
+  /* display: headings, labels and buttons. mono: numbers (ratings, balances, counts). */
+  --font-display: var(--font-unbounded), ui-sans-serif, system-ui;
   --font-sans: var(--font-manrope), ui-sans-serif, system-ui;
-  --font-mono: var(--font-courier), "Courier New", ui-monospace, monospace;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
 
   --animate-flicker: flicker 4s ease-in-out infinite;
   --animate-glow: glow 2.4s ease-in-out infinite;
@@ -73,9 +70,6 @@
   --molten: linear-gradient(180deg, #f7e3b6 0%, #ecb466 38%, #e07a32 70%, #b9481b 100%);
   --brass-line: rgb(174 147 93 / 0.34);
   --brass-line-faint: rgb(174 147 93 / 0.15);
-  /* Canvas textures in src/game read the display face from this name; keep it pointing at
-     the current one. */
-  --font-unbounded: var(--font-marcellus);
   /* The flat table (the felt utility) in the active table design; <html data-felt> is set
      by TableLookSync. Keep in step with src/game/designs/felt-looks.ts. */
   --felt-pool: rgb(132 36 34 / 0.72);
@@ -104,8 +98,6 @@
 
 html {
   background: var(--color-ash-950);
-  /* The deco faces ship in one weight; never smear a fake bold over them. */
-  font-synthesis-weight: none;
   -webkit-tap-highlight-color: transparent;
   -webkit-text-size-adjust: 100%;
 }
@@ -161,139 +153,104 @@ body::after {
   color: transparent;
 }
 
-/* ------------------------------------------------------------------ deco kit
-   Everything below is CSS only (gradients and box-shadows, no images), so it costs
+/* ------------------------------------------------------------------ back-room kit
+   Modern first, mob in the details: clean dark panels with a brass hairline, ember for
+   action, brass for trim. CSS only (gradients and box-shadows, no images), so it costs
    nothing extra on the low graphics tier. */
 
-/* Card / panel: a thin brass double rule. The outer line is the border; the inner one is
-   an inset shadow a few pixels in. A `ring-*` utility on the same element replaces the
-   inner rule with its own line, which still reads as a double rule. */
+/* Headings in the display face default to semibold; a font-* weight utility overrides it. */
+@layer base {
+  .font-display {
+    font-weight: 600;
+  }
+}
+
+/* Card / panel: dark lacquer with a single brass hairline. */
 @utility panel {
-  background: linear-gradient(180deg, rgb(29 22 16 / 0.88), rgb(14 10 8 / 0.9));
-  border: 1px solid var(--brass-line);
+  background: linear-gradient(180deg, rgb(29 22 16 / 0.86), rgb(14 10 8 / 0.9));
+  border: 1px solid var(--brass-line-faint);
   box-shadow:
-    inset 0 0 0 3px rgb(10 7 5 / 0.5),
-    inset 0 0 0 4px var(--brass-line-faint),
+    inset 0 1px 0 rgb(255 225 161 / 0.06),
     0 20px 40px -24px rgb(0 0 0 / 0.8);
   backdrop-filter: blur(10px);
 }
 
-/* Small stepped deco corner marks, drawn inside a positioned element (add `relative`). */
-@utility deco-corners {
-  &::before {
-    content: "";
-    position: absolute;
-    inset: 7px;
-    z-index: 1;
-    pointer-events: none;
-    --m: rgb(203 177 124 / 0.55);
-    --l: linear-gradient(var(--m), var(--m));
-    background:
-      var(--l) top left / 12px 1px no-repeat,
-      var(--l) top left / 1px 12px no-repeat,
-      var(--l) top 3px left 3px / 2px 2px no-repeat,
-      var(--l) top right / 12px 1px no-repeat,
-      var(--l) top right / 1px 12px no-repeat,
-      var(--l) top 3px right 3px / 2px 2px no-repeat,
-      var(--l) bottom left / 12px 1px no-repeat,
-      var(--l) bottom left / 1px 12px no-repeat,
-      var(--l) bottom 3px left 3px / 2px 2px no-repeat,
-      var(--l) bottom right / 12px 1px no-repeat,
-      var(--l) bottom right / 1px 12px no-repeat,
-      var(--l) bottom 3px right 3px / 2px 2px no-repeat;
-  }
-}
-
-/* A faint brass sunburst rising from the bottom edge, for hero panels. Put it on an
+/* A faint brass sunburst rising from the bottom edge, for the odd hero panel. Put it on an
    absolutely positioned layer behind the content (see <Sunburst /> in ui.tsx). */
 @utility sunburst {
-  background: repeating-conic-gradient(from -90deg at 50% 118%, rgb(203 177 124 / 0.085) 0deg 1.6deg, transparent 1.6deg 7.5deg);
+  background: repeating-conic-gradient(from -90deg at 50% 118%, rgb(203 177 124 / 0.05) 0deg 1.6deg, transparent 1.6deg 7.5deg);
   -webkit-mask-image: radial-gradient(ellipse 75% 95% at 50% 118%, #000 25%, transparent 78%);
   mask-image: radial-gradient(ellipse 75% 95% at 50% 118%, #000 25%, transparent 78%);
 }
 
-/* Engraved guilloche rings, like the face of a share certificate. */
-@utility guilloche {
-  background:
-    repeating-radial-gradient(circle at 50% -40%, transparent 0 7px, rgb(203 177 124 / 0.06) 7px 8px),
-    repeating-radial-gradient(circle at 20% -40%, transparent 0 11px, rgb(203 177 124 / 0.04) 11px 12px);
-  -webkit-mask-image: linear-gradient(180deg, #000, transparent 70%);
-  mask-image: linear-gradient(180deg, #000, transparent 70%);
-}
-
-/* Section eyebrow: a small-caps label in the deco face. */
+/* Section eyebrow: a small, tracked, uppercase label. */
 @utility eyebrow {
-  font-family: var(--font-display);
-  font-size: 12px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 800;
   line-height: 1.2;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
   color: var(--color-ember-400);
 }
 
-/* The same label with brass rules either side: ── Label ── */
+/* The same label with a short brass rule in front: ── LABEL */
 @utility eyebrow-ruled {
   display: inline-flex;
   align-items: center;
   gap: 0.7em;
-  &::before,
-  &::after {
+  &::before {
     content: "";
     height: 1px;
-    width: 1.6rem;
+    width: 1.4rem;
     flex-shrink: 0;
     background: linear-gradient(90deg, transparent, var(--color-brass-400));
   }
-  &::after {
-    background: linear-gradient(90deg, var(--color-brass-400), transparent);
-  }
 }
 
-/* Quiet small-caps label for stats and table headings. */
+/* Quiet label for stats and table headings. */
 @utility caps-label {
-  font-family: var(--font-display);
-  font-size: 11px;
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 700;
   line-height: 1.2;
   letter-spacing: 0.16em;
+  text-transform: uppercase;
   color: var(--color-ash-400);
 }
 
 /* A horizontal brass rule that fades at both ends. */
 @utility brass-rule {
   height: 1px;
-  background: linear-gradient(90deg, transparent, var(--brass-line) 15%, var(--brass-line) 85%, transparent);
+  background: linear-gradient(90deg, transparent, var(--brass-line-faint) 15%, var(--brass-line-faint) 85%, transparent);
 }
 
-/* The same rule with a brass stud in the middle: ──•── */
+/* Kept for markup that still uses it; now the plain brass rule. */
 @utility deco-rule {
-  height: 7px;
-  background:
-    radial-gradient(circle, var(--color-brass-400) 0 1.6px, rgb(10 7 5) 2px 3.4px, transparent 3.6px) center / 9px 7px no-repeat,
-    linear-gradient(90deg, transparent, var(--brass-line) 15%, var(--brass-line) 85%, transparent) center / 100% 1px no-repeat;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--brass-line-faint) 15%, var(--brass-line-faint) 85%, transparent);
 }
 
-/* Primary button: an ember plate in a brass bezel, lettered in the deco face. */
+/* Primary button: a hot ember plate with a thin brass edge. */
 @utility btn-fire {
   font-family: var(--font-display);
-  letter-spacing: 0.06em;
-  background: linear-gradient(180deg, #c95c26 0%, #a83f18 52%, #7f2810 100%);
-  color: #fff3df;
-  border: 1px solid rgb(214 186 128 / 0.75);
-  text-shadow: 0 1px 0 rgb(58 12 4 / 0.65);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  background: linear-gradient(180deg, #ff8a2e 0%, #f0561c 50%, #c2320f 100%);
+  color: #fff6ea;
+  border: 1px solid rgb(232 200 140 / 0.45);
+  text-shadow: 0 1px 0 rgb(58 12 4 / 0.45);
   box-shadow:
-    inset 0 1px 0 rgb(255 224 170 / 0.4),
-    inset 0 0 0 2px rgb(58 12 4 / 0.3),
-    inset 0 0 0 3px rgb(255 214 150 / 0.12),
-    inset 0 -2px 0 rgb(58 12 4 / 0.5),
-    0 6px 20px -8px rgb(255 90 31 / 0.6);
+    inset 0 1px 0 rgb(255 230 180 / 0.5),
+    inset 0 -2px 0 rgb(90 18 6 / 0.45),
+    0 8px 24px -10px rgb(255 90 31 / 0.7);
   transition: transform 0.12s, box-shadow 0.2s, filter 0.2s;
   &:hover:not(:disabled) {
-    filter: brightness(1.1);
+    filter: brightness(1.08);
     box-shadow:
-      inset 0 1px 0 rgb(255 224 170 / 0.5),
-      inset 0 0 0 2px rgb(58 12 4 / 0.3),
-      inset 0 0 0 3px rgb(255 214 150 / 0.16),
-      inset 0 -2px 0 rgb(58 12 4 / 0.5),
-      0 8px 28px -6px rgb(255 90 31 / 0.8);
+      inset 0 1px 0 rgb(255 230 180 / 0.6),
+      inset 0 -2px 0 rgb(90 18 6 / 0.45),
+      0 10px 32px -8px rgb(255 90 31 / 0.9);
   }
   &:active:not(:disabled) {
     transform: translateY(1px) scale(0.99);
@@ -305,21 +262,17 @@ body::after {
   }
 }
 
-/* Secondary button: an engraved outline, a groove cut into the dark wood. */
+/* Secondary button: dark, with a brass hairline. */
 @utility btn-ash {
   font-family: var(--font-display);
-  letter-spacing: 0.05em;
-  background: linear-gradient(180deg, rgb(26 19 14 / 0.92), rgb(14 10 8 / 0.92));
-  border: 1px solid rgb(174 147 93 / 0.5);
-  color: var(--color-brass-100);
-  box-shadow:
-    inset 0 1px 3px rgb(0 0 0 / 0.65),
-    inset 0 0 0 2px rgb(10 7 5 / 0.55),
-    inset 0 0 0 3px var(--brass-line-faint),
-    0 1px 0 rgb(255 225 161 / 0.05);
+  font-weight: 500;
+  background: linear-gradient(180deg, #241a14, #17110d);
+  border: 1px solid rgb(174 147 93 / 0.32);
+  color: var(--color-ash-200);
+  box-shadow: inset 0 1px 0 rgb(255 225 161 / 0.06);
   transition: border-color 0.15s, color 0.15s, transform 0.12s, background 0.15s;
   &:hover:not(:disabled) {
-    border-color: rgb(255 154 46 / 0.65);
+    border-color: rgb(255 154 46 / 0.6);
     color: var(--color-bone);
   }
   &:active:not(:disabled) {
@@ -362,10 +315,10 @@ body::after {
   }
 }
 
-/* Numbers in the typewriter face. It wins over font-display on the same element, so every
-   rating, balance and count reads like a ledger entry. */
+/* Numbers in the mono face. On a font-display element the display face wins, so big
+   headline numbers stay in Unbounded while still lining up. */
 @utility tabular {
-  font-family: var(--font-mono) !important;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 

@@ -32,14 +32,14 @@ export function ProLock({
   secondary?: React.ReactNode;
 }) {
   return (
-    <div className="panel deco-corners relative overflow-hidden rounded-3xl px-5 py-9 text-center sm:px-8">
+    <div className="panel relative overflow-hidden rounded-3xl px-5 py-9 text-center sm:px-8">
       <div aria-hidden className="sunburst pointer-events-none absolute inset-0 rotate-180" />
       <div className="pointer-events-none absolute -top-24 left-1/2 h-56 w-72 -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(255,90,31,0.28),transparent)]" />
       <span className="relative mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-ash-950/70 ring-1 ring-ember-500/40 shadow-[0_0_40px_-10px_rgba(255,90,31,0.8)]">
         <FlameMark className="h-8 w-8 animate-flicker" />
       </span>
       <p className="relative mt-4 eyebrow">{PRO_NAME}</p>
-      <h2 className="relative mt-1 font-marquee text-xl leading-tight sm:text-2xl">{title}</h2>
+      <h2 className="relative mt-1 font-display font-black tracking-tight text-xl leading-tight sm:text-2xl">{title}</h2>
       <p className="relative mx-auto mt-2 max-w-sm text-sm leading-relaxed text-ash-400">{children}</p>
       <div className="relative mx-auto mt-6 flex max-w-xs flex-col gap-2">
         <button

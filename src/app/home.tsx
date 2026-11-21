@@ -73,7 +73,7 @@ export function Home() {
             <p className="text-sm font-semibold text-ash-400">
               {hydrated ? `${greeting()}, ${p.name}` : " "}
             </p>
-            <h1 className="mt-1.5 font-marquee text-[34px] leading-[1.02] sm:text-5xl">
+            <h1 className="mt-1.5 font-display font-black tracking-tight text-[34px] leading-[1.02] sm:text-5xl">
               <span className="molten-text">Play sharp.</span>{" "}
               <span className="text-bone">Train hotter.</span>
             </h1>
@@ -114,7 +114,7 @@ export function Home() {
         <section className="mt-8 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           <Link
             href="/train/daily/"
-            className="panel deco-corners pressable group relative overflow-hidden rounded-3xl p-5"
+            className="panel pressable group relative overflow-hidden rounded-3xl p-5"
           >
             <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-[radial-gradient(closest-side,rgba(255,90,31,0.28),transparent)]" />
             <div className="relative flex items-center gap-4">
@@ -352,7 +352,7 @@ function HeroArt() {
       <div className="absolute bottom-16 right-[8%] rotate-6">
         <Chip value={500} size={66} glow />
       </div>
-      <div className="absolute right-[2%] top-[12%] font-marquee text-7xl molten-text opacity-90">
+      <div className="absolute right-[2%] top-[12%] font-display font-black tracking-tight text-7xl molten-text opacity-90">
         21
       </div>
     </div>

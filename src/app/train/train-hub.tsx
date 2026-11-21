@@ -184,7 +184,7 @@ function TrackHero({ track, hydrated }: { track: TrackId; hydrated: boolean }) {
           {track === "poker" ? <IconSpade className="h-3.5 w-3.5" /> : <IconTrain className="h-3.5 w-3.5" />}
           {info.title} · {label}
         </span>
-        <span className="mt-1 block font-marquee text-2xl leading-tight sm:text-[28px]">{next ? next.title : "Every lesson done"}</span>
+        <span className="mt-1 block font-display font-black tracking-tight text-2xl leading-tight sm:text-[28px]">{next ? next.title : "Every lesson done"}</span>
         <span className="mt-1 line-clamp-2 block max-w-md text-sm text-ash-300">{next ? next.blurb : "Revisit any lesson from the full path."}</span>
         <span className="mt-4 flex items-center gap-3">
           <span className={`inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl px-4 text-sm font-bold ${next ? "btn-fire" : "btn-ash"}`}>
@@ -204,7 +204,7 @@ function TrackHero({ track, hydrated }: { track: TrackId; hydrated: boolean }) {
     </>
   );
 
-  const cls = "group panel deco-corners pressable relative block aspect-[4/3] w-full overflow-hidden rounded-3xl text-left sm:aspect-[16/10]";
+  const cls = "group panel pressable relative block aspect-[4/3] w-full overflow-hidden rounded-3xl text-left sm:aspect-[16/10]";
   return locked && next ? (
     <button
       onClick={() => {

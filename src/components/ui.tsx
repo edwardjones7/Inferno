@@ -5,29 +5,29 @@ import { useId } from "react";
 import { play } from "@/lib/sound";
 import { IconChevron } from "./icons";
 
-/** Small-caps section label; `ruled` adds brass rules either side. */
+/** Uppercase section label; `ruled` adds a short brass rule in front. */
 export function Eyebrow({ children, ruled, className = "" }: { children: React.ReactNode; ruled?: boolean; className?: string }) {
   return <p className={`eyebrow ${ruled ? "eyebrow-ruled" : ""} ${className}`}>{children}</p>;
 }
 
-/** Page title: a ruled eyebrow over a marquee headline. */
+/** Page title: a ruled eyebrow over a heavy headline. */
 export function PageHeader({ eyebrow, title, children }: { eyebrow: string; title: string; children?: React.ReactNode }) {
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
       <div className="min-w-0">
         <Eyebrow ruled>{eyebrow}</Eyebrow>
-        <h1 className="mt-2 font-marquee text-[26px] leading-[1.1] text-bone [text-shadow:0_0_28px_rgb(255_122_46/0.22)] sm:text-4xl">{title}</h1>
+        <h1 className="mt-2 font-display font-black tracking-tight text-[26px] leading-[1.1] text-bone [text-shadow:0_0_28px_rgb(255_122_46/0.22)] sm:text-4xl">{title}</h1>
       </div>
       {children}
     </div>
   );
 }
 
-/** Section heading: deco title, a brass rule running to the optional link. */
+/** Section heading: bold title, a brass rule running to the optional link. */
 export function SectionTitle({ title, href, cta }: { title: string; href?: string; cta?: string }) {
   return (
     <div className="mb-3 flex items-center gap-3">
-      <h2 className="shrink-0 font-display text-[17px] tracking-[0.04em] text-brass-100 sm:text-lg">{title}</h2>
+      <h2 className="shrink-0 font-display text-base font-bold text-bone sm:text-lg">{title}</h2>
       <span aria-hidden className="brass-rule min-w-6 flex-1" />
       {href && (
         <Link href={href} className="eyebrow flex shrink-0 items-center gap-0.5 hover:text-ember-300">
@@ -100,7 +100,7 @@ export function Segmented<T extends string>({
             onChange(o.id);
             play("click");
           }}
-          className={`h-9 flex-1 rounded-md px-2 font-display text-[13px] tracking-[0.05em] transition-colors disabled:opacity-35 sm:text-sm ${
+          className={`h-9 flex-1 rounded-md px-2 font-display text-[13px] transition-colors disabled:opacity-35 sm:text-sm ${
             value === o.id
               ? "bg-[linear-gradient(180deg,#b84f20,#7f2810)] text-[#fff3df] shadow-[inset_0_0_0_1px_rgb(214_186_128/0.65),0_0_18px_-6px_rgba(255,90,31,0.8)]"
               : "text-ash-300 hover:text-bone"
@@ -180,5 +180,5 @@ export function Sparkline({ points, className = "h-10 w-full" }: { points: numbe
 }
 
 export function Empty({ children }: { children: React.ReactNode }) {
-  return <div className="panel deco-corners relative rounded-3xl px-5 py-10 text-center text-sm text-ash-400">{children}</div>;
+  return <div className="panel relative rounded-3xl px-5 py-10 text-center text-sm text-ash-400">{children}</div>;
 }
