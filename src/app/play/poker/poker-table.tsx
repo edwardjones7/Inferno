@@ -23,7 +23,8 @@ import { coachHero } from "@/lib/poker/table-coach";
 import { youText } from "@/lib/poker/text";
 import { resolveQuality, useGraphics } from "@/lib/settings";
 import { play } from "@/lib/sound";
-import { applyRating, getProgress, touchDay, update, useHydrated, useProgress, type PokerNote } from "@/lib/store";
+import { pokerRows } from "@/lib/decisions";
+import { applyRating, getProgress, logDecisions, touchDay, update, useHydrated, useProgress, type PokerNote } from "@/lib/store";
 import { formatChips, unitsToChips } from "@/lib/chips";
 import { buyInFor, CASH_BLINDS, CASH_BUY_IN, CASH_MIN_BUY_IN } from "@/lib/economy";
 import { EconomyError, leaveSeat, rebuy, saveSeatStack, takeSeat } from "@/lib/earn";
@@ -213,6 +214,7 @@ export function PokerTable(props: PokerMode) {
       notes.current = [];
       update((p) => {
         p.pokerHands.push(record);
+        logDecisions(p, (sid) => pokerRows(record.notes, record, sid), record.at);
         touchDay(p);
       });
     },
@@ -378,17 +380,20 @@ export function PokerTable(props: PokerMode) {
 
   // every turn starts with no chips pushed in
   const lastTurn = useRef(-1);
+  /** when the hero's current decision became visible (cards landed), for think time in the decision log */
+  const offeredAt = useRef(0);
   useEffect(() => {
     if (!opts) return;
     const marker = game.log.length;
     if (lastTurn.current === marker) return;
     lastTurn.current = marker;
+    offeredAt.current = performance.now() + Math.max(0, ...Object.values(delays)) * 1000;
     queueMicrotask(() => {
       setPushed([]);
       setPushedHistory([]);
       setSizing(false);
     });
-  }, [opts, game.log.length]);
+  }, [opts, game.log.length, delays]);
 
   /* building the bet with chips, like the blackjack table */
   const put = sumChips(pushed);
@@ -418,7 +423,16 @@ export function PokerTable(props: PokerMode) {
     (a: PlayerAction) => {
       if (!heroTurn) return;
       const note = coachHero(game, a);
-      notes.current.push({ street: game.street, ok: note.ok, title: note.title, detail: note.detail, at: game.log.length, cost: note.cost });
+      notes.current.push({
+        street: game.street,
+        ok: note.ok,
+        title: note.title,
+        detail: note.detail,
+        at: game.log.length,
+        cost: note.cost,
+        spot: note.spot,
+        ms: Math.round(Math.max(0, performance.now() - offeredAt.current)),
+      });
       if (coachPref === "1") setCoach((c) => ({ ...note, n: (c?.n ?? 0) + 1 }));
       if (a.kind === "raise" || a.kind === "call") play("chip");
       else play("click");

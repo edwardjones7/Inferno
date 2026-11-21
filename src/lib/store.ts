@@ -12,8 +12,9 @@ import type { Decision } from "./blackjack/coach";
 import type { HandResult, RoundState } from "./blackjack/engine";
 import type { TableId } from "./blackjack/tables";
 import { chipsToUnits } from "./chips";
+import { sessionFor, type DecisionRow } from "./decisions";
 import { freshEconomy, STARTING_CHIPS, type CashSeat, type EconomyState } from "./economy";
-import type { HandEvent } from "./poker/game-types";
+import type { CoachSpot, HandEvent } from "./poker/game-types";
 import { difficultyOf, rate, START_RATING } from "./rating";
 import { schedule, srsId, type SrsCard } from "./srs";
 
@@ -63,6 +64,10 @@ export interface PokerNote {
   at: number;
   /** big blinds given up vs the coach's play (absent when not estimated) */
   cost?: number;
+  /** the decision in structured form (absent on hands saved before it was recorded) */
+  spot?: CoachSpot;
+  /** think time in milliseconds */
+  ms?: number;
 }
 
 export interface PokerHandRecord {
@@ -108,6 +113,8 @@ export interface Progress {
   activeRound: ActiveRound | null;
   bjRounds: BjRoundRecord[];
   drills: DrillRecord[];
+  /** one compact row per graded live decision, both games (see decisions.ts) */
+  decisions: DecisionRow[];
   pokerHands: PokerHandRecord[];
   matches: MatchRecord[];
   ratings: Record<RatingKey, { r: number; games: number; peak: number; history: number[] }>;
@@ -122,7 +129,9 @@ export interface Progress {
   srs: Record<string, SrsCard>;
 }
 
-const LIMITS = { bjRounds: 200, drills: 2000, pokerHands: 150, matches: 200, days: 400, history: 120 };
+// Full hand records are large (logs, cards); the decision log is compact, so it keeps far more
+// history for leak detection. ~4,000 rows is roughly 1.5 MB of the ~5 MB localStorage budget.
+const LIMITS = { bjRounds: 200, drills: 2000, decisions: 4000, pokerHands: 150, matches: 200, days: 400, history: 120 };
 
 const rating = () => ({ r: START_RATING, games: 0, peak: START_RATING, history: [START_RATING] });
 
@@ -137,6 +146,7 @@ export function freshProgress(now = 0): Progress {
     activeRound: null,
     bjRounds: [],
     drills: [],
+    decisions: [],
     pokerHands: [],
     matches: [],
     ratings: { poker: rating(), blackjack: rating(), training: rating() },
@@ -231,6 +241,7 @@ function trim(p: Progress) {
   const cap = <T,>(xs: T[], n: number) => (xs.length > n ? xs.slice(xs.length - n) : xs);
   p.bjRounds = cap(p.bjRounds, LIMITS.bjRounds);
   p.drills = cap(p.drills, LIMITS.drills);
+  p.decisions = cap(p.decisions, LIMITS.decisions);
   p.pokerHands = cap(p.pokerHands, LIMITS.pokerHands);
   p.matches = cap(p.matches, LIMITS.matches);
   p.days = cap(p.days, LIMITS.days);
@@ -312,6 +323,11 @@ export function reviewSpot(p: Progress, r: { game: "blackjack" | "poker"; key: s
   const id = srsId(r.game, r.key);
   const next = schedule(p.srs[id], { game: r.game, key: r.key, label: r.label, kind: r.kind }, r.ok, today());
   if (next) p.srs[id] = next;
+}
+
+/** Append decision-log rows (mutates the draft). `make` gets the current session id. */
+export function logDecisions(p: Progress, make: (sid: string) => DecisionRow[], now = Date.now()) {
+  p.decisions.push(...make(sessionFor(p.decisions, now)));
 }
 
 /** Mark a lesson finished. */

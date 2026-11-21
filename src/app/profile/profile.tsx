@@ -1,5 +1,6 @@
 "use client";
 
+import { Capacitor } from "@capacitor/core";
 import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
@@ -14,7 +15,8 @@ import { ROSTER } from "@/lib/poker/roster";
 import { ratingTitle } from "@/lib/rating";
 import { autoQuality, HAPTICS_KEY, isToggle, useGraphics, type Graphics } from "@/lib/settings";
 import { isMuted, onMuteChange, setMuted } from "@/lib/sound";
-import { accuracy, leaksOf, resetProgress, streakOf, update, useHydrated, useProgress, type RatingKey } from "@/lib/store";
+import { exportDataset, exportFileName } from "@/lib/decisions";
+import { accuracy, getProgress, leaksOf, resetProgress, streakOf, update, useHydrated, useProgress, type RatingKey } from "@/lib/store";
 import { useStored } from "@/lib/use-stored";
 import { DesignsSection } from "./designs-section";
 import { DevProToggle, ProSection } from "./pro-section";
@@ -255,6 +257,11 @@ function Settings() {
           </Row>
         )}
         <DevProToggle />
+        <Row title="Export history" sub={`Your graded decisions and hands as a JSON file (${p.decisions.length.toLocaleString()} decisions).`}>
+          <button onClick={() => void exportHistory()} className="btn-ash h-10 rounded-xl px-3 text-xs font-bold">
+            Export
+          </button>
+        </Row>
         <Row title="Reset progress" sub="Clears ratings, history, beaten bots and chips on this device.">
           {confirmReset ? (
             <div className="flex gap-2">
@@ -290,6 +297,37 @@ function Settings() {
       </p>
     </section>
   );
+}
+
+/**
+ * Save the play history as JSON. Browsers download it; inside the app (no downloads in a
+ * WebView) it goes to the share sheet, or to the clipboard where sharing files isn't supported.
+ */
+async function exportHistory() {
+  const now = new Date();
+  const json = JSON.stringify(exportDataset(getProgress(), now.getTime()));
+  const name = exportFileName(now);
+  if (Capacitor.isNativePlatform()) {
+    const file = new File([json], name, { type: "application/json" });
+    try {
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: "Inferno history" });
+        return;
+      }
+      await navigator.clipboard.writeText(json);
+      toast.success("History copied to the clipboard");
+    } catch (e) {
+      if ((e as Error)?.name !== "AbortError") toast.error("Couldn't export your history");
+    }
+    return;
+  }
+  const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  toast.success("History exported");
 }
 
 function Row({ title, sub, children }: { title: string; sub: string; children: React.ReactNode }) {

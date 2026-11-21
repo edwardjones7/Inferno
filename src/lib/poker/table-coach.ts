@@ -21,10 +21,14 @@
  * `cost` on a note is a rough estimate, in big blinds, of what a mistake gave up: pot-odds
  * maths for calls and folds (with the equity above), the one-street toy model (`betEV`) for
  * bets and checks. It is only attached when `ok === false`.
+ *
+ * Every note also carries `spot`: the decision in structured form (situation, position,
+ * hand, the play chosen, the play the coach wanted and which way it missed) so leaks can be
+ * counted by situation and direction. See CoachSpot in game-types.ts.
  */
 import { seeded, seedFor } from "./equity";
 import { legal, positionOf, raisesThisStreet, type TablePosition } from "./game";
-import type { CoachNote, PlayerAction, PokerState, Street } from "./game-types";
+import type { CoachNote, CoachSpot, PlayerAction, PokerState, SimpleAction, SpotFamily, Street } from "./game-types";
 import {
   cbetAnswer,
   costBetween,
@@ -122,9 +126,23 @@ function realisation(s: PokerState, seatId: number, opps: number[], code: string
 
 /* ------------------------------------------------------------------ entry point */
 
+/** What the branches below fill in while grading: the coach's play and what the grade rests on. */
+interface Verdict {
+  best?: SimpleAction;
+  bestSize?: number;
+  graded: CoachSpot["graded"];
+  eq?: number;
+}
+
 export function coachHero(state: PokerState, action: PlayerAction): CoachNote {
   const seatId = state.toAct;
   if (seatId === null) return note(null, "Not your turn", "There's no decision to grade right now.");
+  const v: Verdict = { graded: "rule" };
+  const n = gradeHero(state, seatId, action, v);
+  return { ...n, spot: spotOf(state, seatId, action, v) };
+}
+
+function gradeHero(state: PokerState, seatId: number, action: PlayerAction, v: Verdict): CoachNote {
   const me = state.seats[seatId];
   const L = legal(state);
   const code = handCode(me.hole[0], me.hole[1]);
@@ -135,35 +153,117 @@ export function coachHero(state: PokerState, action: PlayerAction): CoachNote {
   if (state.street === "preflop" && raises === 0) {
     const limpers = state.seats.filter((x) => x.id !== seatId && x.hole.length > 0 && !x.folded && x.lastAction?.startsWith("Call")).length;
     if (pos === "BB" && L.canCheck) {
+      v.best = ISO_VALUE.has(code) ? "raise" : "check";
       if (action.kind === "check") return note(null, "Free flop", "Nobody raised, so checking your option is fine; raise strong hands for value.");
       if (isRaise)
         return ISO_VALUE.has(code)
           ? note(true, "Raising your option", `Raising ${code} from the big blind punishes the limp${limpers > 1 ? "ers" : ""}.`)
           : note(null, "Raising light", `${code} is a thin raise out of position against the limp${limpers > 1 ? "ers" : ""}; checking for a free flop is fine.`);
     }
-    if (pos !== "BB") return limpers ? coachBehindLimpers(action, pos, code, limpers) : coachOpen(action, pos, code);
+    if (pos !== "BB") return limpers ? coachBehindLimpers(action, pos, code, limpers, v) : coachOpen(action, pos, code, v);
   }
 
-  if (action.kind === "fold" && L.canCheck) return note(false, "Never fold for free", "Checking costs nothing here, so folding just gives up your equity.");
+  if (action.kind === "fold" && L.canCheck) {
+    v.best = "check";
+    return note(false, "Never fold for free", "Checking costs nothing here, so folding just gives up your equity.");
+  }
 
   const opps = opponentsInPot(state, seatId);
   const { eq, label } = heroEquity(state, seatId, opps);
   const vs = `≈${pct(eq)} vs ${label}`;
+  v.eq = Math.round(eq * 1000) / 1000;
 
-  if (L.toCall > 0 && state.street === "preflop") return coachVsRaise(state, seatId, action, code, eq, vs, opps, Math.max(1, raises));
-  if (L.toCall > 0) return coachVsBet(state, seatId, action, eq, vs);
+  if (L.toCall > 0 && state.street === "preflop") return coachVsRaise(state, seatId, action, code, eq, vs, opps, Math.max(1, raises), v);
+  if (L.toCall > 0) return coachVsBet(state, seatId, action, eq, vs, v);
 
   // nothing to call: checking or betting
-  if (state.street !== "preflop" && state.board.length >= 3) return coachUnopened(state, seatId, action, eq, opps.length, vs);
+  if (state.street !== "preflop" && state.board.length >= 3) return coachUnopened(state, seatId, action, eq, opps.length, vs, v);
+  v.best = undefined;
   if (action.kind === "check") return note(null, "Check", `${vs}. Checking keeps the pot small.`);
   return note(null, isRaise ? "Bet" : "Check", `${vs}.`);
 }
 
+/* ------------------------------------------------------------------ structured spot */
+
+const RANK: Record<SimpleAction, number> = { fold: 0, check: 1, call: 1, raise: 2 };
+const round2 = (x: number) => Math.round(x * 100) / 100;
+
+/** Which way `chosen` missed `best`: -1 tighter / more passive, +1 looser / more aggressive, 0 the same play. */
+export function directionOf(chosen: SimpleAction, best: SimpleAction, size?: number, bestSize?: number): -1 | 0 | 1 {
+  const d = RANK[chosen] - RANK[best];
+  if (d !== 0) return d < 0 ? -1 : 1;
+  // the same kind of play can only miss on size, using the coach's own "size up / size down" bands
+  if (chosen === "raise" && size !== undefined && bestSize !== undefined) {
+    if (bestSize <= 0.4 && size > 0.85) return 1;
+    if (bestSize >= 0.6 && size < 0.4) return -1;
+  }
+  return 0;
+}
+
+/** The situation hero is in, by street, initiative and the number of raises faced. */
+export function familyOf(s: PokerState, seatId: number): SpotFamily {
+  const L = legal(s);
+  const raises = raisesThisStreet(s);
+  if (s.street === "preflop") {
+    if (raises === 0) {
+      if (positionOf(s, seatId) === "BB" && L.canCheck) return "bb-option";
+      const limped = s.seats.some((x) => x.id !== seatId && x.hole.length > 0 && !x.folded && x.lastAction?.startsWith("Call"));
+      return limped ? "iso" : "open";
+    }
+    if (raises === 1) return "vs-open";
+    const mine = preflopRaisers(s).raisers.indexOf(seatId);
+    if (mine < 0) return "cold";
+    return mine === 0 && raises === 2 ? "vs-3bet" : "vs-4bet";
+  }
+  if (L.toCall > 0) return "vs-bet";
+  const prev = PREV[s.street];
+  const agg = prev ? aggressorOn(s, prev) : null;
+  if (agg === seatId) return "cbet";
+  if (agg !== null && live(s, agg) && actsAfter(s, agg, seatId)) return "lead";
+  return "first-in";
+}
+
+function spotOf(s: PokerState, seatId: number, action: PlayerAction, v: Verdict): CoachSpot {
+  const me = s.seats[seatId];
+  const L = legal(s);
+  const others = s.seats.filter((x) => x.id !== seatId && live(s, x.id));
+  const deepest = Math.max(0, ...others.map((x) => x.stack + x.committed));
+  const postflop = s.street !== "preflop" && s.board.length >= 3;
+  const prev = PREV[s.street];
+  const bettor = L.toCall > 0 ? aggressorOn(s, s.street) : prev ? aggressorOn(s, prev) : null;
+  const spot: CoachSpot = {
+    family: familyOf(s, seatId),
+    street: s.street,
+    pos: positionOf(s, seatId),
+    hand: handCode(me.hole[0], me.hole[1]),
+    chosen: action.kind,
+    graded: v.graded,
+    effBb: round2(Math.min(me.stack + me.committed, deepest) / s.bb),
+    opps: others.length,
+    ip: others.every((o) => actsAfter(s, seatId, o.id)),
+    potBb: round2(s.pot / s.bb),
+    toCallBb: round2(L.toCall / s.bb),
+  };
+  if (bettor !== null && bettor !== seatId) spot.vs = positionOf(s, bettor);
+  else if (others.length === 1) spot.vs = positionOf(s, others[0].id);
+  if (postflop) spot.cls = handClass(me.hole, s.board);
+  if (v.eq !== undefined) spot.eq = v.eq;
+  if (action.kind === "raise" && postflop) spot.size = round2((action.to - me.committed) / Math.max(1, s.pot));
+  if (v.best) {
+    spot.best = v.best;
+    if (v.best === "raise" && v.bestSize) spot.bestSize = v.bestSize;
+    spot.dir = directionOf(action.kind, v.best, spot.size, spot.bestSize);
+  }
+  return spot;
+}
+
 /* ------------------------------------------------------------------ pre-flop */
 
-function coachOpen(action: PlayerAction, pos: Position, code: string): CoachNote {
+function coachOpen(action: PlayerAction, pos: Position, code: string, v: Verdict): CoachNote {
   const range = OPEN_RANGES[pos];
   const inRange = range.has(code);
+  v.best = inRange ? "raise" : "fold";
+  v.graded = "chart";
   const where = `${POSITION_NAME[pos]} opens about ${Math.round(rangePercent(range))}% of hands`;
   if (action.kind === "call") {
     if (pos === "SB") return note(null, "Small-blind limp", `Limping the small blind is a valid strategy, but raise-or-fold is simpler and what these charts teach. ${where}.`);
@@ -175,9 +275,10 @@ function coachOpen(action: PlayerAction, pos: Position, code: string): CoachNote
   return note(true, "Good fold", `${code} isn't in the ${pos} opening range; ${where}.`);
 }
 
-function coachBehindLimpers(action: PlayerAction, pos: Position, code: string, limpers: number): CoachNote {
+function coachBehindLimpers(action: PlayerAction, pos: Position, code: string, limpers: number, v: Verdict): CoachNote {
   const strong = ISO_VALUE.has(code);
   const playable = OPEN_RANGES[pos].has(code);
+  v.best = playable ? "raise" : "fold";
   const them = limpers > 1 ? "limpers" : "limper";
   if (action.kind === "raise")
     return playable
@@ -239,9 +340,12 @@ function chartSpot(s: PokerState, seatId: number, opps: number[], raises: number
 }
 
 /** Grade a pre-flop response against the chart. `evCall` (bb, realisation-adjusted) only sizes the cost. */
-function coachVsChart(s: PokerState, seatId: number, action: PlayerAction, code: string, spot: ChartSpot, vs: string, evCall: number, ip: boolean): CoachNote {
+function coachVsChart(s: PokerState, seatId: number, action: PlayerAction, code: string, spot: ChartSpot, vs: string, evCall: number, ip: boolean, v: Verdict): CoachNote {
   const pos = positionOf(s, seatId);
   const want = actionOf(spot.chart, code);
+  v.graded = "chart";
+  // solvers play mixed hands both ways, so there's no single answer to miss
+  v.best = spot.chart.mixed.has(code) ? undefined : want;
   const did: ResponseAction = action.kind === "raise" ? "raise" : action.kind === "call" ? "call" : "fold";
   const say = (a: ResponseAction) => (a === "raise" ? spot.word : a);
   const value = spot.opener ? isValue3bet(spot.opener, code) : VALUE_RERAISE[0].has(code);
@@ -282,12 +386,12 @@ function coachVsChart(s: PokerState, seatId: number, action: PlayerAction, code:
   return note(false, `${code} is too loose to ${spot.word}`, `${head} Save ${spot.word}s for value hands and the best bluffs.`);
 }
 
-function coachVsRaise(s: PokerState, seatId: number, action: PlayerAction, code: string, eq: number, vs: string, opps: number[], raises: number): CoachNote {
+function coachVsRaise(s: PokerState, seatId: number, action: PlayerAction, code: string, eq: number, vs: string, opps: number[], raises: number, v: Verdict): CoachNote {
   const L = legal(s);
   const spot = chartSpot(s, seatId, opps, raises);
   if (spot) {
     const { r, ip } = realisation(s, seatId, opps, code, eq);
-    return coachVsChart(s, seatId, action, code, spot, vs, (eq * r * (s.pot + L.toCall) - L.toCall) / s.bb, ip);
+    return coachVsChart(s, seatId, action, code, spot, vs, (eq * r * (s.pot + L.toCall) - L.toCall) / s.bb, ip, v);
   }
   const lvl = Math.min(raises, 3) - 1;
   const word = RERAISE_WORD[lvl];
@@ -301,6 +405,8 @@ function coachVsRaise(s: PokerState, seatId: number, action: PlayerAction, code:
   const where = allIn ? "" : ip ? " in position" : " out of position";
   const priced = `${vs}; the price is ${pct(price)}, and${where} you need ≈${pct(need)}.`;
   const premium = VALUE_RERAISE[lvl].has(code);
+  v.graded = "equity";
+  v.best = RERAISE_RANGE[lvl].has(code) ? "raise" : diff > 0.05 ? "call" : diff < -0.05 ? "fold" : undefined;
 
   if (action.kind === "raise") {
     if (RERAISE_RANGE[lvl].has(code)) return note(true, `Good ${word}`, `${code} is a standard ${word} here. ${vs}.`);
@@ -323,7 +429,7 @@ function coachVsRaise(s: PokerState, seatId: number, action: PlayerAction, code:
 
 /* ------------------------------------------------------------------ post-flop, facing a bet */
 
-function coachVsBet(s: PokerState, seatId: number, action: PlayerAction, eq: number, vs: string): CoachNote {
+function coachVsBet(s: PokerState, seatId: number, action: PlayerAction, eq: number, vs: string, v: Verdict): CoachNote {
   const L = legal(s);
   const me = s.seats[seatId];
   const cls = handClass(me.hole, s.board);
@@ -335,6 +441,8 @@ function coachVsBet(s: PokerState, seatId: number, action: PlayerAction, eq: num
   // calling wins pot + call with probability eq and costs the call; folding is 0
   const evCallBb = (eq * (s.pot + L.toCall) - L.toCall) / s.bb;
   const priced = `${vs}; you need ${pct(price)}.`;
+  v.graded = "equity";
+  v.best = diff > band ? "call" : diff < -band ? "fold" : undefined;
   if (action.kind === "fold") {
     if (diff > band) return note(false, "Fold looks too tight", `${priced} The price is good enough to continue.`, evCallBb);
     if (diff < -band) return note(true, "Good fold", `${priced} Not enough equity for the price.`);
@@ -468,9 +576,12 @@ const BET_TITLE: Record<HandClass, string> = {
   air: "Bluff",
 };
 
-function coachUnopened(s: PokerState, seatId: number, action: PlayerAction, eq: number, opponents: number, vs: string): CoachNote {
+function coachUnopened(s: PokerState, seatId: number, action: PlayerAction, eq: number, opponents: number, vs: string, v: Verdict): CoachNote {
   const me = s.seats[seatId];
   const plan = planFor(s, seatId, opponents);
+  v.graded = "plan";
+  v.best = plan.bet ? "raise" : "check";
+  v.bestSize = plan.bet ? plan.size : undefined;
   const strength = Math.pow(eq, 1 / Math.max(1, opponents));
   const potBb = s.pot / s.bb;
   const bonus = s.board.length === 3 ? foldBonusFor(flopInfo(s.board)) : 0;

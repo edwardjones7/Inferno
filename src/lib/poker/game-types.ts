@@ -145,7 +145,10 @@ export interface CoachSpot {
   family: SpotFamily;
   street: Street;
   pos: TablePosition;
-  /** position of the player who made the bet hero faces, or of last street's aggressor when nobody has bet */
+  /**
+   * Position of the player who made the bet hero faces; when nobody has bet, of last street's
+   * aggressor, or of the only opponent when hero had the initiative heads-up.
+   */
   vs?: TablePosition;
   /** hand code, e.g. "AKs", "T9o", "77" */
   hand: string;

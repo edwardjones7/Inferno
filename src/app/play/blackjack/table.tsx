@@ -151,6 +151,8 @@ export function BlackjackTable() {
   const dramaTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   /** cards are still flying until this time (ms); table gestures wait for them */
   const animatingUntil = useRef(0);
+  /** when the current decision became visible (cards landed), for think time in the decision log */
+  const offeredAt = useRef(0);
 
   // replay of the last mistake with the right play
   const [mistake, setMistake] = useState<Replay | null>(null);
@@ -204,6 +206,7 @@ export function BlackjackTable() {
     (next: RoundPayload, nextWallet: number, prev: RoundView | null) => {
       const t = schedule(prev, next.view);
       animatingUntil.current = performance.now() + t.total * 1000;
+      offeredAt.current = animatingUntil.current;
       setTiming(t);
       setEpoch((e) => e + 1);
       setRound(next);
@@ -267,7 +270,8 @@ export function BlackjackTable() {
       const before = getProgress().activeRound;
       const snapshot = before && before.id === round.id ? structuredClone({ state: before.state, shoe: before.shoe }) : null;
       const handIndex = view.active;
-      const res = attempt(() => playAction(round.id, a));
+      const thought = Math.max(0, performance.now() - offeredAt.current);
+      const res = attempt(() => playAction(round.id, a, thought));
       if (!res) return;
       if (res.round.view.phase === "settled") setWallet(balanceUnits - (res.round.view.wagered - view.wagered));
       receive(res.round, res.chips, view);

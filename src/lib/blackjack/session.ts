@@ -6,7 +6,8 @@
  * against basic strategy and moves the blackjack rating.
  */
 import { chipsToUnits, MAX_BET, MIN_BET } from "../chips";
-import { applyRating, getProgress, reviewSpot, touchDay, update, type ActiveRound, type BjRoundRecord, type Progress } from "../store";
+import { bjRows, thinkMs } from "../decisions";
+import { applyRating, getProgress, logDecisions, reviewSpot, touchDay, update, type ActiveRound, type BjRoundRecord, type Progress } from "../store";
 import { difficultyOf } from "../rating";
 import { gradeAction, type Decision } from "./coach";
 import { applyAction, deal, toView, type ActionType, type RoundView } from "./engine";
@@ -38,6 +39,7 @@ function settle(p: Progress, r: ActiveRound) {
     decisions: r.decisions,
   };
   p.bjRounds.push(record);
+  if (r.decisions.length) logDecisions(p, (sid) => bjRows(r.decisions, record, sid));
   // live mistakes join the spaced-repetition queue just like drill misses
   for (const d of r.decisions) reviewSpot(p, { game: "blackjack", key: d.spot, label: d.label, kind: d.kind, ok: d.ok });
   p.activeRound = null;
@@ -65,13 +67,16 @@ export function startRound(betChips: number, tableId: TableId): { round: RoundPa
   return { round: payload(out!), chips: p.chips };
 }
 
-export function playAction(roundId: string, action: ActionType): { round: RoundPayload; chips: number; decision: Decision | null } {
+/** `ms`: how long the player looked at the decision before acting (for the decision log). */
+export function playAction(roundId: string, action: ActionType, ms?: number): { round: RoundPayload; chips: number; decision: Decision | null } {
   let decision: Decision | null = null;
   let after: ActiveRound | null = null;
   const p = update((p) => {
     const r = p.activeRound;
     if (!r || r.id !== roundId) throw new GameError("That hand is already over");
     decision = r.state.phase === "insurance" || r.state.phase === "player" ? gradeAction(r.state, action) : null;
+    const t = thinkMs(ms);
+    if (decision && t !== undefined) decision.ms = t;
     const next = applyAction(r.state, { type: action }, r.shoe);
     const extra = next.wagered - r.state.wagered;
     if (extra > p.chips) throw new GameError("Not enough chips for that");

@@ -19,6 +19,8 @@ export interface Decision {
   why?: string;
   /** expected loss vs the correct play, as a fraction of the bet (only for mistakes) */
   cost?: number;
+  /** think time in milliseconds, from the decision being offered to the click (live play only) */
+  ms?: number;
 }
 
 /** Grade the action the player is about to take in this state (call before applying it). */
