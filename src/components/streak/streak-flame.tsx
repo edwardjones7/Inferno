@@ -25,7 +25,7 @@ export function StreakFlame({ streak, size = 48, dim = false, className = "" }: 
     );
   }
 
-  const scale = [0, 0.72, 0.86, 0.96, 1][tier];
+  const scale = [0, 0.82, 0.9, 0.97, 1][tier];
   const outer = dim ? ["#6b2a12", "#3a1a0e"] : ["#ff9a2e", "#c9300c"];
   const core = tier >= 3 ? ["#fff7e0", "#ffd36b"] : ["#ffd36b", "#ff7a1f"];
 

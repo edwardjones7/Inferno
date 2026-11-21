@@ -4,7 +4,8 @@ import Link from "next/link";
 import { BotAvatar, TierBadge } from "@/components/bot-avatar";
 import { Chip } from "@/components/chip";
 import { ChipDot, claim } from "@/components/earn";
-import { IconCheck, IconChevron, IconFlame, IconTrain, IconTrophy } from "@/components/icons";
+import { IconCheck, IconChevron, IconTrain, IconTrophy } from "@/components/icons";
+import { StreakFlame } from "@/components/streak/streak-flame";
 import { LobbyHero } from "@/components/lobby-hero";
 import { PlayingCardStatic } from "@/components/playing-card-static";
 import { ProBadge } from "@/components/pro/pro-badge";
@@ -18,7 +19,12 @@ import { botLocked } from "@/lib/gates";
 import { isUnlocked, ROSTER } from "@/lib/poker/roster";
 import { useIsPro } from "@/lib/pro";
 import { ratingTitle } from "@/lib/rating";
-import { leaksOf, streakOf, today, useHydrated, useProgress, type RatingKey } from "@/lib/store";
+import { leaksOf, today, useHydrated, useProgress, type RatingKey } from "@/lib/store";
+import { rewardedAdsAvailable } from "@/lib/ads";
+import { repairWithAd, StreakError, useStreak } from "@/lib/streak-actions";
+import { play } from "@/lib/sound";
+import { toast } from "sonner";
+import { useState } from "react";
 
 const RATINGS: { key: RatingKey; label: string }[] = [
   { key: "poker", label: "Poker" },
@@ -40,7 +46,6 @@ export function Home() {
   useSettleLeftSeat();
   const p = useProgress();
   const hydrated = useHydrated();
-  const streak = hydrated ? streakOf(p.days) : 0;
 
   return (
     <>
@@ -51,7 +56,7 @@ export function Home() {
           <h1 className="min-w-0 truncate font-display text-lg font-bold sm:text-2xl">
             {hydrated ? `${greeting()}, ${p.name}` : " "}
           </h1>
-          <StreakPill streak={streak} />
+          <StreakPill />
         </header>
 
         <div className="mt-4 grid items-start gap-4 lg:grid-cols-[1.5fr_1fr]">
@@ -66,17 +71,41 @@ export function Home() {
 }
 
 /** Desktop only: on phones the top bar already shows the streak. */
-function StreakPill({ streak }: { streak: number }) {
+function StreakPill() {
+  const v = useStreak(useIsPro());
+  const streak = v.streak;
   return (
     <span
-      title={streak ? "Play or train today to keep it going" : "Play a hand or solve a puzzle to start a streak"}
-      className={`tabular hidden h-9 shrink-0 items-center gap-1.5 rounded-full lg:flex px-3 text-sm font-bold ring-1 ${
+      title={v.metToday ? "Today's goal is met" : streak ? "Hit today's goal to keep it going" : "Hit today's goal to start a streak"}
+      className={`tabular hidden h-9 shrink-0 items-center gap-1 rounded-full lg:flex pl-1.5 pr-3 text-sm font-bold ring-1 ${
         streak ? "bg-ember-500/12 text-ember-200 ring-ember-500/40" : "bg-ash-900 text-ash-400 ring-ash-700"
       }`}
     >
-      <IconFlame className={`h-4 w-4 ${streak ? "animate-flicker text-ember-400" : "text-ash-600"}`} />
+      <StreakFlame streak={streak} dim={v.atRisk} size={22} />
       {streak} day{streak === 1 ? "" : "s"}
     </span>
+  );
+}
+
+/** Repair a broken streak with a rewarded ad (the other way, double the goal, needs no button). */
+function RepairButton() {
+  const [busy, setBusy] = useState(false);
+  const go = async () => {
+    setBusy(true);
+    try {
+      const n = await repairWithAd();
+      if (n) play("win");
+      else toast("No reward this time. Earning double your goal repairs it too.");
+    } catch (e) {
+      toast.error(e instanceof StreakError ? e.message : "Couldn't repair the streak");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <button disabled={busy} onClick={() => void go()} className="btn-fire h-9 shrink-0 rounded-xl px-3.5 text-xs disabled:opacity-60">
+      {busy ? "…" : "Watch ad"}
+    </button>
   );
 }
 
@@ -96,7 +125,52 @@ function Today() {
   const next = ROSTER.find((b) => !p.beaten.includes(b.id) && isUnlocked(b.id, p.beaten)) ?? ROSTER[ROSTER.length - 1];
   const nextLocked = hydrated && botLocked(next.id, pro);
 
+  const v = useStreak(pro);
   const items: TodayItem[] = [];
+
+  if (v.ready && v.repair)
+    items.push({
+      key: "repair",
+      done: false,
+      node: (
+        <Row
+          href={rewardedAdsAvailable() ? undefined : "/train/"}
+          icon={
+            <span className="grid h-10 w-10 place-items-center rounded-full bg-ember-600/15 ring-1 ring-ember-500/50">
+              <StreakFlame streak={v.repair.length} dim size={30} />
+            </span>
+          }
+          title={`Repair your ${v.repair.length}-day streak`}
+          sub={rewardedAdsAvailable() ? `Watch an ad, or earn ${v.goal * 2} XP today` : `Earn ${v.goal * 2} XP today to bring it back`}
+          action={rewardedAdsAvailable() ? <RepairButton /> : undefined}
+        />
+      ),
+    });
+
+  if (v.ready)
+    items.push({
+      key: "goal",
+      done: v.metToday,
+      node: (
+        <Row
+          href="/train/"
+          icon={
+            <Ring value={v.todayXp / v.goal} size={40} stroke={4}>
+              <StreakFlame streak={v.streak} dim={!v.metToday} size={22} />
+            </Ring>
+          }
+          title={v.metToday ? `Goal met · ${v.streak}-day streak` : `Daily goal · ${Math.min(v.todayXp, v.goal)}/${v.goal} XP`}
+          sub={
+            v.metToday
+              ? "Back tomorrow to keep it burning"
+              : v.streak
+                ? `${v.goal - v.todayXp} XP keeps your ${v.streak}-day streak`
+                : "A lesson or five drill answers lights a streak"
+          }
+          done={v.metToday}
+        />
+      ),
+    });
 
   if (s)
     items.push({

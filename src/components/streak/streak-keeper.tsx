@@ -13,7 +13,7 @@ import { play } from "@/lib/sound";
 import type { Celebration } from "@/lib/streak";
 import { grantProFreeze, setReminder, shiftCelebration } from "@/lib/streak-actions";
 import { useHydrated, useProgress } from "@/lib/store";
-import { IconFreeze } from "./streak-card";
+import { IconFreeze } from "@/components/icons";
 import { StreakFlame } from "./streak-flame";
 
 /** Screens where a celebration would get in the way of a hand; it waits until you leave. */

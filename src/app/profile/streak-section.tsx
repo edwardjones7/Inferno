@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { ChipDot } from "@/components/earn";
-import { IconFreeze } from "@/components/streak/streak-card";
+import { IconFreeze } from "@/components/icons";
 import { StreakFlame } from "@/components/streak/streak-flame";
 import { SectionTitle, Segmented, Switch } from "@/components/ui";
 import { formatChips } from "@/lib/chips";
@@ -67,7 +67,7 @@ export function StreakSettings() {
             label="Daily goal"
             value={v.goalId}
             onChange={setGoal}
-            options={GOAL_IDS.map((id) => ({ id, label: `${GOALS[id].label} · ${GOALS[id].xp}` }))}
+            options={GOAL_IDS.map((id) => ({ id, label: GOALS[id].label }))}
           />
         </div>
 

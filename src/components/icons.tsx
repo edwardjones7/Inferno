@@ -134,3 +134,10 @@ export const IconStep = ({ className, dir = "next" }: P & { dir?: "next" | "prev
     {dir === "last" && <path d="M17 6v12M7 6l6 6-6 6" />}
   </svg>
 );
+
+/** A streak freeze: a snowflake. */
+export const IconFreeze = ({ className }: P) => (
+  <svg {...base(className)}>
+    <path d="M12 2v20M3.3 7l17.4 10M3.3 17 20.7 7M9 4l3 2 3-2M9 20l3-2 3 2M4 10.5l3.4-.4L6 7M20 10.5l-3.4-.4L18 7M4 13.5l3.4.4L6 17M20 13.5l-3.4.4L18 17" />
+  </svg>
+);
