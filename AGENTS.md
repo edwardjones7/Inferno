@@ -63,17 +63,24 @@ Planned. None of this is built yet; the app currently has no accounts, server or
 
 When a piece of work is finished and the checks above pass, commit and push it. Don't ask first, and don't leave finished work uncommitted.
 
-1. Run `npm run build` as well, so the static export that Vercel builds also passes locally.
-2. Stage everything (`git add -A`) and write a commit message that describes the change. Never commit secrets (`.env*`, keystores, `google-services.json` with live keys and similar files).
-3. Push the current branch (`git push`, or `git push -u origin <branch>` for a new branch). Never force-push.
-4. Confirm the Vercel deploy. The GitHub repo is public and Vercel's Git integration posts a commit status, so this works without the Vercel CLI or a GitHub login:
+**Other agents may be working in this checkout at the same time.** Assume that any change you didn't make yourself is someone else's unfinished work. Your commit must contain only your own work, and it must build without theirs.
+
+1. **Know your files.** Keep track of every file you create, edit or delete. Before committing, run `git status --short` and compare. Anything else that shows up as modified or untracked belongs to another agent.
+2. **Never touch their work.** Don't stage, commit, revert, stash, reset, checkout, reformat or delete files you didn't change. That rules out `git add -A`, `git add .`, `git commit -a`, `git stash`, `git checkout -- <file>` and `git reset --hard`.
+3. **Stage by path.** Use `git add -- <your files>`, then check with `git diff --cached --stat` that the commit holds only your files. Never commit secrets (`.env*`, keystores, `google-services.json` with live keys and similar files).
+4. **Shared files.** If another agent has uncommitted edits in a file you also changed, the whole file goes into your commit. Commit it only if their part is complete and builds. Otherwise wait for them to commit, or keep going on other files and come back. Don't commit half of someone else's change.
+5. **Don't depend on uncommitted work.** If your change imports or calls something that exists only in another agent's uncommitted files, your commit will break the deploy. Wait until that work is committed, or don't build on it.
+6. **Check what you're committing, not the working tree.** Run `npm test`, `npm run typecheck`, `npm run lint` and `npm run build`. If they fail only in files you didn't touch, the cause is another agent's work in progress: leave it alone and don't let it block you. Failures in your own files, or in anything that imports them, are yours to fix. The Vercel deploy in step 9 builds exactly what you committed, so it's the final check.
+7. **Commit small and often.** Use a message that describes your change. Smaller commits overlap less with other agents' work.
+8. **Push.** Run `git push`, or `git push -u origin <branch>` for a new branch. If the push is rejected because the remote moved, run `git pull --rebase --autostash` and push again. `--autostash` puts other agents' uncommitted files back exactly as they were. If the rebase conflicts in a file you don't own, run `git rebase --abort` and stop to ask. Never force-push.
+9. **Confirm the Vercel deploy.** The GitHub repo is public and Vercel's Git integration posts a commit status, so this works without the Vercel CLI or a GitHub login:
 
    ```sh
    curl -s https://api.github.com/repos/edwardjones7/Inferno/commits/$(git rev-parse HEAD)/status
    ```
 
    Look at the `Vercel` entry. Re-check every minute or so while it's `pending`. It's done when it reads `success` ("Deployment has completed").
-5. If it reads `failure` or `error`, open its `target_url` for the build log (or reproduce with `npm run build`), fix the cause, then commit, push and check again. Work isn't finished until the deploy is green.
+10. **If it reads `failure` or `error`,** open its `target_url` for the build log. If your commit caused it, fix it, commit, push and check again. If another agent's commit broke it, don't rewrite their code. Fix only what's needed to get the build green, keep their intent, and say so in your commit message. Work isn't finished until the deploy is green.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
