@@ -147,6 +147,7 @@ export function DealerFigure({
           <div className="pointer-events-none">
             <div
               key={line.key}
+              data-callout-avoid
               className="w-max max-w-[220px] animate-rise rounded-2xl rounded-tl-sm bg-ash-950/90 px-3 py-2 text-[12px] font-semibold leading-snug text-bone shadow-lg ring-1 ring-ember-500/40 backdrop-blur"
             >
               <span className="mb-0.5 block text-[9px] font-bold uppercase tracking-[0.18em] text-ember-400">{profile.name}</span>

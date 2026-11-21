@@ -70,7 +70,7 @@ export function OutcomeBanner({ result, roundId }: { result: Outcome | null; rou
           transition={{ type: "spring", stiffness: 300, damping: 22 }}
           className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
         >
-          <div className="rounded-2xl bg-ash-950/92 px-7 py-3 text-center ring-1 ring-ash-600/60 shadow-[0_10px_40px_rgba(0,0,0,0.6)]">
+          <div data-callout-avoid className="rounded-2xl bg-ash-950/92 px-7 py-3 text-center ring-1 ring-ash-600/60 shadow-[0_10px_40px_rgba(0,0,0,0.6)]">
             <p
               className={`font-display text-2xl font-black uppercase tracking-wider sm:text-3xl ${
                 result.tone === "win" ? "molten-text" : result.tone === "push" ? "text-ash-200" : "text-ash-400"

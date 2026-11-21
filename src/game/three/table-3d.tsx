@@ -13,8 +13,9 @@ import { Stakes, ChipTray } from "./chips";
 import { Effects } from "./effects";
 import { Environment } from "./environment";
 import { SceneFxContext, type SceneFx } from "./fx-context";
+import { CalloutProjector, type CalloutSpec } from "./callouts";
 import { describe, LabelProjector, Labels } from "./labels";
-import { BET_Z, handX, labelAnchors, layoutCards, type Anchors } from "./table-layout";
+import { BET_Z, handX, labelAnchors, layoutCards } from "./table-layout";
 import { ActiveRing, Shoe, TableBody } from "./table-body";
 import { ShaderWarmup } from "./warmup";
 
@@ -41,10 +42,8 @@ export interface Table3DProps {
   callouts?: Callout[];
 }
 
-export interface Callout {
-  id: string;
-  /** world-space anchor on the table */
-  at: [number, number, number];
+/** An HTML callout placed next to a group of cards, clear of everything else on screen. */
+export interface Callout extends CalloutSpec {
   node: React.ReactNode;
 }
 
@@ -69,11 +68,13 @@ function BetSpot({ onTap }: { onTap: () => void }) {
 
 
 const NO_INSETS = { top: 0, bottom: 0 };
+const NO_CALLOUTS: Callout[] = [];
 
 function Scene(props: Table3DProps & { labelEls: React.RefObject<Map<string, HTMLDivElement>>; insets: { top: number; bottom: number } }) {
   const { view, roundId, timing, epoch, revealed, pendingBetUsd, toUsd, labelEls, tableId, callouts, insets } = props;
   const slots = view && roundId ? layoutCards(view, roundId) : [];
   const shown = view?.phase === "settled" && revealed;
+  const anchors = labelAnchors(view);
 
   return (
     <>
@@ -107,7 +108,8 @@ function Scene(props: Table3DProps & { labelEls: React.RefObject<Map<string, HTM
 
       {props.onBetSpot && <BetSpot onTap={props.onBetSpot} />}
 
-      <LabelProjector anchors={withCallouts(labelAnchors(view), callouts)} els={labelEls} />
+      <LabelProjector anchors={anchors} els={labelEls} />
+      <CalloutProjector callouts={callouts ?? NO_CALLOUTS} slots={slots} labelAnchors={anchors} els={labelEls} insets={insets} />
       <CameraRig
         focus={props.focus ?? "table"}
         focusX={view && view.phase === "player" ? handX(view.active, view.hands.length) : 0}
@@ -118,13 +120,6 @@ function Scene(props: Table3DProps & { labelEls: React.RefObject<Map<string, HTM
       <Effects />
     </>
   );
-}
-
-function withCallouts(anchors: Anchors, callouts: Callout[] | undefined): Anchors {
-  if (!callouts?.length) return anchors;
-  const out = { ...anchors };
-  for (const c of callouts) out[`co:${c.id}`] = c.at;
-  return out;
 }
 
 /** Half-width of what must stay in frame: the dealer's cards, the tray and every hand. */
@@ -243,7 +238,7 @@ export default function Table3D(props: Table3DProps) {
           <div
             key={c.id}
             ref={register(`co:${c.id}`)}
-            className="absolute left-0 top-0 opacity-0 will-change-transform"
+            className="group absolute left-0 top-0 opacity-0 will-change-transform"
           >
             {c.node}
           </div>

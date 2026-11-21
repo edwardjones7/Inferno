@@ -9,7 +9,6 @@ import { ChipRail } from "@/components/chip-rail";
 import { EmberBurst } from "@/components/ember-burst";
 import { DrawerSection, GameScreen, useGameInsets } from "@/components/game-screen";
 import { Switch } from "@/components/ui";
-import { HAND_Z, DEALER_Z, handX } from "@/game/three/table-layout";
 import type { Callout } from "@/game/three/table-3d";
 import { FlatTable } from "./flat-table";
 import { HeatMeter, OutcomeBanner } from "./parts";
@@ -420,19 +419,18 @@ export function BlackjackTable() {
     const out: Callout[] = [];
     if (replay || !view) return out;
     const n = view.hands.length;
-    const anchorOver = (hi: number): [number, number, number] => [handX(hi, n), 0.02, HAND_Z - 0.82];
+    // listed by priority: earlier callouts get first pick of the clear space
     if (coachNote && coachNote.hand < n) {
-      out.push({ id: `note-${coachNote.n}`, at: anchorOver(coachNote.hand), node: <CoachBubble note={coachNote} /> });
+      out.push({ id: `note-${coachNote.n}`, near: coachNote.hand, sides: COACH_SIDES, node: <CoachBubble note={coachNote} /> });
     } else if (hint && view.phase === "player") {
-      out.push({ id: "hint", at: anchorOver(view.active), node: <HintPill move={hint} /> });
+      out.push({ id: "hint", near: view.active, sides: COACH_SIDES, node: <HintPill move={hint} /> });
     }
     if (showOdds && hand && view.phase === "player") {
       const p = bustIfHit(hand.cards);
-      const x = handX(view.active, n) + 0.62 + (hand.cards.length - 1) * 0.13;
-      out.push({ id: "bust", at: [x, 0.02, HAND_Z + 0.1], node: <OddsTag label="Bust if you hit" value={pct(p)} hot={p >= 0.5} /> });
+      out.push({ id: "bust", near: view.active, sides: ODDS_SIDES, node: <OddsTag label="Bust if you hit" value={pct(p)} hot={p >= 0.5} /> });
       if (view.dealer[0]) {
         const d = dealerBust(view.dealer[0], table.rules.dealerHitsSoft17);
-        out.push({ id: "dealer", at: [1.15, 0.02, DEALER_Z], node: <OddsTag label="Dealer busts" value={pct(d)} hot={d >= 0.4} /> });
+        out.push({ id: "dealer", near: -1, sides: ODDS_SIDES, node: <OddsTag label="Dealer busts" value={pct(d)} hot={d >= 0.4} /> });
       }
     }
     return out;
@@ -861,6 +859,10 @@ function Dock(props: {
 
 /* ------------------------------------------------------------------ callouts */
 
+// over the cards first, so the advice reads before the cards; below them when that's taken
+const COACH_SIDES = ["above", "below", "top", "bottom"] as const;
+const ODDS_SIDES = ["right", "left", "below", "above"] as const;
+
 function CoachBubble({ note }: { note: CoachNote }) {
   return (
     <motion.div
@@ -889,15 +891,16 @@ function CoachBubble({ note }: { note: CoachNote }) {
             <>
               <span className="font-bold">{note.label}:</span> the right play is <span className="font-bold text-ember-300">{choiceLabel(note.correct).toLowerCase()}</span>
               {typeof note.cost === "number" && note.cost > 0 && <span className="text-ash-300"> (costs ~{formatCost(note.cost)} of your bet on average)</span>}
-              . <span className="text-ash-300">{note.why}</span>
+              .{/* dropped when the table has no room for it (see CalloutProjector) */}
+              <span className="text-ash-300 group-data-[fit=tight]:hidden"> {note.why}</span>
             </>
           )}
         </span>
       </span>
-      {/* tail pointing down at the cards */}
+      {/* tail pointing at the cards: down when the bubble sits above them, up when below */}
       <span
         aria-hidden
-        className={`absolute -bottom-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 ${note.ok ? "bg-emerald-950/85" : "bg-ash-950/90"}`}
+        className={`absolute -bottom-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 group-data-[side=below]:-top-1.5 group-data-[side=below]:bottom-auto group-data-[side=bottom]:hidden group-data-[side=top]:hidden ${note.ok ? "bg-emerald-950/85" : "bg-ash-950/90"}`}
       />
     </motion.div>
   );
