@@ -19,6 +19,7 @@ import { exportDataset, exportFileName } from "@/lib/decisions";
 import { accuracy, getProgress, leaksOf, resetProgress, update, useHydrated, useProgress, type RatingKey } from "@/lib/store";
 import { streakLength } from "@/lib/streak";
 import { StreakSettings } from "./streak-section";
+import { AccountSection } from "./account-section";
 import { useStored } from "@/lib/use-stored";
 import { DesignsSection } from "./designs-section";
 import { DevProToggle, ProSection } from "./pro-section";
@@ -165,6 +166,7 @@ export function Profile() {
       <DesignsSection />
 
       <StreakSettings />
+      <AccountSection />
       <Settings />
     </div>
   );

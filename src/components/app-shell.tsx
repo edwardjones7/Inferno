@@ -21,7 +21,7 @@ const NAV = [
 ];
 
 /** Full-screen game screens: the 3D table fills the viewport with its own HUD. */
-const GAME_ROUTES = ["/play/blackjack", "/play/poker/match", "/play/poker/table"];
+const GAME_ROUTES = ["/play/blackjack", "/play/poker/match", "/play/poker/table", "/play/friends/table"];
 
 const norm = (p: string) => (p.length > 1 && p.endsWith("/") ? p.slice(0, -1) : p);
 const isActive = (path: string, href: string) => {

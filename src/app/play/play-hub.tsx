@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { BotAvatar } from "@/components/bot-avatar";
-import { IconChevron } from "@/components/icons";
+import { IconChevron, IconFriends } from "@/components/icons";
 import { SceneArt } from "@/components/scene-art";
 import { PageHeader } from "@/components/ui";
 import { formatChips, unitsToChips } from "@/lib/chips";
@@ -91,6 +91,20 @@ export function PlayHub() {
             }
           />
         </div>
+
+        {/* private tables with friends */}
+        <Link href="/play/friends/" className="panel pressable group relative flex items-center gap-4 overflow-hidden rounded-3xl p-5">
+          <div className="absolute -left-10 -top-14 h-44 w-44 rounded-full bg-[radial-gradient(closest-side,rgba(214,186,128,0.18),transparent)]" />
+          <span className="relative grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-brass-500/12 text-brass-300 ring-1 ring-brass-400/40">
+            <IconFriends className="h-7 w-7" />
+          </span>
+          <span className="relative min-w-0 flex-1">
+            <span className="eyebrow block">Private table</span>
+            <span className="mt-0.5 block font-display text-xl font-bold">Play with friends</span>
+            <span className="block text-xs text-ash-400">Hold&apos;em or co-op blackjack with a table code. Table chips only; review every hand together after.</span>
+          </span>
+          <IconChevron className="relative h-5 w-5 shrink-0 text-ash-500 transition-colors group-hover:text-ember-300" />
+        </Link>
       </div>
     </div>
   );

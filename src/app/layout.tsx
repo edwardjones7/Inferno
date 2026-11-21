@@ -7,6 +7,7 @@ import { NativeBridge } from "@/components/native-bridge";
 import { PrefetchTable } from "@/components/prefetch-table";
 import { PaywallHost } from "@/components/pro/paywall-host";
 import { StreakKeeper } from "@/components/streak/streak-keeper";
+import { OnlineKeeper } from "@/components/online/online-keeper";
 import { TableLookSync } from "@/components/table-look-sync";
 import "./globals.css";
 
@@ -47,6 +48,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <NativeBridge />
         <PaywallHost />
         <StreakKeeper />
+        <OnlineKeeper />
         <TableLookSync />
         <Toaster
           theme="dark"

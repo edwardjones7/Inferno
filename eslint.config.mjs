@@ -17,6 +17,8 @@ const eslintConfig = defineConfig([
     "android/**",
     // agent worktrees (each has its own checkout and build output)
     ".claude/**",
+    // Deno edge functions (Supabase) and the bundle generated for them
+    "supabase/functions/**",
   ]),
 ]);
 

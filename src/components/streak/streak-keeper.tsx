@@ -17,7 +17,7 @@ import { IconFreeze } from "@/components/icons";
 import { StreakFlame } from "./streak-flame";
 
 /** Screens where a celebration would get in the way of a hand; it waits until you leave. */
-const BUSY = ["/play/poker/match", "/play/poker/table", "/play/blackjack"];
+const BUSY = ["/play/poker/match", "/play/poker/table", "/play/blackjack", "/play/friends/table"];
 
 /**
  * Mounted once in the layout. Shows streak celebrations as they're queued (goal met,

@@ -266,6 +266,33 @@ function trim(p: Progress) {
   }
 }
 
+/** Listen for any saved change (this tab or another). Returns the unsubscribe. */
+export function onProgressChange(l: () => void): () => void {
+  return subscribe(l);
+}
+
+/** How much has been done on this device: graded answers, hands, rounds, matches and lessons. */
+export function activityOf(p: Pick<Progress, "drills" | "decisions" | "bjRounds" | "pokerHands" | "matches" | "lessons">): number {
+  return p.drills.length + p.decisions.length + p.bjRounds.length + p.pokerHands.length + p.matches.length + Object.keys(p.lessons).length;
+}
+
+/**
+ * Replace everything on this device with a saved document (restoring a cloud backup).
+ * Unknown versions are refused rather than half-loaded.
+ */
+export function replaceProgress(doc: unknown): boolean {
+  if (!doc || typeof doc !== "object" || (doc as { v?: unknown }).v !== 1) return false;
+  const parsed = doc as Partial<Progress>;
+  const p = { ...freshProgress(), ...parsed } as Progress;
+  p.streak = migrateStreak(parsed.streak, parsed.days ?? []);
+  settleStreak(p.streak);
+  trim(p);
+  cache = p;
+  persist(p);
+  listeners.forEach((l) => l());
+  return true;
+}
+
 export function resetProgress() {
   const { name, economy, streak } = load();
   cache = null;

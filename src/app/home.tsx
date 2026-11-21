@@ -4,7 +4,7 @@ import Link from "next/link";
 import { BotAvatar, TierBadge } from "@/components/bot-avatar";
 import { Chip } from "@/components/chip";
 import { ChipDot, claim } from "@/components/earn";
-import { IconCheck, IconChevron, IconTrain, IconTrophy } from "@/components/icons";
+import { IconCheck, IconChevron, IconFriends, IconTrain, IconTrophy } from "@/components/icons";
 import { StreakFlame } from "@/components/streak/streak-flame";
 import { LobbyHero } from "@/components/lobby-hero";
 import { PlayingCardStatic } from "@/components/playing-card-static";
@@ -56,7 +56,12 @@ export function Home() {
           <h1 className="min-w-0 truncate font-display text-lg font-bold sm:text-2xl">
             {hydrated ? `${greeting()}, ${p.name}` : " "}
           </h1>
-          <StreakPill />
+          <div className="flex shrink-0 items-center gap-2">
+            <Link href="/friends/" aria-label="Friends" className="btn-ash grid h-9 w-9 place-items-center rounded-full">
+              <IconFriends className="h-[18px] w-[18px]" />
+            </Link>
+            <StreakPill />
+          </div>
         </header>
 
         <div className="mt-4 grid items-start gap-4 lg:grid-cols-[1.5fr_1fr]">

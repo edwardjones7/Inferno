@@ -290,6 +290,31 @@ function settle(s: RoundState): RoundState {
   return s;
 }
 
+/* ---------------------------------------------------------------- shared dealer */
+
+/** True while a dealer holding `cards` must draw under `rules`. */
+export function dealerMustHit(cards: readonly Card[], rules: Rules): boolean {
+  const { total, soft } = handTotal(cards);
+  return total < 17 || (total === 17 && soft && rules.dealerHitsSoft17);
+}
+
+/**
+ * Settle a round against the given dealer cards. Tables where several players share one
+ * dealer (friends' blackjack) play each player's round on its own, then settle every round
+ * against the dealer's real hand.
+ */
+export function settleAgainst(state: RoundState, dealer: readonly Card[]): RoundState {
+  const s = clone(state);
+  s.dealer = [...dealer];
+  return settle(s);
+}
+
+/** A hand that still needs the dealer to play out: not surrendered, not bust, not a natural. */
+export function needsDealer(s: RoundState): boolean {
+  if (s.dealerBlackjack) return false;
+  return s.hands.some((h) => !h.surrendered && !isBust(h.cards) && !isPlayerBlackjack(s, h));
+}
+
 /* ---------------------------------------------------------------- client view */
 
 export interface RoundView {

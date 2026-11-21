@@ -141,3 +141,32 @@ export const IconFreeze = ({ className }: P) => (
     <path d="M12 2v20M3.3 7l17.4 10M3.3 17 20.7 7M9 4l3 2 3-2M9 20l3-2 3 2M4 10.5l3.4-.4L6 7M20 10.5l-3.4-.4L18 7M4 13.5l3.4.4L6 17M20 13.5l-3.4.4L18 17" />
   </svg>
 );
+
+export const IconFriends = ({ className }: P) => (
+  <svg {...base(className)}>
+    <circle cx="9" cy="8" r="3.2" />
+    <path d="M3 19.5c.6-3.3 3-5.2 6-5.2s5.4 1.9 6 5.2" />
+    <circle cx="17" cy="9" r="2.6" />
+    <path d="M16.2 14.4c2.6-.3 4.4 1.3 4.9 4.3" />
+  </svg>
+);
+
+export const IconCloud = ({ className }: P) => (
+  <svg {...base(className)}>
+    <path d="M7 18.5h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.6 9.6 4.5 4.5 0 0 0 7 18.5Z" />
+  </svg>
+);
+
+export const IconCopy = ({ className }: P) => (
+  <svg {...base(className)}>
+    <rect x="8.5" y="8.5" width="11" height="11" rx="2" />
+    <path d="M15.5 8.5V6.5a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2" />
+  </svg>
+);
+
+export const IconSend = ({ className }: P) => (
+  <svg {...base(className)}>
+    <path d="M4 12 20 4l-4.5 16-3.8-6.7L4 12Z" />
+    <path d="m11.7 13.3 3.8-3.8" />
+  </svg>
+);
