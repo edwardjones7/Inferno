@@ -45,3 +45,6 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# leak-model decision pool (regenerate with npm run ml:pool)
+/ml/data/

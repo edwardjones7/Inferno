@@ -20,6 +20,7 @@ import { youText } from "@/lib/poker/text";
 import { openPaywall, PRO_NAME, useIsPro } from "@/lib/pro";
 import { play } from "@/lib/sound";
 import { useHydrated, useProgress, type BjRoundRecord, type PokerHandRecord, type PokerNote } from "@/lib/store";
+import { LeakPanel } from "./leak-panel";
 
 type Tab = "poker" | "blackjack" | "matches";
 const isTab = (v: unknown): v is Tab => v === "poker" || v === "blackjack" || v === "matches";
@@ -82,9 +83,15 @@ export function Review() {
       {!hydrated ? (
         <div className="panel h-72 animate-pulse rounded-3xl" />
       ) : tab === "poker" ? (
-        <PokerReview hands={p.pokerHands} mistakesOnly={mistakesOnly} sort={sort} pro={pro} />
+        <>
+          <LeakPanel game="poker" />
+          <PokerReview hands={p.pokerHands} mistakesOnly={mistakesOnly} sort={sort} pro={pro} />
+        </>
       ) : tab === "blackjack" ? (
-        <BlackjackReview rounds={p.bjRounds} mistakesOnly={mistakesOnly} sort={sort} pro={pro} />
+        <>
+          <LeakPanel game="blackjack" />
+          <BlackjackReview rounds={p.bjRounds} mistakesOnly={mistakesOnly} sort={sort} pro={pro} />
+        </>
       ) : (
         <MatchList matches={p.matches} />
       )}

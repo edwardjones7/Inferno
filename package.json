@@ -9,6 +9,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
+    "ml:pool": "tsx scripts/ml/build-pool.ts",
+    "ml:eval": "tsx scripts/ml/evaluate.ts",
     "edge:build": "node scripts/build-edge.mjs",
     "cap:sync": "next build && node scripts/admob-app-ids.mjs && cap sync",
     "ios": "npm run cap:sync && cap open ios",
